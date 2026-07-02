@@ -1,0 +1,8 @@
+[package]
+name = "bench-runner"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bench-core.workspace = true
+bench-output.workspace = true

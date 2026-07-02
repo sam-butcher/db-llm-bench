@@ -1,0 +1,23 @@
+[package]
+name = "bench-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "db-llm-bench"
+path = "src/main.rs"
+
+[dependencies]
+bench-core.workspace = true
+bench-config.workspace = true
+bench-runner.workspace = true
+bench-output.workspace = true
+db-typedb.workspace = true
+db-neo4j.workspace = true
+db-sql.workspace = true
+provider-claude.workspace = true
+provider-llama.workspace = true
+provider-chatgpt.workspace = true
+anyhow.workspace = true
+serde_yaml.workspace = true
+tokio.workspace = true

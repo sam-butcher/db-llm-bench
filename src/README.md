@@ -14,9 +14,13 @@ Inputs (taken in through config file - see config.yml for a suggested format):
     - Contains template slot for the question
     - Contains template slot for the schema
     - Contains template slot for any examples
-    - Slot syntax is `{{question}}`, `{{schema}}`, and `{{examples}}`
+    - Contains template slot for skills (filled with the loaded `.md` skill files, empty when running
+      with skills off)
+    - Slot syntax is `{{question}}`, `{{schema}}`, `{{examples}}`, and `{{skills}}`
     - Must instruct the model to respond with exactly one fenced code block containing only the query,
-      or the literal token `UNANSWERABLE` if it believes the question cannot be answered against the schema
+      or the literal token `UNANSWERABLE` alone on its own line if it believes the question cannot be
+      answered against the schema (the own-line rule stops prose that merely mentions the token from
+      reading as a decline)
   - URL of DB
   - Whatever auth info is required for the DB
   - Optional skills path - any `.md` files in this folder will be loaded as skills when generating queries
@@ -31,7 +35,8 @@ Inputs (taken in through config file - see config.yml for a suggested format):
 - Questions path
   - Path to the list of questions
   - List of questions will be a JSON file containing a list of questions
-  - each question also has a difficulty level, correct query in each language, and expected result
+  - each question also has a difficulty level, correct query in each language (under a `queries` map,
+    keyed by language), and expected result
   - We may augment each question with its expected return type (e.g. numeric vs object), so the framework knows how to compare results for that question
 - Example counts
   - List of numbers indicating what level of examples we should test with
@@ -41,6 +46,8 @@ Inputs (taken in through config file - see config.yml for a suggested format):
   - List of numbers indicating what level of max retry counts we should test with
   - This indicates how many times we allow the query to outright error, with the error being returned to the LLM for iteration, before marking a failure
   - An error is anything that can't possibly be correct - incorrect result shape, syntax error, timeout - but not empty results
+  - Infrastructure errors (DB connection failures, provider rate limits) are not the model's fault and
+    don't count as retries - the harness retries those itself with backoff, without involving the model
   - On retry, the LLM receives the prior conversation plus the error message
   - Runs only execute at the highest configured retry count; results for the lower counts are derived from the attempt trace rather than re-run
 
@@ -60,9 +67,11 @@ With these inputs the program will do the following for each DB/example count/sk
   - Comparison depends on the question - e.g. "how many cars are there" compares a number, others may compare full objects
   - Individual DB packages handle result type coercion on a per-DB basis
 
-At the end, it will produce a file containing the list of questions along with their generated queries, 
-and whether each query for a given language failed. Each result record includes the model used, the
-number of retries actually used, token usage, and the attempt trace.
+At the end, it will produce a file containing the list of questions along with their generated queries,
+and whether each query failed. Results are keyed by DB ID (not query language, so two DBs sharing a
+language don't collide). Each result record includes the model used, the number of retries actually
+used, and the full attempt trace - with per-attempt token usage and latency, so lower retry levels can
+be derived by cutting the trace.
 
 ```json
 {
@@ -71,61 +80,61 @@ number of retries actually used, token usage, and the attempt trace.
       "question": "How many cars are there?",
       "difficulty": "easy",
       "expected": 3,
-      "typeql": {
-        "correct": "match $x isa car; count;",
-        "results": [
-          {
-            "model": "claude-opus-4.8",
-            "maxRetries": 0,
-            "retriesUsed": 0,
-            "examples": 0,
-            "skills": false,
-            "repetition": 1,
-            "generated": "match $x isa car; count",
-            "attempts": [
-              { "query": "match $x isa car; count", "error": "syntax error: ..." }
-            ],
-            "tokens": 1234,
-            "result": "error",
-            "accurate": false
-          }
-        ]
-      },
-      "sql": {
-        "correct": "SELECT COUNT(*) FROM Cars;",
-        "results": [
-          {
-            "model": "claude-opus-4.8",
-            "maxRetries": 0,
-            "retriesUsed": 0,
-            "examples": 0,
-            "skills": false,
-            "repetition": 1,
-            "generated": "SELECT COUNT(*) FROM Cars;",
-            "attempts": [],
-            "tokens": 1180,
-            "result": 3,
-            "accurate": true
-          }
-        ]
-      },
-      "cypher": {
-        "correct": "MATCH (c:Car) RETURN count(*)",
-        "results": [
-          {
-            "model": "claude-opus-4.8",
-            "maxRetries": 0,
-            "retriesUsed": 0,
-            "examples": 0,
-            "skills": false,
-            "repetition": 1,
-            "generated": "MATCH (c:Car) RETURN count(c.age)",
-            "attempts": [],
-            "tokens": 1305,
-            "result": 2,
-            "accurate": false
-          }
-        ]
+      "dbs": {
+        "typedb": {
+          "language": "typeql",
+          "correct": "match $x isa car; count;",
+          "results": [
+            {
+              "model": "claude-opus-4.8",
+              "maxRetries": 0,
+              "retriesUsed": 0,
+              "examples": 0,
+              "skills": false,
+              "repetition": 1,
+              "generated": "match $x isa car; count",
+              "attempts": [
+                {
+                  "query": "match $x isa car; count",
+                  "tokens": { "input": 1200, "output": 34 },
+                  "latencyMs": 900,
+                  "error": "syntax error: ..."
+                }
+              ],
+              "tokens": { "input": 1200, "output": 34 },
+              "latencyMs": 900,
+              "result": "error",
+              "accurate": false
+            }
+          ]
+        },
+        "sql": {
+          "language": "sql",
+          "correct": "SELECT COUNT(*) FROM Cars;",
+          "results": [
+            {
+              "model": "claude-opus-4.8",
+              "maxRetries": 0,
+              "retriesUsed": 0,
+              "examples": 0,
+              "skills": false,
+              "repetition": 1,
+              "generated": "SELECT COUNT(*) FROM Cars;",
+              "attempts": [
+                {
+                  "query": "SELECT COUNT(*) FROM Cars;",
+                  "tokens": { "input": 1150, "output": 30 },
+                  "latencyMs": 850,
+                  "error": null
+                }
+              ],
+              "tokens": { "input": 1150, "output": 30 },
+              "latencyMs": 850,
+              "result": 3,
+              "accurate": true
+            }
+          ]
+        }
       }
     }
   ]

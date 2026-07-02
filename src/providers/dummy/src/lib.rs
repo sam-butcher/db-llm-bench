@@ -1,12 +1,13 @@
 //! Dummy provider for testing: replays scripted responses in order and
 //! errors once the script runs out. Every conversation received is recorded
-//! for assertions. Token count is the response text length.
+//! for assertions. Token counts are text lengths (input: conversation,
+//! output: response), so they're deterministic and nonzero.
 
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
-use bench_core::{Message, ModelProvider, ModelResponse, ProviderError};
+use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, TokenUsage};
 use serde::Deserialize;
 
 /// Deserialized from this provider's entry in config.yml, for smoke runs
@@ -55,10 +56,13 @@ impl ModelProvider for DummyProvider {
         self.conversations.lock().unwrap().push(conversation.to_vec());
         match self.responses.lock().unwrap().pop_front() {
             Some(text) => Ok(ModelResponse {
-                tokens: text.len() as u64,
+                tokens: TokenUsage {
+                    input: conversation.iter().map(|m| m.content.len() as u64).sum(),
+                    output: text.len() as u64,
+                },
                 text,
             }),
-            None => Err(ProviderError(
+            None => Err(ProviderError::Fatal(
                 "dummy provider ran out of scripted responses".to_string(),
             )),
         }

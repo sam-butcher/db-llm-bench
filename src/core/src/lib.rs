@@ -5,9 +5,11 @@
 pub mod db;
 pub mod model;
 pub mod question;
+pub mod record;
 pub mod value;
 
 pub use db::{Database, QueryError};
-pub use model::{Message, ModelProvider, ModelResponse, ProviderError, Role};
+pub use model::{Message, ModelProvider, ModelResponse, ProviderError, Role, TokenUsage};
 pub use question::{Question, QuestionFile};
+pub use record::{Attempt, BenchmarkOutput, DbOutput, QuestionOutput, RecordResult, ResultRecord};
 pub use value::Value;

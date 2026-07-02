@@ -1,0 +1,39 @@
+[workspace]
+resolver = "3"
+members = [
+    "core",
+    "config",
+    "dbs/typedb",
+    "dbs/neo4j",
+    "dbs/sql",
+    "providers/claude",
+    "providers/llama",
+    "providers/chatgpt",
+    "runner",
+    "output",
+    "cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+bench-core = { path = "core" }
+bench-config = { path = "config" }
+bench-runner = { path = "runner" }
+bench-output = { path = "output" }
+db-typedb = { path = "dbs/typedb" }
+db-neo4j = { path = "dbs/neo4j" }
+db-sql = { path = "dbs/sql" }
+provider-claude = { path = "providers/claude" }
+provider-llama = { path = "providers/llama" }
+provider-chatgpt = { path = "providers/chatgpt" }
+
+anyhow = "1"
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

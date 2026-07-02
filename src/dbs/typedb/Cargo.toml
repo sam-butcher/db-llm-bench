@@ -1,0 +1,8 @@
+[package]
+name = "db-typedb"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bench-core.workspace = true
+async-trait.workspace = true

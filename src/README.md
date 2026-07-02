@@ -14,6 +14,7 @@ Inputs (taken in through config file - see config.yml for a suggested format):
     - Contains template slot for the question
     - Contains template slot for the schema
     - Contains template slot for any examples
+    - Slot syntax is `{{question}}`, `{{schema}}`, and `{{examples}}`
     - Must instruct the model to respond with exactly one fenced code block containing only the query,
       or the literal token `UNANSWERABLE` if it believes the question cannot be answered against the schema
   - URL of DB

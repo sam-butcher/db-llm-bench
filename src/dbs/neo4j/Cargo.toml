@@ -1,8 +1,0 @@
-[package]
-name = "db-neo4j"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-bench-core.workspace = true
-async-trait.workspace = true

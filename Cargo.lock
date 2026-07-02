@@ -29,13 +29,7 @@ dependencies = [
  "bench-output",
  "bench-runner",
  "db-dummy",
- "db-neo4j",
- "db-sql",
- "db-typedb",
- "provider-chatgpt",
- "provider-claude",
  "provider-dummy",
- "provider-llama",
  "serde_yaml",
  "tokio",
 ]
@@ -89,30 +83,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "db-neo4j"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bench-core",
-]
-
-[[package]]
-name = "db-sql"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bench-core",
-]
-
-[[package]]
-name = "db-typedb"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bench-core",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -162,24 +132,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "provider-chatgpt"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bench-core",
- "serde",
-]
-
-[[package]]
-name = "provider-claude"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bench-core",
- "serde",
-]
-
-[[package]]
 name = "provider-dummy"
 version = "0.1.0"
 dependencies = [
@@ -187,15 +139,6 @@ dependencies = [
  "bench-core",
  "serde",
  "tokio",
-]
-
-[[package]]
-name = "provider-llama"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bench-core",
- "serde",
 ]
 
 [[package]]

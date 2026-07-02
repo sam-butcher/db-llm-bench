@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use bench_core::question::QuestionFile;
 use serde::Deserialize;
@@ -11,10 +12,13 @@ use thiserror::Error;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    pub dbs: Vec<BTreeMap<String, DbConfig>>,
+    /// The YAML's list-of-single-key-maps shape is a serialization artifact;
+    /// access goes through [`Config::db_entries`].
+    dbs: Vec<BTreeMap<String, DbConfig>>,
     /// Each entry maps a provider ID to its provider-specific config, which
     /// the matching provider package interprets (extension stays localised).
-    pub models: Vec<BTreeMap<String, serde_yaml::Value>>,
+    /// Access goes through [`Config::model_entries`].
+    models: Vec<BTreeMap<String, serde_yaml::Value>>,
     pub questions_path: PathBuf,
     pub example_counts: Vec<u32>,
     /// Runs only execute at the highest count; lower levels are derived from
@@ -43,8 +47,19 @@ pub enum ConfigError {
         #[source]
         source: std::io::Error,
     },
-    #[error("failed to parse {path}: {message}")]
-    Parse { path: PathBuf, message: String },
+    #[error("failed to parse {source_name}: {message}")]
+    Parse { source_name: String, message: String },
+}
+
+impl FromStr for Config {
+    type Err = ConfigError;
+
+    fn from_str(yaml: &str) -> Result<Config, ConfigError> {
+        serde_yaml::from_str(yaml).map_err(|e| ConfigError::Parse {
+            source_name: "<string>".to_string(),
+            message: e.to_string(),
+        })
+    }
 }
 
 impl Config {
@@ -53,9 +68,12 @@ impl Config {
             path: path.to_path_buf(),
             source,
         })?;
-        serde_yaml::from_str(&raw).map_err(|e| ConfigError::Parse {
-            path: path.to_path_buf(),
-            message: e.to_string(),
+        raw.parse::<Config>().map_err(|e| match e {
+            ConfigError::Parse { message, .. } => ConfigError::Parse {
+                source_name: path.display().to_string(),
+                message,
+            },
+            other => other,
         })
     }
 
@@ -78,7 +96,49 @@ pub fn load_questions(path: &Path) -> Result<QuestionFile, ConfigError> {
         source,
     })?;
     serde_json::from_str(&raw).map_err(|e| ConfigError::Parse {
-        path: path.to_path_buf(),
+        source_name: path.display().to_string(),
         message: e.to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_and_flattens_entries() {
+        let config: Config = "\
+dbs:
+  - dummy:
+      prompts: prompts/dummy
+      url: unused
+      schema: schema.txt
+models:
+  - dummy:
+      responses: [\"```\\n3\\n```\"]
+questionsPath: questions.json
+exampleCounts: [0, 1]
+maxRetryCounts: [0, 2]
+"
+        .parse()
+        .unwrap();
+
+        let dbs: Vec<_> = config.db_entries().collect();
+        assert_eq!(dbs.len(), 1);
+        assert_eq!(dbs[0].0, "dummy");
+        assert_eq!(dbs[0].1.url, "unused");
+        assert!(dbs[0].1.skills.is_none());
+
+        let models: Vec<_> = config.model_entries().collect();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].0, "dummy");
+    }
+
+    #[test]
+    fn invalid_yaml_is_a_parse_error() {
+        assert!(matches!(
+            "not: [valid".parse::<Config>(),
+            Err(ConfigError::Parse { .. })
+        ));
+    }
 }

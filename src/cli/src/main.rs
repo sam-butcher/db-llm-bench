@@ -11,6 +11,7 @@ fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
         "typedb" => Box::new(db_typedb::TypeDb::new(cfg.url.clone())),
         "neo4j" => Box::new(db_neo4j::Neo4j::new(cfg.url.clone())),
         "sql" => Box::new(db_sql::Sql::new(cfg.url.clone())),
+        "dummy" => Box::new(db_dummy::DummyDb::new()),
         other => anyhow::bail!("unknown DB id: {other}"),
     })
 }
@@ -28,6 +29,9 @@ fn build_model(id: &str, cfg: &serde_yaml::Value) -> anyhow::Result<Box<dyn Mode
         "chatgpt" => Box::new(provider_chatgpt::ChatGpt::new(serde_yaml::from_value(
             cfg.clone(),
         )?)),
+        "dummy" => Box::new(provider_dummy::DummyProvider::from(
+            serde_yaml::from_value::<provider_dummy::DummyConfig>(cfg.clone())?,
+        )),
         other => anyhow::bail!("unknown model id: {other}"),
     })
 }

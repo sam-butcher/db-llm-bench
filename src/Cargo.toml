@@ -6,9 +6,11 @@ members = [
     "dbs/typedb",
     "dbs/neo4j",
     "dbs/sql",
+    "dbs/dummy",
     "providers/claude",
     "providers/llama",
     "providers/chatgpt",
+    "providers/dummy",
     "runner",
     "output",
     "cli",
@@ -26,9 +28,11 @@ bench-output = { path = "output" }
 db-typedb = { path = "dbs/typedb" }
 db-neo4j = { path = "dbs/neo4j" }
 db-sql = { path = "dbs/sql" }
+db-dummy = { path = "dbs/dummy" }
 provider-claude = { path = "providers/claude" }
 provider-llama = { path = "providers/llama" }
 provider-chatgpt = { path = "providers/chatgpt" }
+provider-dummy = { path = "providers/dummy" }
 
 anyhow = "1"
 async-trait = "0.1"

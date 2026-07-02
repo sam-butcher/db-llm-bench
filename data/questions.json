@@ -1,0 +1,12 @@
+{
+  "questions" : [
+    {
+      "question": "How many cars are there?",
+      "difficulty": "easy",
+      "typeql": "match $x isa car; count;",
+      "sql": "SELECT COUNT(*) FROM Cars;",
+      "cypher": "MATCH (c:Car) RETURN count(*)",
+      "expected": 3
+    }
+  ]
+}

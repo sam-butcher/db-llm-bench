@@ -18,7 +18,12 @@ dbs:
       skills: ...
       schema: ...
 models:
-  - dummy
+  - dummy:
+      responses:
+        - |
+          ```
+          3
+          ```
 questionsPath: ...
 exampleCounts:
   - 0

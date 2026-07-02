@@ -15,10 +15,10 @@ fn build_db(id: &str, _cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
 
 /// Each valid model ID gets its own package; the provider package interprets
 /// its own config entry.
-fn build_model(id: &str, cfg: &serde_yaml::Value) -> anyhow::Result<Box<dyn ModelProvider>> {
+fn build_model(id: &str, cfg: &serde_json::Value) -> anyhow::Result<Box<dyn ModelProvider>> {
     Ok(match id {
         "dummy" => Box::new(provider_dummy::DummyProvider::from(
-            serde_yaml::from_value::<provider_dummy::DummyConfig>(cfg.clone())?,
+            serde_json::from_value::<provider_dummy::DummyConfig>(cfg.clone())?,
         )),
         other => anyhow::bail!("unknown model id: {other}"),
     })

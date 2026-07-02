@@ -28,11 +28,13 @@ dependencies = [
  "bench-core",
  "bench-output",
  "bench-runner",
+ "db-dummy",
  "db-neo4j",
  "db-sql",
  "db-typedb",
  "provider-chatgpt",
  "provider-claude",
+ "provider-dummy",
  "provider-llama",
  "serde_yaml",
  "tokio",
@@ -74,6 +76,16 @@ version = "0.1.0"
 dependencies = [
  "bench-core",
  "bench-output",
+]
+
+[[package]]
+name = "db-dummy"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bench-core",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -165,6 +177,16 @@ dependencies = [
  "async-trait",
  "bench-core",
  "serde",
+]
+
+[[package]]
+name = "provider-dummy"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bench-core",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

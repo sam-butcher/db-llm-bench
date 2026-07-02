@@ -49,16 +49,20 @@ pub enum ConfigError {
     },
     #[error("failed to parse {source_name}: {message}")]
     Parse { source_name: String, message: String },
+    #[error("invalid config: {0}")]
+    Invalid(String),
 }
 
 impl FromStr for Config {
     type Err = ConfigError;
 
     fn from_str(yaml: &str) -> Result<Config, ConfigError> {
-        serde_yaml::from_str(yaml).map_err(|e| ConfigError::Parse {
+        let config: Config = serde_yaml::from_str(yaml).map_err(|e| ConfigError::Parse {
             source_name: "<string>".to_string(),
             message: e.to_string(),
-        })
+        })?;
+        config.validate()?;
+        Ok(config)
     }
 }
 
@@ -87,6 +91,35 @@ impl Config {
         self.models
             .iter()
             .flat_map(|entry| entry.iter().map(|(id, cfg)| (id.as_str(), cfg)))
+    }
+
+    fn validate(&self) -> Result<(), ConfigError> {
+        fn no_duplicates<'a>(
+            kind: &str,
+            ids: impl Iterator<Item = &'a str>,
+        ) -> Result<usize, ConfigError> {
+            let mut seen = std::collections::BTreeSet::new();
+            let mut count = 0;
+            for id in ids {
+                if !seen.insert(id) {
+                    return Err(ConfigError::Invalid(format!("duplicate {kind} id: {id}")));
+                }
+                count += 1;
+            }
+            if count == 0 {
+                return Err(ConfigError::Invalid(format!("no {kind}s configured")));
+            }
+            Ok(count)
+        }
+        no_duplicates("DB", self.db_entries().map(|(id, _)| id))?;
+        no_duplicates("model", self.model_entries().map(|(id, _)| id))?;
+        if self.example_counts.is_empty() {
+            return Err(ConfigError::Invalid("exampleCounts is empty".to_string()));
+        }
+        if self.max_retry_counts.is_empty() {
+            return Err(ConfigError::Invalid("maxRetryCounts is empty".to_string()));
+        }
+        Ok(())
     }
 }
 
@@ -139,6 +172,52 @@ maxRetryCounts: [0, 2]
         assert!(matches!(
             "not: [valid".parse::<Config>(),
             Err(ConfigError::Parse { .. })
+        ));
+    }
+
+    #[test]
+    fn duplicate_db_ids_are_rejected() {
+        let yaml = "\
+dbs:
+  - dummy:
+      prompts: p
+      url: u
+      schema: s
+  - dummy:
+      prompts: p
+      url: u
+      schema: s
+models:
+  - dummy:
+      responses: []
+questionsPath: q.json
+exampleCounts: [0]
+maxRetryCounts: [0]
+";
+        assert!(matches!(
+            yaml.parse::<Config>(),
+            Err(ConfigError::Invalid(msg)) if msg.contains("duplicate DB id")
+        ));
+    }
+
+    #[test]
+    fn empty_example_counts_are_rejected() {
+        let yaml = "\
+dbs:
+  - dummy:
+      prompts: p
+      url: u
+      schema: s
+models:
+  - dummy:
+      responses: []
+questionsPath: q.json
+exampleCounts: []
+maxRetryCounts: [0]
+";
+        assert!(matches!(
+            yaml.parse::<Config>(),
+            Err(ConfigError::Invalid(msg)) if msg.contains("exampleCounts")
         ));
     }
 }

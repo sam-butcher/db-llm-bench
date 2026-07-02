@@ -2,14 +2,15 @@
 //! setup. Runs each question at the highest configured retry count; lower
 //! retry levels are derived from the attempt trace during output marshalling.
 
-use bench_core::{Database, ModelProvider, Question};
-use bench_output::ResultRecord;
+use bench_core::{Database, ModelProvider, Question, ResultRecord};
 
 /// Repetitions per question/setup cell, to account for LLM non-determinism.
 pub const REPETITIONS: u32 = 3;
 
-/// Literal token the prompt instructs the model to emit when it believes the
-/// question cannot be answered against the schema.
+/// Literal token the prompt instructs the model to emit, alone on its own
+/// line, when it believes the question cannot be answered against the
+/// schema. The own-line rule keeps prose that merely mentions the token
+/// (e.g. "I shouldn't say UNANSWERABLE here") from reading as a decline.
 pub const UNANSWERABLE_TOKEN: &str = "UNANSWERABLE";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,24 +46,30 @@ pub fn extract_query(response: &str) -> Extraction {
             return Extraction::Query(query.to_string());
         }
     }
-    if response.contains(UNANSWERABLE_TOKEN) {
+    if response
+        .lines()
+        .any(|line| line.trim() == UNANSWERABLE_TOKEN)
+    {
         Extraction::Unanswerable
     } else {
         Extraction::Malformed
     }
 }
 
-/// Fill the prompt template's slots.
+/// Fill the prompt template's slots. `skills` is empty when this setup runs
+/// with skills off.
 pub fn assemble_prompt(
     template: &str,
     question: &str,
     schema: &str,
     examples: &[String],
+    skills: &[String],
 ) -> String {
     template
         .replace("{{question}}", question)
         .replace("{{schema}}", schema)
         .replace("{{examples}}", &examples.join("\n\n"))
+        .replace("{{skills}}", &skills.join("\n\n"))
 }
 
 pub struct BenchmarkRunner<'a> {
@@ -107,10 +114,18 @@ mod tests {
     }
 
     #[test]
-    fn unanswerable_token_without_block_is_unanswerable() {
+    fn unanswerable_token_on_its_own_line_is_unanswerable() {
         assert_eq!(
-            extract_query("UNANSWERABLE - the schema has no such attribute."),
+            extract_query("UNANSWERABLE\nThe schema has no such attribute."),
             Extraction::Unanswerable
+        );
+    }
+
+    #[test]
+    fn token_mentioned_in_prose_is_malformed() {
+        assert_eq!(
+            extract_query("I shouldn't say UNANSWERABLE here, but there is no query."),
+            Extraction::Malformed
         );
     }
 

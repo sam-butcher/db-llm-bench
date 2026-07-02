@@ -3,10 +3,13 @@ use thiserror::Error;
 
 use crate::Value;
 
-/// Anything that can't possibly be a correct answer: wrong result shape,
-/// syntax error, timeout. Empty results are NOT errors — they come back as a
-/// normal [`Value`]. All variants are retryable; the display message is what
-/// gets returned to the LLM for iteration.
+/// Why a query produced no usable result. Empty results are NOT errors —
+/// they come back as a normal [`Value`].
+///
+/// Model-fault variants (anything that can't possibly be a correct answer:
+/// wrong result shape, syntax error, timeout) are fed back to the LLM and
+/// count against its retry budget. `Infrastructure` is the harness's problem
+/// — it gets retried with backoff without involving or penalising the model.
 #[derive(Debug, Error)]
 pub enum QueryError {
     #[error("syntax error: {0}")]
@@ -15,8 +18,18 @@ pub enum QueryError {
     Timeout,
     #[error("result had the wrong shape: {0}")]
     WrongShape(String),
-    #[error("connection error: {0}")]
-    Connection(String),
+    /// Connection failures, DB restarts, and anything else that is not the
+    /// model's fault.
+    #[error("infrastructure error: {0}")]
+    Infrastructure(String),
+}
+
+impl QueryError {
+    /// Whether this error counts against the model's retry budget (and gets
+    /// fed back to it), as opposed to being retried at the harness level.
+    pub fn is_model_fault(&self) -> bool {
+        !matches!(self, QueryError::Infrastructure(_))
+    }
 }
 
 /// Unified interface implemented by each DB package.

@@ -6,11 +6,8 @@ use bench_core::{Database, ModelProvider};
 
 /// Each valid DB ID gets its own package; adding a DB means adding a crate
 /// and an arm here.
-fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
+fn build_db(id: &str, _cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
     Ok(match id {
-        "typedb" => Box::new(db_typedb::TypeDb::new(cfg.url.clone())),
-        "neo4j" => Box::new(db_neo4j::Neo4j::new(cfg.url.clone())),
-        "sql" => Box::new(db_sql::Sql::new(cfg.url.clone())),
         "dummy" => Box::new(db_dummy::DummyDb::new()),
         other => anyhow::bail!("unknown DB id: {other}"),
     })
@@ -20,15 +17,6 @@ fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
 /// its own config entry.
 fn build_model(id: &str, cfg: &serde_yaml::Value) -> anyhow::Result<Box<dyn ModelProvider>> {
     Ok(match id {
-        "claude" => Box::new(provider_claude::Claude::new(serde_yaml::from_value(
-            cfg.clone(),
-        )?)),
-        "llama" => Box::new(provider_llama::Llama::new(serde_yaml::from_value(
-            cfg.clone(),
-        )?)),
-        "chatgpt" => Box::new(provider_chatgpt::ChatGpt::new(serde_yaml::from_value(
-            cfg.clone(),
-        )?)),
         "dummy" => Box::new(provider_dummy::DummyProvider::from(
             serde_yaml::from_value::<provider_dummy::DummyConfig>(cfg.clone())?,
         )),

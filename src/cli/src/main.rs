@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use bench_config::{Config, DbConfig, load_questions};
 use bench_core::{BenchmarkOutput, Database, DbOutput, ModelProvider, QuestionOutput};
+use bench_output::derive_retry_level;
 use bench_runner::BenchmarkRunner;
 
 /// Each valid DB ID gets its own package; adding a DB means adding a crate
@@ -93,7 +94,12 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Config::load(&config_path)?;
     let questions = load_questions(&config.questions_path)?;
-    let max_retries = config.max_retry_counts.iter().max().copied().unwrap_or(0);
+    // Run only at the highest level; every configured level is derived from
+    // the attempt trace afterwards.
+    let mut retry_levels = config.max_retry_counts.clone();
+    retry_levels.sort_unstable();
+    retry_levels.dedup();
+    let max_retries = *retry_levels.last().expect("validated non-empty");
 
     let mut outputs: Vec<QuestionOutput> = questions
         .questions
@@ -152,12 +158,18 @@ async fn main() -> anyhow::Result<()> {
                         max_retries,
                     };
                     for run in runner.run(&questions.questions).await? {
-                        outputs[run.question_index]
+                        let results = &mut outputs[run.question_index]
                             .dbs
                             .get_mut(db_id)
                             .expect("seeded above")
-                            .results
-                            .extend(run.records);
+                            .results;
+                        for record in run.records {
+                            results.extend(
+                                retry_levels
+                                    .iter()
+                                    .map(|&level| derive_retry_level(&record, level)),
+                            );
+                        }
                     }
                 }
             }

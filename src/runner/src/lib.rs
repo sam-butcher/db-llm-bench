@@ -2,16 +2,21 @@
 //! setup. Runs each question at the highest configured retry count; lower
 //! retry levels are derived from the attempt trace during output marshalling.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bench_core::{
-    Attempt, Database, Message, ModelProvider, ProviderError, Question, RecordResult,
-    ResultRecord, Role,
+    Attempt, Database, Message, ModelProvider, ModelResponse, ProviderError, Question,
+    RecordResult, ResultRecord, Role, TokenUsage,
 };
 use thiserror::Error;
 
 /// Repetitions per question/setup cell, to account for LLM non-determinism.
 pub const REPETITIONS: u32 = 3;
+
+/// Harness-level retries for transient provider errors (rate limits, network
+/// blips). These never count against the model's retry budget.
+const TRANSIENT_RETRIES: u32 = 3;
+const TRANSIENT_BACKOFF: Duration = Duration::from_millis(100);
 
 /// Literal token the prompt instructs the model to emit, alone on its own
 /// line, when it believes the question cannot be answered against the
@@ -110,8 +115,9 @@ pub enum RunError {
 
 impl BenchmarkRunner<'_> {
     /// For each question, REPETITIONS times: assemble the prompt, send it to
-    /// the model, extract and execute the query, and compare against the
-    /// expected result.
+    /// the model, extract and execute the query, feeding model-fault errors
+    /// back until success or the retry budget is spent, then compare against
+    /// the expected result.
     pub async fn run(&self, questions: &[Question]) -> Result<Vec<QuestionRun>, RunError> {
         let mut runs = Vec::with_capacity(questions.len());
         for (question_index, question) in questions.iter().enumerate() {
@@ -127,8 +133,10 @@ impl BenchmarkRunner<'_> {
         Ok(runs)
     }
 
-    /// A single attempt per repetition; the retry loop (feeding model-fault
-    /// errors back into the conversation) slots in here later.
+    /// Attempts the question up to `max_retries + 1` times, feeding each
+    /// model-fault error (with the prior conversation) back to the model.
+    /// UNANSWERABLE and wrong-but-valid results are terminal: only errors
+    /// that can't possibly be correct earn a retry.
     async fn run_once(
         &self,
         question: &Question,
@@ -141,55 +149,124 @@ impl BenchmarkRunner<'_> {
             &self.examples,
             self.skills.as_deref().unwrap_or_default(),
         );
-        let conversation = vec![Message {
+        let mut conversation = vec![Message {
             role: Role::User,
             content: prompt,
         }];
+        let mut attempts: Vec<Attempt> = Vec::new();
 
-        let started = Instant::now();
-        let response = self.model.send_prompt(&conversation).await?;
+        loop {
+            let started = Instant::now();
+            let response = self.send_with_backoff(&conversation).await?;
 
-        // Ok(coerced value) or Err(model-fault message fit for the record);
-        // infrastructure failures abort instead of being recorded.
-        let (query, outcome) = match extract_query(&response.text) {
-            Extraction::Query(query) => match self.db.send_query(&query).await {
-                Ok(value) => (Some(query), Ok(value)),
-                Err(e) if !e.is_model_fault() => {
-                    return Err(RunError::Infrastructure(e.to_string()));
+            // Ok(coerced value), or Err(model-fault message, retryable flag);
+            // infrastructure failures abort instead of being recorded.
+            let (query, outcome) = match extract_query(&response.text) {
+                Extraction::Query(query) => match self.db.send_query(&query).await {
+                    Ok(value) => (Some(query), Ok(value)),
+                    Err(e) if !e.is_model_fault() => {
+                        return Err(RunError::Infrastructure(e.to_string()));
+                    }
+                    Err(e) => (Some(query), Err((e.to_string(), true))),
+                },
+                Extraction::Unanswerable => {
+                    (None, Err(("declared UNANSWERABLE".to_string(), false)))
                 }
-                Err(e) => (Some(query), Err(e.to_string())),
-            },
-            Extraction::Unanswerable => (None, Err("declared UNANSWERABLE".to_string())),
-            Extraction::Malformed => (None, Err("no query found in response".to_string())),
-        };
-        let latency_ms = started.elapsed().as_millis() as u64;
+                Extraction::Malformed => {
+                    (None, Err(("no query found in response".to_string(), true)))
+                }
+            };
+            let latency_ms = started.elapsed().as_millis() as u64;
 
-        let (result, accurate, error) = match outcome {
-            Ok(value) => {
-                let accurate = value.matches_question(&question.expected, question.ordered);
-                (RecordResult::Value(value), accurate, None)
+            match outcome {
+                Ok(value) => {
+                    attempts.push(Attempt {
+                        query,
+                        tokens: response.tokens,
+                        latency_ms,
+                        error: None,
+                    });
+                    let accurate = value.matches_question(&question.expected, question.ordered);
+                    return Ok(self.record(repetition, attempts, RecordResult::Value(value), accurate));
+                }
+                Err((message, retryable)) => {
+                    attempts.push(Attempt {
+                        query,
+                        tokens: response.tokens,
+                        latency_ms,
+                        error: Some(message.clone()),
+                    });
+                    let budget_left = attempts.len() <= self.max_retries as usize;
+                    if !(retryable && budget_left) {
+                        return Ok(self.record(repetition, attempts, RecordResult::Error, false));
+                    }
+                    conversation.push(Message {
+                        role: Role::Assistant,
+                        content: response.text,
+                    });
+                    conversation.push(Message {
+                        role: Role::User,
+                        content: format!(
+                            "The query failed with the following error:\n\n{message}\n\n\
+                             Please respond with a corrected query."
+                        ),
+                    });
+                }
             }
-            Err(message) => (RecordResult::Error, false, Some(message)),
-        };
-        Ok(ResultRecord {
+        }
+    }
+
+    /// Retry transient provider errors with exponential backoff; fatal
+    /// errors and exhausted retries abort the run.
+    async fn send_with_backoff(
+        &self,
+        conversation: &[Message],
+    ) -> Result<ModelResponse, RunError> {
+        let mut transient_failures = 0;
+        loop {
+            match self.model.send_prompt(conversation).await {
+                Ok(response) => return Ok(response),
+                Err(ProviderError::Transient(_)) if transient_failures < TRANSIENT_RETRIES => {
+                    tokio::time::sleep(TRANSIENT_BACKOFF * 2u32.pow(transient_failures)).await;
+                    transient_failures += 1;
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+    }
+
+    fn record(
+        &self,
+        repetition: u32,
+        attempts: Vec<Attempt>,
+        result: RecordResult,
+        accurate: bool,
+    ) -> ResultRecord {
+        let mut tokens = TokenUsage::default();
+        let mut latency_ms = 0;
+        for attempt in &attempts {
+            tokens.add(attempt.tokens);
+            latency_ms += attempt.latency_ms;
+        }
+        ResultRecord {
             model: self.model.model_id(),
-            max_retries: 0,
-            retries_used: 0,
+            max_retries: self.max_retries,
+            retries_used: attempts.len().saturating_sub(1) as u32,
             examples: self.examples.len() as u32,
             skills: self.skills.is_some(),
             repetition,
-            generated: query.clone().unwrap_or_default(),
-            attempts: vec![Attempt {
-                query,
-                tokens: response.tokens,
-                latency_ms,
-                error,
-            }],
-            tokens: response.tokens,
+            // The last extractable query, matching derive_retry_level's rule.
+            generated: attempts
+                .iter()
+                .rev()
+                .find_map(|a| a.query.clone())
+                .unwrap_or_default(),
+            attempts,
+            tokens,
             latency_ms,
             result,
             accurate,
-        })
+        }
     }
 }
 
@@ -214,6 +291,14 @@ mod run_tests {
     }
 
     fn runner<'a>(db: &'a DummyDb, provider: &'a DummyProvider) -> BenchmarkRunner<'a> {
+        runner_with_retries(db, provider, 0)
+    }
+
+    fn runner_with_retries<'a>(
+        db: &'a DummyDb,
+        provider: &'a DummyProvider,
+        max_retries: u32,
+    ) -> BenchmarkRunner<'a> {
         BenchmarkRunner {
             db,
             model: provider,
@@ -221,7 +306,7 @@ mod run_tests {
             schema: "cars have ages".to_string(),
             examples: vec![],
             skills: None,
-            max_retries: 0,
+            max_retries,
         }
     }
 
@@ -340,6 +425,118 @@ mod run_tests {
         let provider = DummyProvider::new(Vec::<String>::new());
         let result = runner(&db, &provider).run(&[question(Value::Int(3))]).await;
         assert!(matches!(result, Err(RunError::Provider(_))));
+    }
+
+    #[tokio::test]
+    async fn retry_recovers_from_model_fault() {
+        let db = DummyDb::new();
+        // Each repetition consumes both entries: syntax error, then success.
+        let provider = DummyProvider::new(["```\nnot json\n```", "```\n3\n```"]).repeating();
+        let runs = runner_with_retries(&db, &provider, 2)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+
+        for record in &runs[0].records {
+            assert!(record.accurate);
+            assert_eq!(record.max_retries, 2);
+            assert_eq!(record.retries_used, 1);
+            assert_eq!(record.attempts.len(), 2);
+            assert!(record.attempts[0].error.as_deref().unwrap().contains("syntax error"));
+            assert!(record.attempts[1].error.is_none());
+            assert_eq!(record.generated, "3");
+            // Totals sum both attempts.
+            let expected_output: u64 =
+                record.attempts.iter().map(|a| a.tokens.output).sum();
+            assert_eq!(record.tokens.output, expected_output);
+        }
+        // The retry conversation carried the original prompt, the model's
+        // response, and the error feedback.
+        let retry_conversation = &provider.conversations()[1];
+        assert_eq!(retry_conversation.len(), 3);
+        assert!(retry_conversation[2].content.contains("syntax error"));
+    }
+
+    #[tokio::test]
+    async fn budget_exhaustion_is_an_error_record() {
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(["no code here"]).repeating();
+        let runs = runner_with_retries(&db, &provider, 2)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+
+        let record = &runs[0].records[0];
+        assert!(!record.accurate);
+        assert!(matches!(record.result, RecordResult::Error));
+        assert_eq!(record.retries_used, 2);
+        assert_eq!(record.attempts.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn unanswerable_is_never_retried() {
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(["UNANSWERABLE"]).repeating();
+        let runs = runner_with_retries(&db, &provider, 2)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+
+        let record = &runs[0].records[0];
+        assert_eq!(record.attempts.len(), 1);
+        assert_eq!(record.retries_used, 0);
+        assert!(!record.accurate);
+    }
+
+    #[tokio::test]
+    async fn wrong_but_valid_result_is_never_retried() {
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(["```\n4\n```"]).repeating();
+        let runs = runner_with_retries(&db, &provider, 2)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+
+        let record = &runs[0].records[0];
+        assert_eq!(record.attempts.len(), 1);
+        assert!(matches!(&record.result, RecordResult::Value(Value::Int(4))));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn transient_provider_errors_are_backed_off_and_retried() {
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(Vec::<String>::new());
+        for _ in 0..REPETITIONS {
+            provider.push_transient_error("rate limited");
+            provider.push_response("```\n3\n```");
+        }
+        let runs = runner(&db, &provider)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+
+        assert!(runs[0].records.iter().all(|r| r.accurate));
+        // Transient failures don't touch the model's budget or the trace.
+        assert!(runs[0].records.iter().all(|r| r.retries_used == 0));
+        assert_eq!(
+            provider.conversations().len(),
+            (REPETITIONS * 2) as usize
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn persistent_transient_errors_eventually_abort() {
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(Vec::<String>::new());
+        // One more than the harness's transient budget.
+        for _ in 0..=TRANSIENT_RETRIES {
+            provider.push_transient_error("rate limited");
+        }
+        let result = runner(&db, &provider).run(&[question(Value::Int(3))]).await;
+        assert!(matches!(
+            result,
+            Err(RunError::Provider(ProviderError::Transient(_)))
+        ));
     }
 }
 

@@ -5,3 +5,9 @@ edition.workspace = true
 
 [dependencies]
 bench-core.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+db-dummy.workspace = true
+provider-dummy.workspace = true
+tokio.workspace = true

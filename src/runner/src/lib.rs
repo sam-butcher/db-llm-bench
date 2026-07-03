@@ -5,8 +5,8 @@
 use std::time::{Duration, Instant};
 
 use bench_core::{
-    Attempt, Database, Message, ModelProvider, ModelResponse, ProviderError, Question,
-    RecordResult, ResultRecord, Role, TokenUsage,
+    Attempt, Database, Message, ModelProvider, ModelResponse, ProviderError, QueryError,
+    Question, RecordResult, ResultRecord, Role, TokenUsage,
 };
 use thiserror::Error;
 
@@ -14,9 +14,21 @@ use thiserror::Error;
 pub const REPETITIONS: u32 = 3;
 
 /// Harness-level retries for transient provider errors (rate limits, network
-/// blips). These never count against the model's retry budget.
-const TRANSIENT_RETRIES: u32 = 3;
-const TRANSIENT_BACKOFF: Duration = Duration::from_millis(100);
+/// blips). These never count against the model's retry budget. Doubling from
+/// a 1s base gives ~31s of total patience — enough to ride out a real 429.
+pub const TRANSIENT_RETRIES: u32 = 5;
+const TRANSIENT_BACKOFF: Duration = Duration::from_secs(1);
+
+/// Harness-level retries for DB infrastructure errors (dropped connections,
+/// restarts) — the DB-side mirror of the transient provider policy.
+pub const INFRA_RETRIES: u32 = 3;
+const INFRA_BACKOFF: Duration = Duration::from_millis(500);
+
+/// Defensive ceilings only: packages own the real timeouts. These convert a
+/// hung backend into a diagnosable infrastructure failure instead of a
+/// frozen run.
+const PROVIDER_TIMEOUT: Duration = Duration::from_secs(600);
+const DB_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Literal token the prompt instructs the model to emit, alone on its own
 /// line, when it believes the question cannot be answered against the
@@ -50,6 +62,12 @@ pub fn extract_query(response: &str) -> Extraction {
         } else if let Some(lines) = current.as_mut() {
             lines.push(line);
         }
+    }
+    // An unterminated trailing fence still counts: a truncated response
+    // yields its partial query (and a real execution error to iterate on)
+    // rather than "no query found".
+    if let Some(lines) = current {
+        blocks.push(lines.join("\n"));
     }
     if let Some(block) = blocks.pop() {
         let query = block.trim();
@@ -97,14 +115,16 @@ pub struct BenchmarkRunner<'a> {
     pub max_retries: u32,
 }
 
+#[derive(Debug)]
 pub struct QuestionRun {
     pub question_index: usize,
     pub records: Vec<ResultRecord>,
 }
 
 /// Errors that abort the run — never the model's fault, so nothing here is
-/// recorded as a result. Harness-level backoff for transient cases comes
-/// with the retry work.
+/// recorded as a result. Both transports get harness-level backoff first;
+/// reaching this type means the backoff budget was spent (or the error was
+/// fatal).
 #[derive(Debug, Error)]
 pub enum RunError {
     #[error(transparent)]
@@ -113,17 +133,54 @@ pub enum RunError {
     Infrastructure(String),
 }
 
+/// An aborted run, carrying everything completed before the failure so the
+/// tokens already spent aren't discarded.
+#[derive(Debug, Error)]
+#[error("question {question_index} repetition {repetition}: {error}")]
+pub struct RunFailure {
+    pub error: RunError,
+    pub question_index: usize,
+    pub repetition: u32,
+    /// Fully completed question runs, plus a partial run for the failing
+    /// question if any of its repetitions finished.
+    pub completed: Vec<QuestionRun>,
+}
+
+/// A model-fault outcome: the error message that goes in the attempt trace,
+/// tagged by whether the model gets another try.
+enum Fault {
+    Retryable(String),
+    Terminal(String),
+}
+
 impl BenchmarkRunner<'_> {
     /// For each question, REPETITIONS times: assemble the prompt, send it to
     /// the model, extract and execute the query, feeding model-fault errors
     /// back until success or the retry budget is spent, then compare against
     /// the expected result.
-    pub async fn run(&self, questions: &[Question]) -> Result<Vec<QuestionRun>, RunError> {
+    pub async fn run(&self, questions: &[Question]) -> Result<Vec<QuestionRun>, RunFailure> {
         let mut runs = Vec::with_capacity(questions.len());
         for (question_index, question) in questions.iter().enumerate() {
             let mut records = Vec::with_capacity(REPETITIONS as usize);
             for repetition in 1..=REPETITIONS {
-                records.push(self.run_once(question, repetition).await?);
+                match self.run_once(question, repetition).await {
+                    Ok(record) => records.push(record),
+                    Err(error) => {
+                        let mut completed = runs;
+                        if !records.is_empty() {
+                            completed.push(QuestionRun {
+                                question_index,
+                                records,
+                            });
+                        }
+                        return Err(RunFailure {
+                            error,
+                            question_index,
+                            repetition,
+                            completed,
+                        });
+                    }
+                }
             }
             runs.push(QuestionRun {
                 question_index,
@@ -156,27 +213,27 @@ impl BenchmarkRunner<'_> {
         let mut attempts: Vec<Attempt> = Vec::new();
 
         loop {
-            let started = Instant::now();
-            let response = self.send_with_backoff(&conversation).await?;
+            let (response, provider_latency_ms) = self.send_with_backoff(&conversation).await?;
 
-            // Ok(coerced value), or Err(model-fault message, retryable flag);
-            // infrastructure failures abort instead of being recorded.
-            let (query, outcome) = match extract_query(&response.text) {
-                Extraction::Query(query) => match self.db.send_query(&query).await {
-                    Ok(value) => (Some(query), Ok(value)),
-                    Err(e) if !e.is_model_fault() => {
-                        return Err(RunError::Infrastructure(e.to_string()));
-                    }
-                    Err(e) => (Some(query), Err((e.to_string(), true))),
-                },
-                Extraction::Unanswerable => {
-                    (None, Err(("declared UNANSWERABLE".to_string(), false)))
+            let (query, db_latency_ms, outcome) = match extract_query(&response.text) {
+                Extraction::Query(query) => {
+                    let (outcome, db_latency_ms) = self.query_with_backoff(&query).await?;
+                    (Some(query), db_latency_ms, outcome)
                 }
-                Extraction::Malformed => {
-                    (None, Err(("no query found in response".to_string(), true)))
-                }
+                Extraction::Unanswerable => (
+                    None,
+                    0,
+                    Err(Fault::Terminal("declared UNANSWERABLE".to_string())),
+                ),
+                Extraction::Malformed => (
+                    None,
+                    0,
+                    Err(Fault::Retryable("no query found in response".to_string())),
+                ),
             };
-            let latency_ms = started.elapsed().as_millis() as u64;
+            // Model+DB work only: harness backoff sleeps and failed
+            // transport calls are infra noise and excluded.
+            let latency_ms = provider_latency_ms + db_latency_ms;
 
             match outcome {
                 Ok(value) => {
@@ -189,27 +246,43 @@ impl BenchmarkRunner<'_> {
                     let accurate = value.matches_question(&question.expected, question.ordered);
                     return Ok(self.record(repetition, attempts, RecordResult::Value(value), accurate));
                 }
-                Err((message, retryable)) => {
+                Err(Fault::Terminal(message)) => {
                     attempts.push(Attempt {
                         query,
                         tokens: response.tokens,
                         latency_ms,
+                        error: Some(message),
+                    });
+                    return Ok(self.record(repetition, attempts, RecordResult::Error, false));
+                }
+                Err(Fault::Retryable(message)) => {
+                    attempts.push(Attempt {
+                        query: query.clone(),
+                        tokens: response.tokens,
+                        latency_ms,
                         error: Some(message.clone()),
                     });
-                    let budget_left = attempts.len() <= self.max_retries as usize;
-                    if !(retryable && budget_left) {
+                    if attempts.len() > self.max_retries as usize {
                         return Ok(self.record(repetition, attempts, RecordResult::Error, false));
                     }
+                    let feedback = if query.is_some() {
+                        format!(
+                            "The query failed with the following error:\n\n{message}\n\n\
+                             Please respond with a corrected query."
+                        )
+                    } else {
+                        "Your response did not contain a fenced code block. Respond with \
+                         exactly one fenced code block containing only the query, or the \
+                         literal token UNANSWERABLE alone on its own line."
+                            .to_string()
+                    };
                     conversation.push(Message {
                         role: Role::Assistant,
                         content: response.text,
                     });
                     conversation.push(Message {
                         role: Role::User,
-                        content: format!(
-                            "The query failed with the following error:\n\n{message}\n\n\
-                             Please respond with a corrected query."
-                        ),
+                        content: feedback,
                     });
                 }
             }
@@ -217,20 +290,64 @@ impl BenchmarkRunner<'_> {
     }
 
     /// Retry transient provider errors with exponential backoff; fatal
-    /// errors and exhausted retries abort the run.
+    /// errors and exhausted retries abort the run. Returns the response and
+    /// the latency of the successful call only.
     async fn send_with_backoff(
         &self,
         conversation: &[Message],
-    ) -> Result<ModelResponse, RunError> {
+    ) -> Result<(ModelResponse, u64), RunError> {
         let mut transient_failures = 0;
         loop {
-            match self.model.send_prompt(conversation).await {
-                Ok(response) => return Ok(response),
+            let started = Instant::now();
+            let outcome =
+                match tokio::time::timeout(PROVIDER_TIMEOUT, self.model.send_prompt(conversation))
+                    .await
+                {
+                    Ok(outcome) => outcome,
+                    Err(_) => Err(ProviderError::Transient(format!(
+                        "provider exceeded the harness ceiling of {PROVIDER_TIMEOUT:?}"
+                    ))),
+                };
+            let latency_ms = started.elapsed().as_millis() as u64;
+            match outcome {
+                Ok(response) => return Ok((response, latency_ms)),
                 Err(ProviderError::Transient(_)) if transient_failures < TRANSIENT_RETRIES => {
                     tokio::time::sleep(TRANSIENT_BACKOFF * 2u32.pow(transient_failures)).await;
                     transient_failures += 1;
                 }
                 Err(e) => return Err(e.into()),
+            }
+        }
+    }
+
+    /// Execute the query, retrying infrastructure errors with exponential
+    /// backoff — the DB-side mirror of `send_with_backoff`. Model-fault
+    /// errors return immediately as retryable faults for the model. The
+    /// latency covers the final (non-infra) call only.
+    async fn query_with_backoff(
+        &self,
+        query: &str,
+    ) -> Result<(Result<bench_core::Value, Fault>, u64), RunError> {
+        let mut infra_failures = 0;
+        loop {
+            let started = Instant::now();
+            let outcome = match tokio::time::timeout(DB_TIMEOUT, self.db.send_query(query)).await {
+                Ok(outcome) => outcome,
+                Err(_) => Err(QueryError::Infrastructure(format!(
+                    "query exceeded the harness ceiling of {DB_TIMEOUT:?}"
+                ))),
+            };
+            let latency_ms = started.elapsed().as_millis() as u64;
+            match outcome {
+                Ok(value) => return Ok((Ok(value), latency_ms)),
+                Err(e) if e.is_model_fault() => {
+                    return Ok((Err(Fault::Retryable(e.to_string())), latency_ms));
+                }
+                Err(_) if infra_failures < INFRA_RETRIES => {
+                    tokio::time::sleep(INFRA_BACKOFF * 2u32.pow(infra_failures)).await;
+                    infra_failures += 1;
+                }
+                Err(e) => return Err(RunError::Infrastructure(e.to_string())),
             }
         }
     }
@@ -410,21 +527,56 @@ mod run_tests {
         );
     }
 
-    #[tokio::test]
-    async fn infrastructure_error_aborts_the_run() {
+    #[tokio::test(start_paused = true)]
+    async fn infrastructure_error_recovers_with_backoff() {
         let db = DummyDb::new();
-        db.script(Err(QueryError::Infrastructure("db unreachable".to_string())));
+        // One dropped connection, then the JSON-echo fallback succeeds.
+        db.script(Err(QueryError::Infrastructure("connection reset".to_string())));
         let provider = per_repetition("```\n3\n```");
-        let result = runner(&db, &provider).run(&[question(Value::Int(3))]).await;
-        assert!(matches!(result, Err(RunError::Infrastructure(_))));
+        let runs = runner(&db, &provider)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+
+        assert!(runs[0].records.iter().all(|r| r.accurate));
+        // Infra retries are invisible to the trace and the model's budget.
+        assert!(runs[0].records.iter().all(|r| r.attempts.len() == 1));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn persistent_infrastructure_errors_abort_with_partials() {
+        // Repetition 1 succeeds; repetition 2 hits infra errors beyond the
+        // harness budget.
+        let db = DummyDb::new();
+        db.script(Ok(Value::Int(3)));
+        for _ in 0..=INFRA_RETRIES {
+            db.script(Err(QueryError::Infrastructure("db unreachable".to_string())));
+        }
+        let provider = per_repetition("```\n3\n```");
+        let failure = runner(&db, &provider)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap_err();
+
+        assert!(matches!(failure.error, RunError::Infrastructure(_)));
+        assert_eq!(failure.question_index, 0);
+        assert_eq!(failure.repetition, 2);
+        // The completed repetition survives the abort.
+        assert_eq!(failure.completed.len(), 1);
+        assert_eq!(failure.completed[0].records.len(), 1);
+        assert!(failure.completed[0].records[0].accurate);
     }
 
     #[tokio::test]
     async fn provider_error_aborts_the_run() {
         let db = DummyDb::new();
         let provider = DummyProvider::new(Vec::<String>::new());
-        let result = runner(&db, &provider).run(&[question(Value::Int(3))]).await;
-        assert!(matches!(result, Err(RunError::Provider(_))));
+        let failure = runner(&db, &provider)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap_err();
+        assert!(matches!(failure.error, RunError::Provider(_)));
+        assert!(failure.completed.is_empty());
     }
 
     #[tokio::test]
@@ -471,6 +623,13 @@ mod run_tests {
         assert!(matches!(record.result, RecordResult::Error));
         assert_eq!(record.retries_used, 2);
         assert_eq!(record.attempts.len(), 3);
+        // Malformed responses get formatting feedback, not a bogus "query
+        // failed" message.
+        let feedback = &provider.conversations()[1][2].content;
+        assert!(
+            feedback.contains("did not contain a fenced code block"),
+            "got: {feedback}"
+        );
     }
 
     #[tokio::test]
@@ -532,11 +691,99 @@ mod run_tests {
         for _ in 0..=TRANSIENT_RETRIES {
             provider.push_transient_error("rate limited");
         }
-        let result = runner(&db, &provider).run(&[question(Value::Int(3))]).await;
+        let failure = runner(&db, &provider)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap_err();
         assert!(matches!(
-            result,
-            Err(RunError::Provider(ProviderError::Transient(_)))
+            failure.error,
+            RunError::Provider(ProviderError::Transient(_))
         ));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn hung_db_becomes_a_diagnosable_infrastructure_failure() {
+        struct HangingDb;
+
+        #[async_trait::async_trait]
+        impl Database for HangingDb {
+            fn query_language(&self) -> &'static str {
+                "dummy"
+            }
+
+            async fn send_query(&self, _query: &str) -> Result<Value, QueryError> {
+                std::future::pending().await
+            }
+        }
+
+        let db = HangingDb;
+        let provider = per_repetition("```\n3\n```");
+        let failure = BenchmarkRunner {
+            db: &db,
+            model: &provider,
+            prompt_template: "{{question}}".to_string(),
+            schema: String::new(),
+            examples: vec![],
+            skills: None,
+            max_retries: 0,
+        }
+        .run(&[question(Value::Int(3))])
+        .await
+        .unwrap_err();
+
+        match failure.error {
+            RunError::Infrastructure(message) => {
+                assert!(message.contains("harness ceiling"), "got: {message}")
+            }
+            other => panic!("expected infrastructure error, got {other:?}"),
+        }
+    }
+
+    /// The core claim of the run-at-max/derive-lower design: deriving a
+    /// lower level from a max-level trace produces the same record an
+    /// actual run at that level would (latency aside — wall-clock isn't
+    /// reproducible).
+    #[tokio::test]
+    async fn derived_levels_match_actual_low_budget_runs() {
+        let script = ["no code here", "```\nnot json\n```", "```\n3\n```"];
+
+        let mut actual_by_level = Vec::new();
+        for max_retries in [0, 2] {
+            let db = DummyDb::new();
+            let provider = DummyProvider::new(script).repeating();
+            let runs = runner_with_retries(&db, &provider, max_retries)
+                .run(&[question(Value::Int(3))])
+                .await
+                .unwrap();
+            // Repetition 1 starts at the same script position at any level.
+            actual_by_level.push(runs[0].records[0].clone());
+        }
+
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(script).repeating();
+        let high = runner_with_retries(&db, &provider, 4)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+        let max_record = &high[0].records[0];
+
+        for (actual, level) in actual_by_level.iter().zip([0, 2]) {
+            let derived = bench_output::derive_retry_level(max_record, level);
+            assert_eq!(
+                strip_latency(actual),
+                strip_latency(&derived),
+                "level {level} derived record diverged from an actual run"
+            );
+        }
+    }
+
+    fn strip_latency(record: &ResultRecord) -> serde_json::Value {
+        let mut value = serde_json::to_value(record).unwrap();
+        value["latencyMs"] = 0.into();
+        for attempt in value["attempts"].as_array_mut().unwrap() {
+            attempt["latencyMs"] = 0.into();
+        }
+        value
     }
 }
 
@@ -574,6 +821,14 @@ mod tests {
         assert_eq!(
             extract_query("The query you want is SELECT 1;"),
             Extraction::Malformed
+        );
+    }
+
+    #[test]
+    fn unterminated_trailing_fence_still_counts() {
+        assert_eq!(
+            extract_query("Here you go:\n```sql\nSELECT 1;"),
+            Extraction::Query("SELECT 1;".to_string())
         );
     }
 }

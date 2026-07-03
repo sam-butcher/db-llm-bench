@@ -7,7 +7,31 @@ use anyhow::Context;
 use bench_config::{Config, DbConfig, load_questions};
 use bench_core::{BenchmarkOutput, Database, DbOutput, ModelProvider, QuestionOutput};
 use bench_output::derive_retry_level;
-use bench_runner::BenchmarkRunner;
+use bench_runner::{BenchmarkRunner, QuestionRun};
+
+/// Fold question runs into the output structure, expanding each record into
+/// one entry per configured retry level.
+fn marshal(
+    outputs: &mut [QuestionOutput],
+    db_id: &str,
+    retry_levels: &[u32],
+    runs: Vec<QuestionRun>,
+) {
+    for run in runs {
+        let results = &mut outputs[run.question_index]
+            .dbs
+            .get_mut(db_id)
+            .expect("seeded before running")
+            .results;
+        for record in run.records {
+            results.extend(
+                retry_levels
+                    .iter()
+                    .map(|&level| derive_retry_level(&record, level)),
+            );
+        }
+    }
+}
 
 /// Each valid DB ID gets its own package; adding a DB means adding a crate
 /// and an arm here.
@@ -117,7 +141,10 @@ async fn main() -> anyhow::Result<()> {
         .map(|(id, cfg)| build_model(id, cfg))
         .collect::<anyhow::Result<_>>()?;
 
-    for (db_id, db_cfg) in config.db_entries() {
+    // On an unrecoverable failure, everything completed so far is still
+    // marshalled and written before the error is reported.
+    let mut abort: Option<String> = None;
+    'combos: for (db_id, db_cfg) in config.db_entries() {
         let db = build_db(db_id, db_cfg)?;
         let assets = load_db_assets(db_cfg)?;
 
@@ -157,18 +184,12 @@ async fn main() -> anyhow::Result<()> {
                         skills,
                         max_retries,
                     };
-                    for run in runner.run(&questions.questions).await? {
-                        let results = &mut outputs[run.question_index]
-                            .dbs
-                            .get_mut(db_id)
-                            .expect("seeded above")
-                            .results;
-                        for record in run.records {
-                            results.extend(
-                                retry_levels
-                                    .iter()
-                                    .map(|&level| derive_retry_level(&record, level)),
-                            );
+                    match runner.run(&questions.questions).await {
+                        Ok(runs) => marshal(&mut outputs, db_id, &retry_levels, runs),
+                        Err(failure) => {
+                            abort = Some(format!("aborted on DB {db_id}: {failure}"));
+                            marshal(&mut outputs, db_id, &retry_levels, failure.completed);
+                            break 'combos;
                         }
                     }
                 }
@@ -193,5 +214,8 @@ async fn main() -> anyhow::Result<()> {
         output_path.display(),
         records.len(),
     );
+    if let Some(message) = abort {
+        anyhow::bail!("{message}; partial results written");
+    }
     Ok(())
 }

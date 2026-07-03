@@ -59,7 +59,10 @@ With these inputs the program will do the following for each DB/example count/sk
 (max retry count is not part of the combination - see below)
 - Iterate through the questions, running each 3 times (repetitions) to account for LLM non-determinism
 - Send the question, wrapped in the prompt (template with the appropriate number of examples), to the chosen model
-- Extract the query from the response (the last fenced code block), and use it to query the database
+- Extract the query from the response (the last fenced code block; a block wins over an `UNANSWERABLE`
+  token when both appear, and an unterminated trailing block still counts, so truncated responses yield
+  their partial query and a real execution error rather than "no query found"), and use it to query the
+  database
   - An explicit `UNANSWERABLE` response is terminal (never retried) and scored as a failure for answerable
     questions - and as correct if we later add deliberately-unanswerable questions
   - A response with neither a code block nor the `UNANSWERABLE` marker is malformed, and counts as a
@@ -77,7 +80,9 @@ At the end, it will produce a file containing the list of questions along with t
 and whether each query failed. Results are keyed by DB ID (not query language, so two DBs sharing a
 language don't collide). Each result record includes the model used, the number of retries actually
 used, and the full attempt trace - with per-attempt token usage and latency, so lower retry levels can
-be derived by cutting the trace.
+be derived by cutting the trace. Latency covers model + DB work only; harness backoff waits are
+excluded. If the run aborts on an unrecoverable infrastructure or provider failure, everything
+completed up to that point is still written.
 
 ```json
 {

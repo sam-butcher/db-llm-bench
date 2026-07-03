@@ -20,8 +20,14 @@ pub struct DummyConfig {
     pub repeat: bool,
 }
 
+#[derive(Debug, Clone)]
+enum Scripted {
+    Text(String),
+    TransientError(String),
+}
+
 pub struct DummyProvider {
-    responses: Mutex<VecDeque<String>>,
+    responses: Mutex<VecDeque<Scripted>>,
     repeat: bool,
     conversations: Mutex<Vec<Vec<Message>>>,
 }
@@ -29,7 +35,12 @@ pub struct DummyProvider {
 impl DummyProvider {
     pub fn new(responses: impl IntoIterator<Item = impl Into<String>>) -> Self {
         Self {
-            responses: Mutex::new(responses.into_iter().map(Into::into).collect()),
+            responses: Mutex::new(
+                responses
+                    .into_iter()
+                    .map(|text| Scripted::Text(text.into()))
+                    .collect(),
+            ),
             repeat: false,
             conversations: Mutex::new(Vec::new()),
         }
@@ -42,7 +53,19 @@ impl DummyProvider {
     }
 
     pub fn push_response(&self, text: impl Into<String>) {
-        self.responses.lock().unwrap().push_back(text.into());
+        self.responses
+            .lock()
+            .unwrap()
+            .push_back(Scripted::Text(text.into()));
+    }
+
+    /// Script a transient provider error (e.g. a rate limit), for testing
+    /// harness-level backoff.
+    pub fn push_transient_error(&self, message: impl Into<String>) {
+        self.responses
+            .lock()
+            .unwrap()
+            .push_back(Scripted::TransientError(message.into()));
     }
 
     /// Every conversation received so far, in order.
@@ -73,19 +96,20 @@ impl ModelProvider for DummyProvider {
         let mut responses = self.responses.lock().unwrap();
         let next = responses.pop_front();
         if self.repeat {
-            if let Some(text) = &next {
-                responses.push_back(text.clone());
+            if let Some(scripted) = &next {
+                responses.push_back(scripted.clone());
             }
         }
         drop(responses);
         match next {
-            Some(text) => Ok(ModelResponse {
+            Some(Scripted::Text(text)) => Ok(ModelResponse {
                 tokens: TokenUsage {
                     input: conversation.iter().map(|m| m.content.len() as u64).sum(),
                     output: text.len() as u64,
                 },
                 text,
             }),
+            Some(Scripted::TransientError(message)) => Err(ProviderError::Transient(message)),
             None => Err(ProviderError::Fatal(
                 "dummy provider ran out of scripted responses".to_string(),
             )),

@@ -10,6 +10,7 @@ Inputs (taken in through config file - see config.yml for a suggested format):
 - List of DBs to hit, each of which contains:
   - ID of DB (e.g. sql/neo4j/typedb)
   - Path to the prompt folder for that DB (contained in a text file)
+    - The template file is `prompt.txt`; examples are `example-1.txt`, `example-2.txt`, ... (contiguous from 1)
     - Prompt is expected to be a template
     - Contains template slot for the question
     - Contains template slot for the schema

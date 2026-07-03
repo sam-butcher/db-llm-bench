@@ -15,10 +15,14 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 pub struct DummyConfig {
     pub responses: Vec<String>,
+    /// Cycle through the responses forever instead of consuming them.
+    #[serde(default)]
+    pub repeat: bool,
 }
 
 pub struct DummyProvider {
     responses: Mutex<VecDeque<String>>,
+    repeat: bool,
     conversations: Mutex<Vec<Vec<Message>>>,
 }
 
@@ -26,8 +30,15 @@ impl DummyProvider {
     pub fn new(responses: impl IntoIterator<Item = impl Into<String>>) -> Self {
         Self {
             responses: Mutex::new(responses.into_iter().map(Into::into).collect()),
+            repeat: false,
             conversations: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Cycle through the scripted responses instead of consuming them.
+    pub fn repeating(mut self) -> Self {
+        self.repeat = true;
+        self
     }
 
     pub fn push_response(&self, text: impl Into<String>) {
@@ -42,7 +53,12 @@ impl DummyProvider {
 
 impl From<DummyConfig> for DummyProvider {
     fn from(config: DummyConfig) -> Self {
-        Self::new(config.responses)
+        let provider = Self::new(config.responses);
+        if config.repeat {
+            provider.repeating()
+        } else {
+            provider
+        }
     }
 }
 
@@ -54,7 +70,15 @@ impl ModelProvider for DummyProvider {
 
     async fn send_prompt(&self, conversation: &[Message]) -> Result<ModelResponse, ProviderError> {
         self.conversations.lock().unwrap().push(conversation.to_vec());
-        match self.responses.lock().unwrap().pop_front() {
+        let mut responses = self.responses.lock().unwrap();
+        let next = responses.pop_front();
+        if self.repeat {
+            if let Some(text) = &next {
+                responses.push_back(text.clone());
+            }
+        }
+        drop(responses);
+        match next {
             Some(text) => Ok(ModelResponse {
                 tokens: TokenUsage {
                     input: conversation.iter().map(|m| m.content.len() as u64).sum(),
@@ -92,5 +116,20 @@ mod tests {
         );
         assert!(provider.send_prompt(&conversation).await.is_err());
         assert_eq!(provider.conversations().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn repeating_provider_cycles() {
+        let provider = DummyProvider::new(["a", "b"]).repeating();
+        let conversation = [Message {
+            role: Role::User,
+            content: "hi".to_string(),
+        }];
+        for expected in ["a", "b", "a", "b", "a"] {
+            assert_eq!(
+                provider.send_prompt(&conversation).await.unwrap().text,
+                expected
+            );
+        }
     }
 }

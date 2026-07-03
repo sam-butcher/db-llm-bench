@@ -5,7 +5,7 @@
       "difficulty": "easy",
       "expected": 3,
       "queries": {
-        "typeql": "match $x isa car; count;",
+        "typeql": "match $x isa car; reduce $count = count;",
         "sql": "SELECT COUNT(*) FROM Cars;",
         "cypher": "MATCH (c:Car) RETURN count(*)",
         "dummy": "3"

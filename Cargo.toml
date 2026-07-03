@@ -4,6 +4,7 @@ members = [
     "src/core",
     "src/config",
     "src/dbs/dummy",
+    "src/dbs/typedb",
     "src/providers/dummy",
     "src/runner",
     "src/output",
@@ -20,10 +21,12 @@ bench-config = { path = "src/config" }
 bench-runner = { path = "src/runner" }
 bench-output = { path = "src/output" }
 db-dummy = { path = "src/dbs/dummy" }
+db-typedb = { path = "src/dbs/typedb" }
 provider-dummy = { path = "src/providers/dummy" }
 
 anyhow = "1"
 async-trait = "0.1"
+futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml2 = "0.1"

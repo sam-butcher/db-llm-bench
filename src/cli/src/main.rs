@@ -35,9 +35,21 @@ fn marshal(
 
 /// Each valid DB ID gets its own package; adding a DB means adding a crate
 /// and an arm here.
-fn build_db(id: &str, _cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
+fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
     Ok(match id {
         "dummy" => Box::new(db_dummy::DummyDb::new()),
+        "typedb" => {
+            let database = cfg
+                .database
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("typedb requires `database` in its config"))?;
+            let auth = match &cfg.auth {
+                Some(value) => serde_json::from_value(value.clone())
+                    .context("parsing typedb auth (expects username/password)")?,
+                None => db_typedb::TypeDbAuth::default(),
+            };
+            Box::new(db_typedb::TypeDb::new(cfg.url.clone(), database, auth))
+        }
         other => anyhow::bail!("unknown DB id: {other}"),
     })
 }

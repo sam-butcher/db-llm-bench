@@ -63,6 +63,9 @@ pub struct DbConfig {
     /// Prompt folder: template plus optional example-N.txt files.
     pub prompts: PathBuf,
     pub url: String,
+    /// Database name within the server, for DBs that namespace by database
+    /// (e.g. TypeDB, Neo4j).
+    pub database: Option<String>,
     /// DB-specific auth, interpreted by the matching DB package.
     #[serde(default, deserialize_with = "yaml_any_opt")]
     pub auth: Option<serde_json::Value>,

@@ -71,6 +71,37 @@ impl Value {
     }
 }
 
+/// Shape a table of query results into a canonical [`Value`] — the shared
+/// rule for all DB packages so cross-DB comparisons stay fair:
+/// - multiple columns: each row becomes an object keyed by column name
+/// - one column: each row becomes the bare value
+/// - a single row is unwrapped (a lone count compares against a scalar)
+/// - no rows: an empty list
+pub fn shape_rows(columns: &[String], mut rows: Vec<Vec<Value>>) -> Value {
+    let mut shaped: Vec<Value> = if columns.len() == 1 {
+        rows.into_iter()
+            .map(|mut row| row.remove(0))
+            .collect()
+    } else {
+        rows.drain(..)
+            .map(|row| {
+                Value::Object(
+                    columns
+                        .iter()
+                        .cloned()
+                        .zip(row)
+                        .collect::<BTreeMap<String, Value>>(),
+                )
+            })
+            .collect()
+    };
+    if shaped.len() == 1 {
+        shaped.pop().unwrap()
+    } else {
+        Value::List(shaped)
+    }
+}
+
 /// Multiset comparison: every result row consumes exactly one expected row.
 /// Matching is greedy, which suffices because cross-type equality only
 /// crosses Int/Float and that rule is symmetric.
@@ -127,6 +158,33 @@ mod tests {
     fn ordered_lists_reject_reordering() {
         assert!(ints(&[1, 2, 3]).matches_question(&ints(&[1, 2, 3]), true));
         assert!(!ints(&[1, 2, 3]).matches_question(&ints(&[3, 1, 2]), true));
+    }
+
+    #[test]
+    fn shaping_unwraps_single_column_and_single_row() {
+        let col = vec!["count".to_string()];
+        assert_eq!(
+            shape_rows(&col, vec![vec![Value::Int(3)]]),
+            Value::Int(3)
+        );
+        assert_eq!(
+            shape_rows(&col, vec![vec![Value::Int(1)], vec![Value::Int(2)]]),
+            ints(&[1, 2])
+        );
+        assert_eq!(shape_rows(&col, vec![]), Value::List(vec![]));
+
+        let cols = vec!["name".to_string(), "age".to_string()];
+        let shaped = shape_rows(
+            &cols,
+            vec![vec![Value::String("ka".into()), Value::Int(2)]],
+        );
+        assert_eq!(
+            shaped,
+            Value::Object(BTreeMap::from([
+                ("name".to_string(), Value::String("ka".into())),
+                ("age".to_string(), Value::Int(2)),
+            ]))
+        );
     }
 
     #[test]

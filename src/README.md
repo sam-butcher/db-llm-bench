@@ -23,6 +23,7 @@ Inputs (taken in through config file - see config.yml for a suggested format):
       answered against the schema (the own-line rule stops prose that merely mentions the token from
       reading as a decline)
   - URL of DB
+  - Database name, for DBs that namespace by database (e.g. TypeDB, Neo4j)
   - Whatever auth info is required for the DB
   - Optional skills path - any `.md` files in this folder will be loaded as skills when generating queries
   - Schema path to the schema description of the data for that DB
@@ -94,7 +95,7 @@ completed up to that point is still written.
       "dbs": {
         "typedb": {
           "language": "typeql",
-          "correct": "match $x isa car; count;",
+          "correct": "match $x isa car; reduce $count = count;",
           "results": [
             {
               "model": "claude-opus-4.8",
@@ -103,7 +104,7 @@ completed up to that point is still written.
               "examples": 0,
               "skills": false,
               "repetition": 1,
-              "generated": "match $x isa car; count",
+              "generated": "match $x isa car; reduce $count = count",
               "attempts": [
                 {
                   "query": "match $x isa car; count",

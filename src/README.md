@@ -37,6 +37,9 @@ Inputs (taken in through config file - see config.yml for a suggested format):
   - List of questions will be a JSON file containing a list of questions
   - each question also has a difficulty level, correct query in each language (under a `queries` map,
     keyed by language), and expected result
+  - a question may set `"ordered": true` when the order of a top-level list result is part of
+    correctness (i.e. the question demands an ordering); the default is unordered, comparing rows as a
+    bag. Nested lists always compare ordered, as tuples
   - We may augment each question with its expected return type (e.g. numeric vs object), so the framework knows how to compare results for that question
 - Example counts
   - List of numbers indicating what level of examples we should test with
@@ -65,6 +68,8 @@ With these inputs the program will do the following for each DB/example count/sk
   configured max retry count; results for lower retry counts are derived from the attempt trace
 - Compare the result to the expected result from the question
   - Comparison depends on the question - e.g. "how many cars are there" compares a number, others may compare full objects
+  - List results compare as bags unless the question sets `ordered: true`; floats compare exactly (no
+    tolerance, revisit if cross-DB aggregation disagrees)
   - Individual DB packages handle result type coercion on a per-DB basis
 
 At the end, it will produce a file containing the list of questions along with their generated queries,

@@ -32,17 +32,18 @@ impl Value {
             (Value::Null, Value::Null) => true,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Int(a), Value::Int(b)) => a == b,
-            // TODO: settle the float tolerance rule
             (Value::Float(a), Value::Float(b)) => a == b,
             // Compared in the integer domain: the float must be a whole
             // number strictly inside i64 range (so the cast below is exact,
             // never saturating) whose value is `a`. Int-to-float casts can't
             // be trusted here — they round at the extremes.
             (Value::Int(a), Value::Float(b)) | (Value::Float(b), Value::Int(a)) => {
-                *b >= -(2f64.powi(63)) && *b < 2f64.powi(63) && b.fract() == 0.0 && *b as i64 == *a
+                *b >= -2f64.powi(63) && *b < 2f64.powi(63) && b.fract() == 0.0 && *b as i64 == *a
             }
             (Value::String(a), Value::String(b)) => a == b,
-            // TODO: settle ordering (bag vs set) rules for lists
+            // Ordered: at this depth a list is a row/tuple whose order is
+            // meaningful. Top-level row-order semantics are handled by
+            // [`Value::matches_question`].
             (Value::List(a), Value::List(b)) => {
                 a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.matches_expected(y))
             }
@@ -55,6 +56,38 @@ impl Value {
             _ => false,
         }
     }
+
+    /// Top-level comparison for a question's result, honouring the
+    /// question's `ordered` flag. When `ordered` is false and both sides are
+    /// lists, the top-level list compares as a bag (DBs may return rows in
+    /// any order); nested lists always compare ordered, as tuples.
+    pub fn matches_question(&self, expected: &Value, ordered: bool) -> bool {
+        match (self, expected) {
+            (Value::List(result), Value::List(expected)) if !ordered => {
+                bag_matches(result, expected)
+            }
+            _ => self.matches_expected(expected),
+        }
+    }
+}
+
+/// Multiset comparison: every result row consumes exactly one expected row.
+/// Matching is greedy, which suffices because cross-type equality only
+/// crosses Int/Float and that rule is symmetric.
+fn bag_matches(result: &[Value], expected: &[Value]) -> bool {
+    if result.len() != expected.len() {
+        return false;
+    }
+    let mut remaining: Vec<&Value> = expected.iter().collect();
+    for row in result {
+        match remaining.iter().position(|e| row.matches_expected(e)) {
+            Some(i) => {
+                remaining.swap_remove(i);
+            }
+            None => return false,
+        }
+    }
+    true
 }
 
 #[cfg(test)]
@@ -76,6 +109,33 @@ mod tests {
         assert_ne!(Value::Int(3), Value::Float(3.0));
         assert!(!Value::String("3".into()).matches_expected(&Value::Int(3)));
         assert!(!Value::Bool(true).matches_expected(&Value::Int(1)));
+    }
+
+    fn ints(values: &[i64]) -> Value {
+        Value::List(values.iter().copied().map(Value::Int).collect())
+    }
+
+    #[test]
+    fn unordered_lists_compare_as_bags() {
+        assert!(ints(&[1, 2, 3]).matches_question(&ints(&[3, 1, 2]), false));
+        // Multiplicity counts: a bag isn't a set.
+        assert!(!ints(&[1, 1, 2]).matches_question(&ints(&[1, 2, 2]), false));
+        assert!(!ints(&[1, 2]).matches_question(&ints(&[1, 2, 3]), false));
+    }
+
+    #[test]
+    fn ordered_lists_reject_reordering() {
+        assert!(ints(&[1, 2, 3]).matches_question(&ints(&[1, 2, 3]), true));
+        assert!(!ints(&[1, 2, 3]).matches_question(&ints(&[3, 1, 2]), true));
+    }
+
+    #[test]
+    fn nested_lists_stay_ordered_even_in_bag_mode() {
+        let result = Value::List(vec![ints(&[1, 2]), ints(&[3, 4])]);
+        let reordered_rows = Value::List(vec![ints(&[3, 4]), ints(&[1, 2])]);
+        let reordered_tuple = Value::List(vec![ints(&[2, 1]), ints(&[3, 4])]);
+        assert!(result.matches_question(&reordered_rows, false));
+        assert!(!result.matches_question(&reordered_tuple, false));
     }
 }
 

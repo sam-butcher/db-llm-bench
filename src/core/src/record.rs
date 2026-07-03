@@ -18,8 +18,7 @@ pub struct QuestionOutput {
     pub question: String,
     pub difficulty: String,
     pub expected: Value,
-    /// Keyed by DB ID (not query language, so two DBs sharing a language
-    /// don't collide).
+    /// Keyed by DB ID not query language
     pub dbs: BTreeMap<String, DbOutput>,
 }
 

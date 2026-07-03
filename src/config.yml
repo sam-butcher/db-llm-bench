@@ -1,17 +1,25 @@
 dbs:
   - dummy:
-      prompts: ... #path
-      url: ... #unused
-      skills: ...
-      schema: ...
+      prompts: data/dummy
+      url: unused
+      skills: data/dummy/skills
+      schema: data/dummy/schema.txt
 models:
   - dummy:
+      repeat: true
       responses:
         - |
+          Here is the query:
           ```
           3
           ```
-questionsPath: ...
+        - |
+          Here is the query:
+          ```
+          4
+          ```
+        - The answer is three.
+questionsPath: data/questions.json
 exampleCounts:
   - 0
   - 1

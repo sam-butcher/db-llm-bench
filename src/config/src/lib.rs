@@ -101,11 +101,10 @@ impl FromStr for Config {
 
 impl Config {
     pub fn load(path: &Path) -> Result<Config, ConfigError> {
-        let raw = fs::read_to_string(path).map_err(|source| ConfigError::Io {
+        fs::read_to_string(path).map_err(|source| ConfigError::Io {
             path: path.to_path_buf(),
             source,
-        })?;
-        raw.parse::<Config>().map_err(|e| match e {
+        })?.parse::<Config>().map_err(|e| match e {
             ConfigError::Parse { message, .. } => ConfigError::Parse {
                 source_name: path.display().to_string(),
                 message,

@@ -17,6 +17,11 @@ pub struct Question {
     pub question: String,
     pub difficulty: String,
     pub expected: Value,
+    /// Whether the order of a top-level list result is part of correctness
+    /// (i.e. the question demands an ordering). Defaults to unordered: rows
+    /// compare as a bag. Nested lists always compare ordered, as tuples.
+    #[serde(default)]
+    pub ordered: bool,
     /// Correct query per language key ("typeql", "sql", "cypher", ...).
     pub queries: BTreeMap<String, String>,
 }

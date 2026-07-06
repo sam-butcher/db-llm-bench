@@ -48,7 +48,7 @@ fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
                     .context("parsing typedb auth (expects username/password)")?,
                 None => db_typedb::TypeDbAuth::default(),
             };
-            Box::new(db_typedb::TypeDb::new(cfg.url.clone(), database, auth))
+            Box::new(db_typedb::TypeDb::new(cfg.url.clone(), database, auth).map_err(anyhow::Error::msg)?)
         }
         other => anyhow::bail!("unknown DB id: {other}"),
     })

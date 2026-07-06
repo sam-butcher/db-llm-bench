@@ -13,7 +13,9 @@ use tokio::sync::OnceCell;
 use typedb_driver::answer::QueryAnswer;
 use typedb_driver::concept::Concept;
 use typedb_driver::concept::value::Value as TypeDbValue;
-use typedb_driver::{Addresses, Credentials, DriverOptions, TransactionType, TypeDBDriver};
+use typedb_driver::{
+    Addresses, Credentials, DriverOptions, DriverTlsConfig, TransactionType, TypeDBDriver,
+};
 
 /// Pathological queries surface as model-fault timeouts rather than hanging
 /// the run (the runner's 120s ceiling stays a last resort).
@@ -25,6 +27,10 @@ const MAX_ROWS: usize = 10_000;
 pub struct TypeDbAuth {
     pub username: String,
     pub password: String,
+    /// TLS with the system's native trust roots when true. Defaults to OFF
+    /// for local benchmark servers — credentials travel in plaintext, so
+    /// only point this at trusted/local deployments without setting it.
+    pub tls: bool,
 }
 
 impl Default for TypeDbAuth {
@@ -32,11 +38,14 @@ impl Default for TypeDbAuth {
         Self {
             username: "admin".to_string(),
             password: "password".to_string(),
+            tls: false,
         }
     }
 }
 
 pub struct TypeDb {
+    addresses: Addresses,
+    /// Kept for error messages.
     address: String,
     database: String,
     auth: TypeDbAuth,
@@ -44,17 +53,23 @@ pub struct TypeDb {
 }
 
 impl TypeDb {
+    /// Validates the address eagerly so a config typo fails at startup,
+    /// not at the first query.
     pub fn new(
         address: impl Into<String>,
         database: impl Into<String>,
         auth: TypeDbAuth,
-    ) -> Self {
-        Self {
-            address: address.into(),
+    ) -> Result<Self, String> {
+        let address = address.into();
+        let addresses = Addresses::try_from_address_str(&address)
+            .map_err(|e| format!("invalid TypeDB address `{address}` (expected host:port): {e}"))?;
+        Ok(Self {
+            addresses,
+            address,
             database: database.into(),
             auth,
             driver: OnceCell::new(),
-        }
+        })
     }
 
     /// Connect lazily so constructing the package (before any question runs)
@@ -62,10 +77,15 @@ impl TypeDb {
     async fn driver(&self) -> Result<&TypeDBDriver, QueryError> {
         self.driver
             .get_or_try_init(|| async {
+                let tls = if self.auth.tls {
+                    DriverTlsConfig::enabled_with_native_root_ca()
+                } else {
+                    DriverTlsConfig::disabled()
+                };
                 let driver = TypeDBDriver::new(
-                    Addresses::try_from_address_str(&self.address)?,
+                    self.addresses.clone(),
                     Credentials::new(&self.auth.username, &self.auth.password),
-                    DriverOptions::default(),
+                    DriverOptions::new(tls),
                 )
                 .await?;
                 // Fail fast — and as infrastructure — on a missing database:
@@ -122,26 +142,23 @@ fn map_driver_error(error: typedb_driver::Error) -> QueryError {
 async fn coerce_answer(answer: QueryAnswer) -> Result<Value, QueryError> {
     match answer {
         QueryAnswer::Ok(_) => Ok(Value::Null),
-        QueryAnswer::ConceptRowStream(_, mut stream) => {
-            let mut rows = Vec::new();
+        QueryAnswer::ConceptRowStream(header, mut stream) => {
+            let columns = header.column_names.clone();
+            let mut table = Vec::new();
             while let Some(row) = stream.next().await {
                 let row = row.map_err(map_driver_error)?;
-                if rows.len() >= MAX_ROWS {
+                if table.len() >= MAX_ROWS {
                     return Err(QueryError::WrongShape(format!(
                         "result exceeded {MAX_ROWS} rows"
                     )));
                 }
-                rows.push(row);
-            }
-            let columns: Vec<String> = rows
-                .first()
-                .map(|row| row.get_column_names().to_vec())
-                .unwrap_or_default();
-            let mut table = Vec::with_capacity(rows.len());
-            for row in &rows {
                 let mut cells = Vec::with_capacity(columns.len());
                 for name in &columns {
-                    let concept = row.get(name).map_err(map_driver_error)?;
+                    // A column the header promised but the row lacks is a
+                    // driver/harness defect, never the model's.
+                    let concept = row.get(name).map_err(|e| {
+                        QueryError::Infrastructure(format!("row missing column `{name}`: {e}"))
+                    })?;
                     cells.push(coerce_concept(name, concept)?);
                 }
                 table.push(cells);
@@ -277,7 +294,7 @@ mod tests {
         let address =
             std::env::var("TYPEDB_ADDRESS").unwrap_or_else(|_| "127.0.0.1:1729".to_string());
         let database = std::env::var("TYPEDB_DATABASE").unwrap_or_else(|_| "test".to_string());
-        let db = TypeDb::new(address, database, TypeDbAuth::default());
+        let db = TypeDb::new(address, database, TypeDbAuth::default()).unwrap();
         db.driver().await.expect("driver should connect");
     }
 }

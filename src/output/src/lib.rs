@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{self, BufWriter};
 use std::path::Path;
 
-use bench_core::{Attempt, BenchmarkOutput, RecordResult, ResultRecord, TokenUsage};
+use bench_core::{Attempt, BenchmarkOutput, RecordResult, ResultRecord, attempt_totals};
 
 /// Derive the record for a lower retry level from a run at the highest
 /// level, by replaying the attempt trace as if it had been cut off after
@@ -20,12 +20,7 @@ pub fn derive_retry_level(record: &ResultRecord, max_retries: u32) -> ResultReco
     // Only the last attempt of a run can succeed, so success survives the
     // cut iff it happened within the kept attempts.
     let succeeded = attempts.iter().any(|a| a.error.is_none());
-    let mut tokens = TokenUsage::default();
-    let mut latency_ms = 0;
-    for attempt in &attempts {
-        tokens.add(attempt.tokens);
-        latency_ms += attempt.latency_ms;
-    }
+    let (tokens, latency_ms) = attempt_totals(&attempts);
     ResultRecord {
         model: record.model.clone(),
         max_retries,
@@ -59,7 +54,7 @@ pub fn write_output(path: &Path, output: &BenchmarkOutput) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bench_core::Value;
+    use bench_core::{TokenUsage, Value};
 
     fn attempt(query: &str, error: Option<&str>) -> Attempt {
         Attempt {

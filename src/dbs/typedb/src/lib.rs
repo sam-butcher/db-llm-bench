@@ -142,53 +142,65 @@ fn map_driver_error(error: typedb_driver::Error) -> QueryError {
 async fn coerce_answer(answer: QueryAnswer) -> Result<Value, QueryError> {
     match answer {
         QueryAnswer::Ok(_) => Ok(Value::Null),
-        QueryAnswer::ConceptRowStream(header, mut stream) => {
-            let columns = header.column_names.clone();
-            let mut table = Vec::new();
-            while let Some(row) = stream.next().await {
-                let row = row.map_err(map_driver_error)?;
-                if table.len() >= MAX_ROWS {
-                    return Err(QueryError::WrongShape(format!(
-                        "result exceeded {MAX_ROWS} rows"
-                    )));
-                }
-                let mut cells = Vec::with_capacity(columns.len());
-                for name in &columns {
-                    // A column the header promised but the row lacks is a
-                    // driver/harness defect, never the model's.
-                    let concept = row.get(name).map_err(|e| {
-                        QueryError::Infrastructure(format!("row missing column `{name}`: {e}"))
-                    })?;
-                    cells.push(coerce_concept(name, concept)?);
-                }
-                table.push(cells);
-            }
-            Ok(shape_rows(&columns, table))
+        QueryAnswer::ConceptRowStream(header, stream) => {
+            coerce_row_stream(&header.column_names, stream).await
         }
-        QueryAnswer::ConceptDocumentStream(_, mut stream) => {
-            let mut docs = Vec::new();
-            while let Some(document) = stream.next().await {
-                let document = document.map_err(map_driver_error)?;
-                if docs.len() >= MAX_ROWS {
-                    return Err(QueryError::WrongShape(format!(
-                        "result exceeded {MAX_ROWS} documents"
-                    )));
-                }
-                // The driver's JSON type round-trips through its string form
-                // into our canonical Value.
-                let json: serde_json::Value =
-                    serde_json::from_str(&document.into_json().to_string()).map_err(|e| {
-                        QueryError::WrongShape(format!("undecodable document: {e}"))
-                    })?;
-                docs.push(Value::from(json));
-            }
-            Ok(if docs.len() == 1 {
-                docs.pop().unwrap()
-            } else {
-                Value::List(docs)
-            })
-        }
+        QueryAnswer::ConceptDocumentStream(_, stream) => coerce_document_stream(stream).await,
     }
+}
+
+async fn coerce_row_stream(
+    columns: &[String],
+    mut stream: impl futures::Stream<
+        Item = typedb_driver::Result<typedb_driver::answer::concept_row::ConceptRow>,
+    > + Unpin,
+) -> Result<Value, QueryError> {
+    let mut table = Vec::new();
+    while let Some(row) = stream.next().await {
+        let row = row.map_err(map_driver_error)?;
+        if table.len() >= MAX_ROWS {
+            return Err(QueryError::WrongShape(format!(
+                "result exceeded {MAX_ROWS} rows"
+            )));
+        }
+        let mut cells = Vec::with_capacity(columns.len());
+        for name in columns {
+            // A column the header promised but the row lacks is a
+            // driver/harness defect, never the model's.
+            let concept = row.get(name).map_err(|e| {
+                QueryError::Infrastructure(format!("row missing column `{name}`: {e}"))
+            })?;
+            cells.push(coerce_concept(name, concept)?);
+        }
+        table.push(cells);
+    }
+    Ok(shape_rows(columns, table))
+}
+
+async fn coerce_document_stream(
+    mut stream: impl futures::Stream<
+        Item = typedb_driver::Result<typedb_driver::answer::concept_document::ConceptDocument>,
+    > + Unpin,
+) -> Result<Value, QueryError> {
+    let mut docs = Vec::new();
+    while let Some(document) = stream.next().await {
+        let document = document.map_err(map_driver_error)?;
+        if docs.len() >= MAX_ROWS {
+            return Err(QueryError::WrongShape(format!(
+                "result exceeded {MAX_ROWS} documents"
+            )));
+        }
+        // The driver's JSON type round-trips through its string form into
+        // our canonical Value.
+        let json: serde_json::Value = serde_json::from_str(&document.into_json().to_string())
+            .map_err(|e| QueryError::WrongShape(format!("undecodable document: {e}")))?;
+        docs.push(Value::from(json));
+    }
+    Ok(if docs.len() == 1 {
+        docs.pop().unwrap()
+    } else {
+        Value::List(docs)
+    })
 }
 
 /// Only values and attributes are comparable benchmark results; a variable
@@ -215,9 +227,7 @@ fn coerce_value(value: &TypeDbValue) -> Value {
         TypeDbValue::Double(d) => Value::Float(*d),
         // Integer part plus fractional part in units of 10^-19; lossy into
         // f64 by design (the canonical Value has no decimal type).
-        TypeDbValue::Decimal(d) => {
-            Value::Float(d.integer as f64 + d.fractional as f64 / 1e19)
-        }
+        TypeDbValue::Decimal(d) => Value::Float(d.integer as f64 + d.fractional as f64 / 1e19),
         TypeDbValue::String(s) => Value::String(s.clone()),
         // Temporal and structured values compare as the driver's Display
         // form (pinned by tests; e.g. datetimes are ISO with nanoseconds:

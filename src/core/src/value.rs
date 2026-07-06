@@ -49,8 +49,7 @@ impl Value {
             }
             (Value::Object(a), Value::Object(b)) => {
                 a.len() == b.len()
-                    && a
-                        .iter()
+                    && a.iter()
                         .all(|(k, v)| b.get(k).is_some_and(|w| v.matches_expected(w)))
             }
             _ => false,
@@ -77,28 +76,23 @@ impl Value {
 /// - one column: each row becomes the bare value
 /// - a single row is unwrapped (a lone count compares against a scalar)
 /// - no rows: an empty list
-pub fn shape_rows(columns: &[String], mut rows: Vec<Vec<Value>>) -> Value {
-    let mut shaped: Vec<Value> = if columns.len() == 1 {
-        rows.into_iter()
-            .map(|mut row| row.remove(0))
-            .collect()
-    } else {
-        rows.drain(..)
-            .map(|row| {
-                Value::Object(
-                    columns
-                        .iter()
-                        .cloned()
-                        .zip(row)
-                        .collect::<BTreeMap<String, Value>>(),
-                )
-            })
-            .collect()
-    };
+pub fn shape_rows(columns: &[String], rows: Vec<Vec<Value>>) -> Value {
+    let mut shaped: Vec<Value> = rows
+        .into_iter()
+        .map(|row| shape_row(columns, row))
+        .collect();
     if shaped.len() == 1 {
         shaped.pop().unwrap()
     } else {
         Value::List(shaped)
+    }
+}
+
+fn shape_row(columns: &[String], mut row: Vec<Value>) -> Value {
+    if columns.len() == 1 {
+        row.remove(0)
+    } else {
+        Value::Object(columns.iter().cloned().zip(row).collect())
     }
 }
 
@@ -119,6 +113,24 @@ fn bag_matches(result: &[Value], expected: &[Value]) -> bool {
         }
     }
     true
+}
+
+impl From<serde_json::Value> for Value {
+    fn from(v: serde_json::Value) -> Self {
+        match v {
+            serde_json::Value::Null => Value::Null,
+            serde_json::Value::Bool(b) => Value::Bool(b),
+            serde_json::Value::Number(n) => match n.as_i64() {
+                Some(i) => Value::Int(i),
+                None => Value::Float(n.as_f64().unwrap_or(f64::NAN)),
+            },
+            serde_json::Value::String(s) => Value::String(s),
+            serde_json::Value::Array(a) => Value::List(a.into_iter().map(Value::from).collect()),
+            serde_json::Value::Object(o) => {
+                Value::Object(o.into_iter().map(|(k, v)| (k, Value::from(v))).collect())
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -163,10 +175,7 @@ mod tests {
     #[test]
     fn shaping_unwraps_single_column_and_single_row() {
         let col = vec!["count".to_string()];
-        assert_eq!(
-            shape_rows(&col, vec![vec![Value::Int(3)]]),
-            Value::Int(3)
-        );
+        assert_eq!(shape_rows(&col, vec![vec![Value::Int(3)]]), Value::Int(3));
         assert_eq!(
             shape_rows(&col, vec![vec![Value::Int(1)], vec![Value::Int(2)]]),
             ints(&[1, 2])
@@ -174,10 +183,7 @@ mod tests {
         assert_eq!(shape_rows(&col, vec![]), Value::List(vec![]));
 
         let cols = vec!["name".to_string(), "age".to_string()];
-        let shaped = shape_rows(
-            &cols,
-            vec![vec![Value::String("ka".into()), Value::Int(2)]],
-        );
+        let shaped = shape_rows(&cols, vec![vec![Value::String("ka".into()), Value::Int(2)]]);
         assert_eq!(
             shaped,
             Value::Object(BTreeMap::from([
@@ -194,23 +200,5 @@ mod tests {
         let reordered_tuple = Value::List(vec![ints(&[2, 1]), ints(&[3, 4])]);
         assert!(result.matches_question(&reordered_rows, false));
         assert!(!result.matches_question(&reordered_tuple, false));
-    }
-}
-
-impl From<serde_json::Value> for Value {
-    fn from(v: serde_json::Value) -> Self {
-        match v {
-            serde_json::Value::Null => Value::Null,
-            serde_json::Value::Bool(b) => Value::Bool(b),
-            serde_json::Value::Number(n) => match n.as_i64() {
-                Some(i) => Value::Int(i),
-                None => Value::Float(n.as_f64().unwrap_or(f64::NAN)),
-            },
-            serde_json::Value::String(s) => Value::String(s),
-            serde_json::Value::Array(a) => Value::List(a.into_iter().map(Value::from).collect()),
-            serde_json::Value::Object(o) => {
-                Value::Object(o.into_iter().map(|(k, v)| (k, Value::from(v))).collect())
-            }
-        }
     }
 }

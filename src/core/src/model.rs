@@ -14,6 +14,22 @@ pub struct Message {
     pub content: String,
 }
 
+impl Message {
+    pub fn user(content: impl Into<String>) -> Self {
+        Self {
+            role: Role::User,
+            content: content.into(),
+        }
+    }
+
+    pub fn assistant(content: impl Into<String>) -> Self {
+        Self {
+            role: Role::Assistant,
+            content: content.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct TokenUsage {
     pub input: u64,

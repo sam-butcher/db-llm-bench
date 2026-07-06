@@ -72,6 +72,18 @@ impl DummyProvider {
     pub fn conversations(&self) -> Vec<Vec<Message>> {
         self.conversations.lock().unwrap().clone()
     }
+
+    /// Pop the next scripted entry, cycling it to the back when repeating.
+    fn next_scripted(&self) -> Option<Scripted> {
+        let mut responses = self.responses.lock().unwrap();
+        let next = responses.pop_front();
+        if self.repeat
+            && let Some(scripted) = &next
+        {
+            responses.push_back(scripted.clone());
+        }
+        next
+    }
 }
 
 impl From<DummyConfig> for DummyProvider {
@@ -92,16 +104,11 @@ impl ModelProvider for DummyProvider {
     }
 
     async fn send_prompt(&self, conversation: &[Message]) -> Result<ModelResponse, ProviderError> {
-        self.conversations.lock().unwrap().push(conversation.to_vec());
-        let mut responses = self.responses.lock().unwrap();
-        let next = responses.pop_front();
-        if self.repeat {
-            if let Some(scripted) = &next {
-                responses.push_back(scripted.clone());
-            }
-        }
-        drop(responses);
-        match next {
+        self.conversations
+            .lock()
+            .unwrap()
+            .push(conversation.to_vec());
+        match self.next_scripted() {
             Some(Scripted::Text(text)) => Ok(ModelResponse {
                 tokens: TokenUsage {
                     input: conversation.iter().map(|m| m.content.len() as u64).sum(),

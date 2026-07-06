@@ -84,7 +84,10 @@ pub enum ConfigError {
         source: std::io::Error,
     },
     #[error("failed to parse {source_name}: {message}")]
-    Parse { source_name: String, message: String },
+    Parse {
+        source_name: String,
+        message: String,
+    },
     #[error("invalid config: {0}")]
     Invalid(String),
 }
@@ -104,16 +107,19 @@ impl FromStr for Config {
 
 impl Config {
     pub fn load(path: &Path) -> Result<Config, ConfigError> {
-        fs::read_to_string(path).map_err(|source| ConfigError::Io {
-            path: path.to_path_buf(),
-            source,
-        })?.parse::<Config>().map_err(|e| match e {
-            ConfigError::Parse { message, .. } => ConfigError::Parse {
-                source_name: path.display().to_string(),
-                message,
-            },
-            other => other,
-        })
+        fs::read_to_string(path)
+            .map_err(|source| ConfigError::Io {
+                path: path.to_path_buf(),
+                source,
+            })?
+            .parse::<Config>()
+            .map_err(|e| match e {
+                ConfigError::Parse { message, .. } => ConfigError::Parse {
+                    source_name: path.display().to_string(),
+                    message,
+                },
+                other => other,
+            })
     }
 
     pub fn db_entries(&self) -> impl Iterator<Item = (&str, &DbConfig)> {
@@ -132,19 +138,17 @@ impl Config {
         fn no_duplicates<'a>(
             kind: &str,
             ids: impl Iterator<Item = &'a str>,
-        ) -> Result<usize, ConfigError> {
+        ) -> Result<(), ConfigError> {
             let mut seen = std::collections::BTreeSet::new();
-            let mut count = 0;
             for id in ids {
                 if !seen.insert(id) {
                     return Err(ConfigError::Invalid(format!("duplicate {kind} id: {id}")));
                 }
-                count += 1;
             }
-            if count == 0 {
+            if seen.is_empty() {
                 return Err(ConfigError::Invalid(format!("no {kind}s configured")));
             }
-            Ok(count)
+            Ok(())
         }
         no_duplicates("DB", self.db_entries().map(|(id, _)| id))?;
         no_duplicates("model", self.model_entries().map(|(id, _)| id))?;
@@ -203,10 +207,7 @@ maxRetryCounts: [0, 2]
         let models: Vec<_> = config.model_entries().collect();
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].0, "dummy");
-        assert_eq!(
-            models[0].1,
-            &serde_json::json!({"responses": ["select 1"]})
-        );
+        assert_eq!(models[0].1, &serde_json::json!({"responses": ["select 1"]}));
     }
 
     #[test]

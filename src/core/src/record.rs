@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 
 use serde::{Serialize, Serializer};
 
-use crate::model::TokenUsage;
 use crate::Value;
+use crate::model::TokenUsage;
 
 #[derive(Debug, Serialize)]
 pub struct BenchmarkOutput {
@@ -61,6 +61,18 @@ pub struct Attempt {
     pub latency_ms: u64,
     /// None when this attempt succeeded (only ever the last attempt).
     pub error: Option<String>,
+}
+
+/// Sum token usage and latency across an attempt trace — the totals rule
+/// shared by the runner and retry-level derivation.
+pub fn attempt_totals(attempts: &[Attempt]) -> (TokenUsage, u64) {
+    let mut tokens = TokenUsage::default();
+    let mut latency_ms = 0;
+    for attempt in attempts {
+        tokens.add(attempt.tokens);
+        latency_ms += attempt.latency_ms;
+    }
+    (tokens, latency_ms)
 }
 
 #[derive(Debug, Clone)]

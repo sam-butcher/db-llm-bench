@@ -5,13 +5,15 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use bench_config::{Config, DbConfig, load_questions};
-use bench_core::{BenchmarkOutput, Database, DbOutput, ModelProvider, QuestionOutput};
+use bench_core::{
+    BenchmarkOutput, Database, DbOutput, ModelProvider, QuestionFile, QuestionOutput,
+};
 use bench_output::derive_retry_level;
 use bench_runner::{BenchmarkRunner, QuestionRun};
 
 /// Fold question runs into the output structure, expanding each record into
 /// one entry per configured retry level.
-fn marshal(
+fn append_run_records(
     outputs: &mut [QuestionOutput],
     db_id: &str,
     retry_levels: &[u32],
@@ -33,6 +35,67 @@ fn marshal(
     }
 }
 
+/// `[config path] [output path]`, defaulting to config.yml and results.json.
+fn parse_args() -> (PathBuf, PathBuf) {
+    let mut args = env::args().skip(1);
+    let config_path = args
+        .next()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("config.yml"));
+    let output_path = args
+        .next()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("results.json"));
+    (config_path, output_path)
+}
+
+/// Give every question an (empty) result slot for this DB before running,
+/// so partial-failure marshalling always has somewhere to land.
+fn seed_db_slots(
+    outputs: &mut [QuestionOutput],
+    questions: &QuestionFile,
+    db_id: &str,
+    language: &str,
+) {
+    for (question, output) in questions.questions.iter().zip(outputs) {
+        output.dbs.insert(
+            db_id.to_string(),
+            DbOutput {
+                language: language.to_string(),
+                correct: question.queries.get(language).cloned().unwrap_or_default(),
+                results: Vec::new(),
+            },
+        );
+    }
+}
+
+/// Skills on/off is a test dimension; DBs without a skills folder only run
+/// with skills off.
+fn skills_variants(skills: &Option<Vec<String>>) -> Vec<Option<Vec<String>>> {
+    match skills {
+        Some(skills) => vec![None, Some(skills.clone())],
+        None => vec![None],
+    }
+}
+
+/// (total, accurate) across every record in the output.
+fn count_records(output: &BenchmarkOutput) -> (usize, usize) {
+    let mut total = 0;
+    let mut accurate = 0;
+    for record in output
+        .questions
+        .iter()
+        .flat_map(|q| q.dbs.values())
+        .flat_map(|db| &db.results)
+    {
+        total += 1;
+        if record.accurate {
+            accurate += 1;
+        }
+    }
+    (total, accurate)
+}
+
 /// Each valid DB ID gets its own package; adding a DB means adding a crate
 /// and an arm here.
 fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
@@ -48,7 +111,10 @@ fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
                     .context("parsing typedb auth (expects username/password)")?,
                 None => db_typedb::TypeDbAuth::default(),
             };
-            Box::new(db_typedb::TypeDb::new(cfg.url.clone(), database, auth).map_err(anyhow::Error::msg)?)
+            Box::new(
+                db_typedb::TypeDb::new(cfg.url.clone(), database, auth)
+                    .map_err(anyhow::Error::msg)?,
+            )
         }
         other => anyhow::bail!("unknown DB id: {other}"),
     })
@@ -82,7 +148,9 @@ fn load_db_assets(cfg: &DbConfig) -> anyhow::Result<DbAssets> {
         .with_context(|| format!("reading schema {}", cfg.schema.display()))?;
     let mut examples = Vec::new();
     loop {
-        let path = cfg.prompts.join(format!("example-{}.txt", examples.len() + 1));
+        let path = cfg
+            .prompts
+            .join(format!("example-{}.txt", examples.len() + 1));
         if !path.exists() {
             break;
         }
@@ -118,16 +186,7 @@ fn load_skills(dir: &Path) -> anyhow::Result<Vec<String>> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut args = env::args().skip(1);
-    let config_path = args
-        .next()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("config.yml"));
-    let output_path = args
-        .next()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("results.json"));
-
+    let (config_path, output_path) = parse_args();
     let config = Config::load(&config_path)?;
     let questions = load_questions(&config.questions_path)?;
     // Run only at the highest level; every configured level is derived from
@@ -159,17 +218,7 @@ async fn main() -> anyhow::Result<()> {
     'combos: for (db_id, db_cfg) in config.db_entries() {
         let db = build_db(db_id, db_cfg)?;
         let assets = load_db_assets(db_cfg)?;
-
-        for (q, out) in questions.questions.iter().zip(&mut outputs) {
-            out.dbs.insert(
-                db_id.to_string(),
-                DbOutput {
-                    language: db.query_language().to_string(),
-                    correct: q.queries.get(db.query_language()).cloned().unwrap_or_default(),
-                    results: Vec::new(),
-                },
-            );
-        }
+        seed_db_slots(&mut outputs, &questions, db_id, db.query_language());
 
         for model in &models {
             for &example_count in &config.example_counts {
@@ -180,13 +229,7 @@ async fn main() -> anyhow::Result<()> {
                     assets.examples.len(),
                     db_cfg.prompts.display()
                 );
-                // Skills on/off is a test dimension; DBs without a skills
-                // folder only run with skills off.
-                let skills_variants: Vec<Option<Vec<String>>> = match &assets.skills {
-                    Some(skills) => vec![None, Some(skills.clone())],
-                    None => vec![None],
-                };
-                for skills in skills_variants {
+                for skills in skills_variants(&assets.skills) {
                     let runner = BenchmarkRunner {
                         db: db.as_ref(),
                         model: model.as_ref(),
@@ -197,10 +240,15 @@ async fn main() -> anyhow::Result<()> {
                         max_retries,
                     };
                     match runner.run(&questions.questions).await {
-                        Ok(runs) => marshal(&mut outputs, db_id, &retry_levels, runs),
+                        Ok(runs) => append_run_records(&mut outputs, db_id, &retry_levels, runs),
                         Err(failure) => {
                             abort = Some(format!("aborted on DB {db_id}: {failure}"));
-                            marshal(&mut outputs, db_id, &retry_levels, failure.completed);
+                            append_run_records(
+                                &mut outputs,
+                                db_id,
+                                &retry_levels,
+                                failure.completed,
+                            );
                             break 'combos;
                         }
                     }
@@ -213,18 +261,10 @@ async fn main() -> anyhow::Result<()> {
     bench_output::write_output(&output_path, &output)
         .with_context(|| format!("writing {}", output_path.display()))?;
 
-    let records: Vec<_> = output
-        .questions
-        .iter()
-        .flat_map(|q| q.dbs.values())
-        .flat_map(|db| &db.results)
-        .collect();
-    let accurate = records.iter().filter(|r| r.accurate).count();
+    let (total, accurate) = count_records(&output);
     println!(
-        "Wrote {} records to {} ({accurate}/{} accurate)",
-        records.len(),
+        "Wrote {total} records to {} ({accurate}/{total} accurate)",
         output_path.display(),
-        records.len(),
     );
     if let Some(message) = abort {
         anyhow::bail!("{message}; partial results written");

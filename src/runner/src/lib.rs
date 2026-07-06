@@ -5,8 +5,8 @@
 use std::time::{Duration, Instant};
 
 use bench_core::{
-    Attempt, Database, Message, ModelProvider, ModelResponse, ProviderError, QueryError,
-    Question, RecordResult, ResultRecord, Role, TokenUsage,
+    Attempt, Database, Message, ModelProvider, ModelResponse, ProviderError, QueryError, Question,
+    RecordResult, ResultRecord, TokenUsage, Value, attempt_totals,
 };
 use thiserror::Error;
 
@@ -153,6 +153,39 @@ enum Fault {
     Terminal(String),
 }
 
+impl Fault {
+    fn message(&self) -> &str {
+        match self {
+            Fault::Retryable(message) | Fault::Terminal(message) => message,
+        }
+    }
+}
+
+/// Everything one prompt-extract-execute round trip produced.
+struct AttemptOutcome {
+    query: Option<String>,
+    tokens: TokenUsage,
+    latency_ms: u64,
+    response_text: String,
+    outcome: Result<Value, Fault>,
+}
+
+/// Feedback for a retryable fault: honest about whether a query ran and
+/// failed, or no query could be extracted at all.
+fn retry_feedback(query_ran: bool, message: &str) -> String {
+    if query_ran {
+        format!(
+            "The query failed with the following error:\n\n{message}\n\n\
+             Please respond with a corrected query."
+        )
+    } else {
+        "Your response did not contain a fenced code block. Respond with \
+         exactly one fenced code block containing only the query, or the \
+         literal token UNANSWERABLE alone on its own line."
+            .to_string()
+    }
+}
+
 impl BenchmarkRunner<'_> {
     /// For each question, REPETITIONS times: assemble the prompt, send it to
     /// the model, extract and execute the query, feeding model-fault errors
@@ -199,94 +232,95 @@ impl BenchmarkRunner<'_> {
         question: &Question,
         repetition: u32,
     ) -> Result<ResultRecord, RunError> {
-        let prompt = assemble_prompt(
+        let mut conversation = vec![Message::user(self.assemble(question))];
+        let mut attempts: Vec<Attempt> = Vec::new();
+
+        loop {
+            let AttemptOutcome {
+                query,
+                tokens,
+                latency_ms,
+                response_text,
+                outcome,
+            } = self.attempt(&conversation).await?;
+            attempts.push(Attempt {
+                query: query.clone(),
+                tokens,
+                latency_ms,
+                error: outcome
+                    .as_ref()
+                    .err()
+                    .map(|fault| fault.message().to_string()),
+            });
+
+            match outcome {
+                Ok(value) => {
+                    let accurate = value.matches_question(&question.expected, question.ordered);
+                    return Ok(self.build_record(
+                        repetition,
+                        attempts,
+                        RecordResult::Value(value),
+                        accurate,
+                    ));
+                }
+                Err(Fault::Terminal(_)) => {
+                    return Ok(self.build_record(repetition, attempts, RecordResult::Error, false));
+                }
+                Err(Fault::Retryable(message)) => {
+                    if attempts.len() > self.max_retries as usize {
+                        return Ok(self.build_record(
+                            repetition,
+                            attempts,
+                            RecordResult::Error,
+                            false,
+                        ));
+                    }
+                    conversation.push(Message::assistant(response_text));
+                    conversation.push(Message::user(retry_feedback(query.is_some(), &message)));
+                }
+            }
+        }
+    }
+
+    fn assemble(&self, question: &Question) -> String {
+        assemble_prompt(
             &self.prompt_template,
             &question.question,
             &self.schema,
             &self.examples,
             self.skills.as_deref().unwrap_or_default(),
-        );
-        let mut conversation = vec![Message {
-            role: Role::User,
-            content: prompt,
-        }];
-        let mut attempts: Vec<Attempt> = Vec::new();
+        )
+    }
 
-        loop {
-            let (response, provider_latency_ms) = self.send_with_backoff(&conversation).await?;
-
-            let (query, db_latency_ms, outcome) = match extract_query(&response.text) {
-                Extraction::Query(query) => {
-                    let (outcome, db_latency_ms) = self.query_with_backoff(&query).await?;
-                    (Some(query), db_latency_ms, outcome)
-                }
-                Extraction::Unanswerable => (
-                    None,
-                    0,
-                    Err(Fault::Terminal("declared UNANSWERABLE".to_string())),
-                ),
-                Extraction::Malformed => (
-                    None,
-                    0,
-                    Err(Fault::Retryable("no query found in response".to_string())),
-                ),
-            };
+    /// One prompt-extract-execute round trip; never touches retry
+    /// bookkeeping.
+    async fn attempt(&self, conversation: &[Message]) -> Result<AttemptOutcome, RunError> {
+        let (response, provider_latency_ms) = self.send_with_backoff(conversation).await?;
+        let (query, db_latency_ms, outcome) = match extract_query(&response.text) {
+            Extraction::Query(query) => {
+                let (outcome, db_latency_ms) = self.query_with_backoff(&query).await?;
+                (Some(query), db_latency_ms, outcome)
+            }
+            Extraction::Unanswerable => (
+                None,
+                0,
+                Err(Fault::Terminal("declared UNANSWERABLE".to_string())),
+            ),
+            Extraction::Malformed => (
+                None,
+                0,
+                Err(Fault::Retryable("no query found in response".to_string())),
+            ),
+        };
+        Ok(AttemptOutcome {
+            query,
+            tokens: response.tokens,
             // Model+DB work only: harness backoff sleeps and failed
             // transport calls are infra noise and excluded.
-            let latency_ms = provider_latency_ms + db_latency_ms;
-
-            match outcome {
-                Ok(value) => {
-                    attempts.push(Attempt {
-                        query,
-                        tokens: response.tokens,
-                        latency_ms,
-                        error: None,
-                    });
-                    let accurate = value.matches_question(&question.expected, question.ordered);
-                    return Ok(self.record(repetition, attempts, RecordResult::Value(value), accurate));
-                }
-                Err(Fault::Terminal(message)) => {
-                    attempts.push(Attempt {
-                        query,
-                        tokens: response.tokens,
-                        latency_ms,
-                        error: Some(message),
-                    });
-                    return Ok(self.record(repetition, attempts, RecordResult::Error, false));
-                }
-                Err(Fault::Retryable(message)) => {
-                    attempts.push(Attempt {
-                        query: query.clone(),
-                        tokens: response.tokens,
-                        latency_ms,
-                        error: Some(message.clone()),
-                    });
-                    if attempts.len() > self.max_retries as usize {
-                        return Ok(self.record(repetition, attempts, RecordResult::Error, false));
-                    }
-                    let feedback = if query.is_some() {
-                        format!(
-                            "The query failed with the following error:\n\n{message}\n\n\
-                             Please respond with a corrected query."
-                        )
-                    } else {
-                        "Your response did not contain a fenced code block. Respond with \
-                         exactly one fenced code block containing only the query, or the \
-                         literal token UNANSWERABLE alone on its own line."
-                            .to_string()
-                    };
-                    conversation.push(Message {
-                        role: Role::Assistant,
-                        content: response.text,
-                    });
-                    conversation.push(Message {
-                        role: Role::User,
-                        content: feedback,
-                    });
-                }
-            }
-        }
+            latency_ms: provider_latency_ms + db_latency_ms,
+            response_text: response.text,
+            outcome,
+        })
     }
 
     /// Retry transient provider errors with exponential backoff; fatal
@@ -327,7 +361,7 @@ impl BenchmarkRunner<'_> {
     async fn query_with_backoff(
         &self,
         query: &str,
-    ) -> Result<(Result<bench_core::Value, Fault>, u64), RunError> {
+    ) -> Result<(Result<Value, Fault>, u64), RunError> {
         let mut infra_failures = 0;
         loop {
             let started = Instant::now();
@@ -352,19 +386,14 @@ impl BenchmarkRunner<'_> {
         }
     }
 
-    fn record(
+    fn build_record(
         &self,
         repetition: u32,
         attempts: Vec<Attempt>,
         result: RecordResult,
         accurate: bool,
     ) -> ResultRecord {
-        let mut tokens = TokenUsage::default();
-        let mut latency_ms = 0;
-        for attempt in &attempts {
-            tokens.add(attempt.tokens);
-            latency_ms += attempt.latency_ms;
-        }
+        let (tokens, latency_ms) = attempt_totals(&attempts);
         ResultRecord {
             model: self.model.model_id(),
             max_retries: self.max_retries,
@@ -531,7 +560,9 @@ mod run_tests {
     async fn infrastructure_error_recovers_with_backoff() {
         let db = DummyDb::new();
         // One dropped connection, then the JSON-echo fallback succeeds.
-        db.script(Err(QueryError::Infrastructure("connection reset".to_string())));
+        db.script(Err(QueryError::Infrastructure(
+            "connection reset".to_string(),
+        )));
         let provider = per_repetition("```\n3\n```");
         let runs = runner(&db, &provider)
             .run(&[question(Value::Int(3))])
@@ -550,7 +581,9 @@ mod run_tests {
         let db = DummyDb::new();
         db.script(Ok(Value::Int(3)));
         for _ in 0..=INFRA_RETRIES {
-            db.script(Err(QueryError::Infrastructure("db unreachable".to_string())));
+            db.script(Err(QueryError::Infrastructure(
+                "db unreachable".to_string(),
+            )));
         }
         let provider = per_repetition("```\n3\n```");
         let failure = runner(&db, &provider)
@@ -594,12 +627,17 @@ mod run_tests {
             assert_eq!(record.max_retries, 2);
             assert_eq!(record.retries_used, 1);
             assert_eq!(record.attempts.len(), 2);
-            assert!(record.attempts[0].error.as_deref().unwrap().contains("syntax error"));
+            assert!(
+                record.attempts[0]
+                    .error
+                    .as_deref()
+                    .unwrap()
+                    .contains("syntax error")
+            );
             assert!(record.attempts[1].error.is_none());
             assert_eq!(record.generated, "3");
             // Totals sum both attempts.
-            let expected_output: u64 =
-                record.attempts.iter().map(|a| a.tokens.output).sum();
+            let expected_output: u64 = record.attempts.iter().map(|a| a.tokens.output).sum();
             assert_eq!(record.tokens.output, expected_output);
         }
         // The retry conversation carried the original prompt, the model's
@@ -677,10 +715,7 @@ mod run_tests {
         assert!(runs[0].records.iter().all(|r| r.accurate));
         // Transient failures don't touch the model's budget or the trace.
         assert!(runs[0].records.iter().all(|r| r.retries_used == 0));
-        assert_eq!(
-            provider.conversations().len(),
-            (REPETITIONS * 2) as usize
-        );
+        assert_eq!(provider.conversations().len(), (REPETITIONS * 2) as usize);
     }
 
     #[tokio::test(start_paused = true)]

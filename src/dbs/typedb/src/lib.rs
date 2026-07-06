@@ -62,12 +62,21 @@ impl TypeDb {
     async fn driver(&self) -> Result<&TypeDBDriver, QueryError> {
         self.driver
             .get_or_try_init(|| async {
-                TypeDBDriver::new(
+                let driver = TypeDBDriver::new(
                     Addresses::try_from_address_str(&self.address)?,
                     Credentials::new(&self.auth.username, &self.auth.password),
                     DriverOptions::default(),
                 )
-                .await
+                .await?;
+                // Fail fast — and as infrastructure — on a missing database:
+                // a config typo must not be scored as model failures.
+                if !driver.databases().contains(&self.database).await? {
+                    return Err(typedb_driver::Error::Other(format!(
+                        "database `{}` does not exist on {}",
+                        self.database, self.address
+                    )));
+                }
+                Ok(driver)
             })
             .await
             .map_err(|e| QueryError::Infrastructure(e.to_string()))
@@ -86,20 +95,27 @@ impl Database for TypeDb {
             .transaction(&self.database, TransactionType::Read)
             .await
             .map_err(|e| QueryError::Infrastructure(e.to_string()))?;
-        let answer = tokio::time::timeout(QUERY_TIMEOUT, transaction.query(query))
-            .await
-            .map_err(|_| QueryError::Timeout)?
-            .map_err(map_driver_error)?;
-        coerce_answer(answer).await
+        // The timeout covers execution AND streaming: pathological queries
+        // usually answer fast and then stream forever, so guarding only the
+        // query() call would miss them.
+        tokio::time::timeout(QUERY_TIMEOUT, async {
+            let answer = transaction.query(query).await.map_err(map_driver_error)?;
+            coerce_answer(answer).await
+        })
+        .await
+        .map_err(|_| QueryError::Timeout)?
     }
 }
 
-/// Transport-level failures are the harness's problem; anything the server
-/// said about the query itself is the model's.
+/// The model owns errors raised about the query itself (parse, analysis,
+/// server-side rejection). Everything else — transport, driver internals,
+/// client-side concept API misuse — is infrastructure, and is never blamed
+/// on the model.
 fn map_driver_error(error: typedb_driver::Error) -> QueryError {
+    use typedb_driver::Error;
     match &error {
-        typedb_driver::Error::Connection(_) => QueryError::Infrastructure(error.to_string()),
-        _ => QueryError::Syntax(error.to_string()),
+        Error::Analyze(_) | Error::Server(_) => QueryError::Syntax(error.to_string()),
+        _ => QueryError::Infrastructure(error.to_string()),
     }
 }
 
@@ -180,21 +196,80 @@ fn coerce_value(value: &TypeDbValue) -> Value {
         TypeDbValue::Boolean(b) => Value::Bool(*b),
         TypeDbValue::Integer(i) => Value::Int(*i),
         TypeDbValue::Double(d) => Value::Float(*d),
-        TypeDbValue::Decimal(d) => d
-            .to_string()
-            .parse::<f64>()
-            .map(Value::Float)
-            .unwrap_or_else(|_| Value::String(d.to_string())),
+        // Integer part plus fractional part in units of 10^-19; lossy into
+        // f64 by design (the canonical Value has no decimal type).
+        TypeDbValue::Decimal(d) => {
+            Value::Float(d.integer as f64 + d.fractional as f64 / 1e19)
+        }
         TypeDbValue::String(s) => Value::String(s.clone()),
-        // Temporal and structured values compare as their canonical string
-        // forms; questions with these answers author `expected` as strings.
+        // Temporal and structured values compare as the driver's Display
+        // form (pinned by tests; e.g. datetimes are ISO with nanoseconds:
+        // "2024-01-15T10:30:00.000000000"). Questions with these answers
+        // author `expected` as strings in that form.
         other => Value::String(other.to_string()),
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+    use typedb_driver::concept::value::Decimal;
+
     use super::*;
+
+    #[test]
+    fn coerces_primitive_values() {
+        assert_eq!(coerce_value(&TypeDbValue::Boolean(true)), Value::Bool(true));
+        assert_eq!(coerce_value(&TypeDbValue::Integer(42)), Value::Int(42));
+        assert_eq!(coerce_value(&TypeDbValue::Double(2.5)), Value::Float(2.5));
+        assert_eq!(
+            coerce_value(&TypeDbValue::String("ka".to_string())),
+            Value::String("ka".to_string())
+        );
+    }
+
+    #[test]
+    fn coerces_decimals_including_negative() {
+        let half = 5 * 10u64.pow(18);
+        assert_eq!(
+            coerce_value(&TypeDbValue::Decimal(Decimal {
+                integer: 1,
+                fractional: half
+            })),
+            Value::Float(1.5)
+        );
+        // -1.5 is integer -2 plus fractional +0.5 (fractional is always a
+        // positive offset).
+        assert_eq!(
+            coerce_value(&TypeDbValue::Decimal(Decimal {
+                integer: -2,
+                fractional: half
+            })),
+            Value::Float(-1.5)
+        );
+    }
+
+    /// Pins the canonical string forms question authors must use in
+    /// `expected` for temporal answers.
+    #[test]
+    fn temporal_values_coerce_to_canonical_strings() {
+        let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+        assert_eq!(
+            coerce_value(&TypeDbValue::Date(date)),
+            Value::String("2024-01-15".to_string())
+        );
+        // Datetimes carry full nanosecond precision in the driver's form.
+        let datetime = NaiveDateTime::new(date, NaiveTime::from_hms_opt(10, 30, 0).unwrap());
+        assert_eq!(
+            coerce_value(&TypeDbValue::Datetime(datetime)),
+            Value::String("2024-01-15T10:30:00.000000000".to_string())
+        );
+    }
+
+    #[test]
+    fn unbound_variables_coerce_to_null() {
+        assert_eq!(coerce_concept("x", None).unwrap(), Value::Null);
+    }
 
     #[tokio::test]
     #[ignore = "requires a running TypeDB server (TYPEDB_ADDRESS, TYPEDB_DATABASE)"]

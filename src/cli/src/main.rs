@@ -124,6 +124,13 @@ fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
 /// its own config entry.
 fn build_model(id: &str, cfg: &serde_json::Value) -> anyhow::Result<Box<dyn ModelProvider>> {
     Ok(match id {
+        "claude" => Box::new(
+            provider_claude::Claude::new(
+                serde_json::from_value(cfg.clone())
+                    .context("parsing claude model config (expects model, optional api_key/max_tokens/thinking/effort)")?,
+            )
+            .map_err(anyhow::Error::msg)?,
+        ),
         "dummy" => Box::new(provider_dummy::DummyProvider::from(
             serde_json::from_value::<provider_dummy::DummyConfig>(cfg.clone())?,
         )),

@@ -1,12 +1,10 @@
-You are generating queries in the "dummy" query language, in which a query is
-simply the JSON encoding of the result it should produce.
+Generate JSON to answer the given question.
 
 Schema:
 {{schema}}
 
 {{skills}}
 
-Examples:
 {{examples}}
 
 Respond with exactly one fenced code block containing only the query. If the

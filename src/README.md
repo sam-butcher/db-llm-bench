@@ -18,6 +18,9 @@ Inputs (taken in through config file - see config.yml for a suggested format):
     - Contains template slot for skills (filled with the loaded `.md` skill files, empty when running
       with skills off)
     - Slot syntax is `{{question}}`, `{{schema}}`, `{{examples}}`, and `{{skills}}`
+    - The examples slot fills with an `Examples:` heading followed by the examples - or with nothing at
+      all when running with zero examples, so the heading never dangles. Templates should not add their
+      own heading
     - Must instruct the model to respond with exactly one fenced code block containing only the query,
       or the literal token `UNANSWERABLE` alone on its own line if it believes the question cannot be
       answered against the schema (the own-line rule stops prose that merely mentions the token from

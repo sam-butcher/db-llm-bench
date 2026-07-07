@@ -1,0 +1,10 @@
+define
+
+attribute wheels, value integer;
+attribute model, value string;
+attribute brand, value string;
+
+entity car,
+    owns wheels,
+    owns model,
+    owns brand;

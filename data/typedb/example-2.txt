@@ -1,0 +1,8 @@
+Question: Are there any Mercedes cars?
+```
+with fun mercedes_exists() -> boolean:
+  match $_ isa car, has brand "Mercedes";
+  return check;
+match
+let $exists = mercedes_exists();
+```

@@ -1,0 +1,6 @@
+Question: How many wheels are there in total?
+```
+match
+$_ isa car, has wheels $w;
+reduce $sum = sum($w);
+```

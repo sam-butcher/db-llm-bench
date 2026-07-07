@@ -2,8 +2,16 @@ dbs:
   - dummy:
       prompts: data/dummy
       url: unused
-      skills: data/dummy/skills
       schema: data/dummy/schema.txt
+  - typedb:
+      prompts: data/typedb
+      url: http://localhost:1729
+      database: bench
+      auth:
+        username: admin
+        password: password
+        tls: false
+      schema: data/typedb/schema.tql
 models:
   - dummy:
       repeat: true
@@ -11,20 +19,20 @@ models:
         - |
           Here is the query:
           ```
-          3
+          match
+            $x isa car;
+          fetch {
+            "wheels": $x.wheels
+          };
           ```
         - |
           Here is the query:
           ```
-          4
+          match $x isa car; reduce $count = count;
           ```
         - The answer is three.
 questionsPath: data/questions.json
 exampleCounts:
   - 0
-  - 1
-  - 3
 maxRetryCounts:
   - 0
-  - 2
-  - 4

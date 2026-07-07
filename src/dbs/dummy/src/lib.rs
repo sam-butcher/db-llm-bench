@@ -55,13 +55,26 @@ impl Database for DummyDb {
     }
 
     async fn send_query(&self, query: &str) -> Result<Value, QueryError> {
+        eprintln!("[dummy db] query received: {query}");
         self.queries.lock().unwrap().push(query.to_string());
-        if let Some(result) = self.scripted.lock().unwrap().pop_front() {
-            return result;
+        if let Some(scripted) = self.scripted.lock().unwrap().pop_front() {
+            match &scripted {
+                Ok(value) => eprintln!("[dummy db] returning scripted result: {value:?}"),
+                Err(error) => eprintln!("[dummy db] returning scripted error: {error}"),
+            }
+            return scripted;
         }
-        serde_json::from_str::<serde_json::Value>(query)
-            .map(Value::from)
-            .map_err(|e| QueryError::Syntax(e.to_string()))
+        match serde_json::from_str::<serde_json::Value>(query) {
+            Ok(json) => {
+                let value = Value::from(json);
+                eprintln!("[dummy db] echoing query as JSON result: {value:?}");
+                Ok(value)
+            }
+            Err(e) => {
+                eprintln!("[dummy db] query is not valid JSON; returning syntax error: {e}");
+                Err(QueryError::Syntax(e.to_string()))
+            }
+        }
     }
 }
 

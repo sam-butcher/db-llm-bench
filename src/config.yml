@@ -14,9 +14,9 @@ dbs:
       schema: data/typedb/schema.tql
 models:
   # Uncomment to benchmark Claude (reads ANTHROPIC_API_KEY from the environment):
-  # - claude:
-  #     model: claude-opus-4-8
-  #     effort: high
+#  - claude:
+#     model: claude-haiku-4-5-20251001
+#     effort: low
   - dummy:
       repeat: true
       responses:

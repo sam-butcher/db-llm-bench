@@ -116,6 +116,19 @@ fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
                     .map_err(anyhow::Error::msg)?,
             )
         }
+        "sql" => {
+            let auth = match &cfg.auth {
+                Some(value) => Some(
+                    serde_json::from_value::<db_sql::SqlAuth>(value.clone())
+                        .context("parsing sql auth (expects username/password)")?,
+                ),
+                None => None,
+            };
+            Box::new(
+                db_sql::Sql::new(&cfg.url, cfg.database.as_deref(), auth.as_ref())
+                    .map_err(anyhow::Error::msg)?,
+            )
+        }
         other => anyhow::bail!("unknown DB id: {other}"),
     })
 }

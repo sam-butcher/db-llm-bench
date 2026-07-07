@@ -13,6 +13,7 @@ bench-config.workspace = true
 bench-runner.workspace = true
 bench-output.workspace = true
 db-dummy.workspace = true
+db-sql.workspace = true
 db-typedb.workspace = true
 provider-claude.workspace = true
 provider-dummy.workspace = true

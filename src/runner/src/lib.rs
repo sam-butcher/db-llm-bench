@@ -86,7 +86,9 @@ pub fn extract_query(response: &str) -> Extraction {
 }
 
 /// Fill the prompt template's slots. `skills` is empty when this setup runs
-/// with skills off.
+/// with skills off. The examples slot brings its own "Examples:" heading so
+/// that a zero-example prompt doesn't contain a heading with nothing under
+/// it.
 pub fn assemble_prompt(
     template: &str,
     question: &str,
@@ -94,10 +96,15 @@ pub fn assemble_prompt(
     examples: &[String],
     skills: &[String],
 ) -> String {
+    let examples_section = if examples.is_empty() {
+        String::new()
+    } else {
+        format!("Examples:\n{}", examples.join("\n\n"))
+    };
     template
         .replace("{{question}}", question)
         .replace("{{schema}}", schema)
-        .replace("{{examples}}", &examples.join("\n\n"))
+        .replace("{{examples}}", &examples_section)
         .replace("{{skills}}", &skills.join("\n\n"))
 }
 
@@ -865,5 +872,20 @@ mod tests {
             extract_query("Here you go:\n```sql\nSELECT 1;"),
             Extraction::Query("SELECT 1;".to_string())
         );
+    }
+
+    #[test]
+    fn examples_heading_appears_only_with_examples() {
+        let template = "{{schema}}\n{{examples}}\n{{question}}";
+        let without = assemble_prompt(template, "q", "s", &[], &[]);
+        assert!(!without.contains("Examples:"));
+        let with = assemble_prompt(
+            template,
+            "q",
+            "s",
+            &["e1".to_string(), "e2".to_string()],
+            &[],
+        );
+        assert!(with.contains("Examples:\ne1\n\ne2"));
     }
 }

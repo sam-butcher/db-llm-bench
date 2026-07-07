@@ -6,6 +6,7 @@ pub mod db;
 pub mod model;
 pub mod question;
 pub mod record;
+pub mod temporal;
 pub mod value;
 
 pub use db::{Database, QueryError};

@@ -5,6 +5,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use bench_core::temporal::{canonical_date, canonical_datetime};
 use bench_core::value::shape_rows;
 use bench_core::{Database, QueryError, Value};
 use futures::StreamExt;
@@ -229,10 +230,13 @@ fn coerce_value(value: &TypeDbValue) -> Value {
         // f64 by design (the canonical Value has no decimal type).
         TypeDbValue::Decimal(d) => Value::Float(d.integer as f64 + d.fractional as f64 / 1e19),
         TypeDbValue::String(s) => Value::String(s.clone()),
-        // Temporal and structured values compare as the driver's Display
-        // form (pinned by tests; e.g. datetimes are ISO with nanoseconds:
-        // "2024-01-15T10:30:00.000000000"). Questions with these answers
-        // author `expected` as strings in that form.
+        // The framework-wide canonical forms from bench_core::temporal,
+        // shared with the other DB packages so one `expected` string works
+        // across DBs (pinned by tests).
+        TypeDbValue::Date(date) => Value::String(canonical_date(*date)),
+        TypeDbValue::Datetime(datetime) => Value::String(canonical_datetime(*datetime)),
+        // Remaining kinds (tz datetimes, durations, structs) fall back to
+        // the driver's Display form until a canonical rule is settled.
         other => Value::String(other.to_string()),
     }
 }

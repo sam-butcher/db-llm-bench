@@ -11,7 +11,7 @@ use bench_core::{
 use thiserror::Error;
 
 /// Repetitions per question/setup cell, to account for LLM non-determinism.
-pub const REPETITIONS: u32 = 3;
+pub const REPETITIONS: u32 = 1;
 
 /// Harness-level retries for transient provider errors (rate limits, network
 /// blips). These never count against the model's retry budget. Doubling from
@@ -486,8 +486,9 @@ mod run_tests {
         assert_eq!(records[0].generated, "3");
         assert_eq!(records[0].model, "dummy");
         assert!(records[0].tokens.output > 0);
-        assert_eq!(records[0].repetition, 1);
-        assert_eq!(records[2].repetition, 3);
+        for (index, record) in records.iter().enumerate() {
+            assert_eq!(record.repetition, index as u32 + 1);
+        }
         // The assembled prompt carried the question and schema.
         let first_prompt = &provider.conversations()[0][0].content;
         assert!(first_prompt.contains("How many cars are there?"));
@@ -583,28 +584,30 @@ mod run_tests {
 
     #[tokio::test(start_paused = true)]
     async fn persistent_infrastructure_errors_abort_with_partials() {
-        // Repetition 1 succeeds; repetition 2 hits infra errors beyond the
-        // harness budget.
+        // Question 1 succeeds for all repetitions; question 2 hits infra
+        // errors beyond the harness budget on its first repetition.
         let db = DummyDb::new();
-        db.script(Ok(Value::Int(3)));
+        for _ in 0..REPETITIONS {
+            db.script(Ok(Value::Int(3)));
+        }
         for _ in 0..=INFRA_RETRIES {
             db.script(Err(QueryError::Infrastructure(
                 "db unreachable".to_string(),
             )));
         }
-        let provider = per_repetition("```\n3\n```");
+        let provider = DummyProvider::new(["```\n3\n```"]).repeating();
         let failure = runner(&db, &provider)
-            .run(&[question(Value::Int(3))])
+            .run(&[question(Value::Int(3)), question(Value::Int(3))])
             .await
             .unwrap_err();
 
         assert!(matches!(failure.error, RunError::Infrastructure(_)));
-        assert_eq!(failure.question_index, 0);
-        assert_eq!(failure.repetition, 2);
-        // The completed repetition survives the abort.
+        assert_eq!(failure.question_index, 1);
+        assert_eq!(failure.repetition, 1);
+        // The completed question survives the abort.
         assert_eq!(failure.completed.len(), 1);
-        assert_eq!(failure.completed[0].records.len(), 1);
-        assert!(failure.completed[0].records[0].accurate);
+        assert_eq!(failure.completed[0].records.len(), REPETITIONS as usize);
+        assert!(failure.completed[0].records.iter().all(|r| r.accurate));
     }
 
     #[tokio::test]

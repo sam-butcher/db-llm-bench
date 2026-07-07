@@ -104,22 +104,36 @@ impl ModelProvider for DummyProvider {
     }
 
     async fn send_prompt(&self, conversation: &[Message]) -> Result<ModelResponse, ProviderError> {
+        let latest = conversation.last().map(|m| m.content.as_str()).unwrap_or("");
+        eprintln!(
+            "[dummy model] prompt received ({} message(s)); latest:\n{latest}",
+            conversation.len()
+        );
         self.conversations
             .lock()
             .unwrap()
             .push(conversation.to_vec());
         match self.next_scripted() {
-            Some(Scripted::Text(text)) => Ok(ModelResponse {
-                tokens: TokenUsage {
-                    input: conversation.iter().map(|m| m.content.len() as u64).sum(),
-                    output: text.len() as u64,
-                },
-                text,
-            }),
-            Some(Scripted::TransientError(message)) => Err(ProviderError::Transient(message)),
-            None => Err(ProviderError::Fatal(
-                "dummy provider ran out of scripted responses".to_string(),
-            )),
+            Some(Scripted::Text(text)) => {
+                eprintln!("[dummy model] returning scripted response:\n{text}");
+                Ok(ModelResponse {
+                    tokens: TokenUsage {
+                        input: conversation.iter().map(|m| m.content.len() as u64).sum(),
+                        output: text.len() as u64,
+                    },
+                    text,
+                })
+            }
+            Some(Scripted::TransientError(message)) => {
+                eprintln!("[dummy model] returning scripted transient error: {message}");
+                Err(ProviderError::Transient(message))
+            }
+            None => {
+                eprintln!("[dummy model] script exhausted; returning fatal error");
+                Err(ProviderError::Fatal(
+                    "dummy provider ran out of scripted responses".to_string(),
+                ))
+            }
         }
     }
 }

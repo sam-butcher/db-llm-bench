@@ -1,0 +1,4 @@
+Question: Which brands make a car with more than 4 wheels?
+```
+match $x isa car, has brand $b, has wheels $w; $w > 4; select $b;
+```

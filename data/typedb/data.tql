@@ -1,0 +1,4 @@
+insert
+  $a isa car, has brand "Toyota", has model "Corolla", has wheels 4;
+  $b isa car, has brand "Ford", has model "Fiesta", has wheels 4;
+  $c isa car, has brand "Tesla", has model "Model 3", has wheels 6;

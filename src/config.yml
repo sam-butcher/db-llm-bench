@@ -12,6 +12,18 @@ dbs:
         password: password
         tls: false
       schema: data/typedb/schema.tql
+  # Uncomment to benchmark Postgres and Neo4j (see databases/README.md):
+  # - sql:
+  #     prompts: data/sql
+  #     url: postgres://postgres:postgres@localhost/bench
+  #     schema: data/sql/schema.sql
+  # - neo4j:
+  #     prompts: data/neo4j
+  #     url: bolt://localhost:7687
+  #     auth:
+  #       username: neo4j
+  #       password: password
+  #     schema: data/neo4j/schema.txt
 models:
   # Uncomment to benchmark Claude (reads ANTHROPIC_API_KEY from the environment):
 #  - claude:

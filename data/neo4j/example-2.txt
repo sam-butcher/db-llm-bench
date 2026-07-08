@@ -1,0 +1,4 @@
+Question: Are there any Mercedes cars?
+```
+RETURN EXISTS { MATCH (:Car {brand: 'Mercedes'}) }
+```

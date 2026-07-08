@@ -4,6 +4,7 @@ members = [
     "src/core",
     "src/config",
     "src/dbs/dummy",
+    "src/dbs/neo4j",
     "src/dbs/sql",
     "src/dbs/typedb",
     "src/providers/claude",
@@ -23,6 +24,7 @@ bench-config = { path = "src/config" }
 bench-runner = { path = "src/runner" }
 bench-output = { path = "src/output" }
 db-dummy = { path = "src/dbs/dummy" }
+db-neo4j = { path = "src/dbs/neo4j" }
 db-sql = { path = "src/dbs/sql" }
 db-typedb = { path = "src/dbs/typedb" }
 provider-claude = { path = "src/providers/claude" }

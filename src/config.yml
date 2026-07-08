@@ -26,9 +26,10 @@ dbs:
   #     schema: data/neo4j/schema.txt
 models:
   # Uncomment to benchmark Claude (reads ANTHROPIC_API_KEY from the environment):
-#  - claude:
-#     model: claude-haiku-4-5-20251001
-#     effort: low
+  # Note: effort/thinking are not supported on Haiku (auto-omitted; setting
+  # effort explicitly would be a fatal 400).
+  - claude:
+     model: claude-haiku-4-5-20251001
   - dummy:
       repeat: true
       responses:

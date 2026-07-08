@@ -17,8 +17,12 @@ fn default_max_tokens() -> u32 {
     4096
 }
 
-fn default_thinking() -> bool {
-    true
+/// Model families that accept `thinking: {type: "adaptive"}`. Older models
+/// (Haiku 4.5, Sonnet 4.5 and earlier) reject the parameter with a 400.
+fn supports_adaptive_thinking(model: &str) -> bool {
+    ["fable-5", "mythos-5", "opus-4-6", "opus-4-7", "opus-4-8", "sonnet-4-6"]
+        .iter()
+        .any(|family| model.contains(family))
 }
 
 /// Deserialized from this provider's entry in config.yml.
@@ -34,13 +38,23 @@ pub struct ClaudeConfig {
     /// Deliberately modest default: the expected output is a single query.
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
-    /// Adaptive thinking on/off. On by default; turn off only for models
-    /// that reject the thinking parameter.
-    #[serde(default = "default_thinking")]
-    pub thinking: bool,
-    /// Optional output_config effort level: low | medium | high | xhigh | max.
+    /// Adaptive thinking on/off. Defaults per model: on for families that
+    /// support it, off otherwise (e.g. Haiku 4.5 rejects the parameter).
+    /// Set explicitly to override the family detection.
+    #[serde(default)]
+    pub thinking: Option<bool>,
+    /// Optional output_config effort level: low | medium | high | xhigh |
+    /// max. Only Opus-tier models, Sonnet 4.6, and Fable 5 accept it —
+    /// setting it for Haiku 4.5 is a fatal 400.
     #[serde(default)]
     pub effort: Option<String>,
+}
+
+impl ClaudeConfig {
+    fn thinking_enabled(&self) -> bool {
+        self.thinking
+            .unwrap_or_else(|| supports_adaptive_thinking(&self.model))
+    }
 }
 
 pub struct Claude {
@@ -84,7 +98,10 @@ impl Claude {
                     content: &message.content,
                 })
                 .collect(),
-            thinking: self.config.thinking.then_some(Thinking { r#type: "adaptive" }),
+            thinking: self
+                .config
+                .thinking_enabled()
+                .then_some(Thinking { r#type: "adaptive" }),
             output_config: self
                 .config
                 .effort
@@ -225,7 +242,7 @@ mod tests {
             model: "claude-opus-4-8".to_string(),
             api_key: Some("test-key".to_string()),
             max_tokens: default_max_tokens(),
-            thinking: true,
+            thinking: None,
             effort: Some("high".to_string()),
         }
     }
@@ -258,12 +275,37 @@ mod tests {
     #[test]
     fn thinking_and_effort_are_omitted_when_disabled() {
         let mut cfg = config();
-        cfg.thinking = false;
+        cfg.thinking = Some(false);
         cfg.effort = None;
         let claude = Claude::new(cfg).unwrap();
         let request = serde_json::to_value(claude.build_request(&[Message::user("q")])).unwrap();
         assert!(request.get("thinking").is_none());
         assert!(request.get("output_config").is_none());
+    }
+
+    /// The default follows model capability: models that reject the
+    /// adaptive-thinking parameter must not receive it.
+    #[test]
+    fn thinking_defaults_follow_the_model_family() {
+        let mut cfg = config();
+        cfg.model = "claude-haiku-4-5-20251001".to_string();
+        cfg.effort = None;
+        let claude = Claude::new(cfg).unwrap();
+        let request = serde_json::to_value(claude.build_request(&[Message::user("q")])).unwrap();
+        assert!(request.get("thinking").is_none());
+
+        let claude = Claude::new(config()).unwrap();
+        let request = serde_json::to_value(claude.build_request(&[Message::user("q")])).unwrap();
+        assert_eq!(request["thinking"], serde_json::json!({"type": "adaptive"}));
+
+        // An explicit setting overrides the family detection both ways.
+        let mut cfg = config();
+        cfg.model = "claude-haiku-4-5-20251001".to_string();
+        cfg.thinking = Some(true);
+        cfg.effort = None;
+        let claude = Claude::new(cfg).unwrap();
+        let request = serde_json::to_value(claude.build_request(&[Message::user("q")])).unwrap();
+        assert_eq!(request["thinking"], serde_json::json!({"type": "adaptive"}));
     }
 
     #[test]

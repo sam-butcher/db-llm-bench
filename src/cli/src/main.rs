@@ -116,6 +116,19 @@ fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
                     .map_err(anyhow::Error::msg)?,
             )
         }
+        "neo4j" => {
+            let auth = match &cfg.auth {
+                Some(value) => Some(
+                    serde_json::from_value::<db_neo4j::Neo4jAuth>(value.clone())
+                        .context("parsing neo4j auth (expects username/password)")?,
+                ),
+                None => None,
+            };
+            Box::new(
+                db_neo4j::Neo4j::new(&cfg.url, cfg.database.as_deref(), auth.as_ref())
+                    .map_err(anyhow::Error::msg)?,
+            )
+        }
         "sql" => {
             let auth = match &cfg.auth {
                 Some(value) => Some(

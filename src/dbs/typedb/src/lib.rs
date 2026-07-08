@@ -303,12 +303,25 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires a running TypeDB server (TYPEDB_ADDRESS, TYPEDB_DATABASE)"]
-    async fn connects_to_a_live_server() {
+    #[ignore = "requires a seeded TypeDB server (TYPEDB_ADDRESS, TYPEDB_DATABASE)"]
+    async fn queries_a_live_server() {
         let address =
             std::env::var("TYPEDB_ADDRESS").unwrap_or_else(|_| "127.0.0.1:1729".to_string());
-        let database = std::env::var("TYPEDB_DATABASE").unwrap_or_else(|_| "test".to_string());
+        let database = std::env::var("TYPEDB_DATABASE").unwrap_or_else(|_| "bench".to_string());
         let db = TypeDb::new(address, database, TypeDbAuth::default()).unwrap();
-        db.driver().await.expect("driver should connect");
+
+        // The seeded car dataset: a reduce count unwraps to a scalar.
+        let count = db
+            .send_query("match $x isa car; reduce $count = count;")
+            .await
+            .unwrap();
+        assert_eq!(count, Value::Int(3));
+
+        // Read transactions reject writes as a model fault.
+        let error = db
+            .send_query("insert $x isa car, has wheels 4;")
+            .await
+            .unwrap_err();
+        assert!(matches!(error, QueryError::Syntax(_)));
     }
 }

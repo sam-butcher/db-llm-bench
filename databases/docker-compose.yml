@@ -1,0 +1,66 @@
+# The three benchmark DBs, each seeded with the car dataset from ../data.
+# Credentials match the defaults the DB packages expect (see src/config.yml).
+services:
+  # Seed with `cargo run -p db-typedb --example seed` (idempotent) — the
+  # server image ships no console, so seeding goes through our own driver.
+  typedb:
+    image: typedb/typedb:3.11.5
+    ports:
+      - "1729:1729"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/1729'"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bench
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      # initdb runs these on first boot of an empty data volume.
+      - ../data/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../data/sql/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bench"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/password
+    ports:
+      - "7687:7687"
+      - "7474:7474" # browser UI, handy for debugging
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1' || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # One-shot loader; MERGE makes it idempotent across re-runs.
+  neo4j-seed:
+    image: neo4j:5-community
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    volumes:
+      - ../data/neo4j/data.cypher:/seed/data.cypher:ro
+    entrypoint:
+      [
+        "cypher-shell",
+        "-a",
+        "neo4j://neo4j:7687",
+        "-u",
+        "neo4j",
+        "-p",
+        "password",
+        "-f",
+        "/seed/data.cypher",
+      ]

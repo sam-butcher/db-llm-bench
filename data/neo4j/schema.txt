@@ -1,0 +1,5 @@
+Nodes with the label Car, each with properties:
+  - id: integer (unique)
+  - brand: string
+  - model: string
+  - wheels: integer

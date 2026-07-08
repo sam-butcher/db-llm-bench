@@ -1,9 +1,22 @@
 # Databases
 
-This folder contains instructions on how to set up each database for the test.
+One `docker compose` manifest boots all three benchmark DBs and seeds each
+with the car dataset from [`../data`](../data):
 
-These instructions take the form of a docker container to be run for each DB.
+```sh
+cd databases
+docker compose up -d
+cd .. && cargo run -p db-typedb --example seed   # TypeDB seeding (idempotent)
+```
 
-Maybe one unified docker manifest that we can boot with `docker compose up` or something?
+| DB       | Endpoint                 | Credentials         | Seeding                                     |
+| -------- | ------------------------ | ------------------- | ------------------------------------------- |
+| TypeDB   | `localhost:1729`         | `admin` / `password` | `cargo run -p db-typedb --example seed` (the server image ships no console; the seeder drops and recreates `bench` via typedb-driver) |
+| Postgres | `localhost:5432` (`bench`) | `postgres` / `postgres` | native `initdb.d` hook on first boot    |
+| Neo4j    | `bolt://localhost:7687`  | `neo4j` / `password` | one-shot `neo4j-seed` via cypher-shell (idempotent) |
 
-Is it possible to have a `DOCKERFILE` that defines the data loading steps?
+Credentials and endpoints match the defaults in `src/config.yml` and the DB
+packages' `#[ignore]`d live tests (`cargo test -- --ignored`).
+
+To reseed everything from scratch: `docker compose down -v && docker compose up -d`,
+then re-run the TypeDB seeder.

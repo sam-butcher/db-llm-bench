@@ -19,5 +19,6 @@ db-typedb.workspace = true
 provider-claude.workspace = true
 provider-dummy.workspace = true
 anyhow.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

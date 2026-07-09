@@ -33,6 +33,9 @@ Inputs (taken in through config file - see config.yml for a suggested format):
 - List of models to use
   - ID of model (e.g. claude/llama/chatgpt)
     - Determines how it's queried
+    - The same provider may appear multiple times (e.g. several `claude` entries benchmarking
+      different models or settings); each entry's records are identified by its label, which
+      defaults to the model name and must be unique across entries
   - Whatever info is required to query it
     - Will vary per provider
     - e.g. a local model might just require a url

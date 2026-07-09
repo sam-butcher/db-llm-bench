@@ -38,6 +38,11 @@ fn supports_adaptive_thinking(model: &str) -> bool {
 pub struct ClaudeConfig {
     /// Model ID, e.g. "claude-opus-4-8".
     pub model: String,
+    /// Label identifying this entry in output records; defaults to the
+    /// model ID. Set it when benchmarking the same model under different
+    /// settings (e.g. "haiku-high-effort").
+    #[serde(default)]
+    pub label: Option<String>,
     /// Falls back to the ANTHROPIC_API_KEY environment variable, which is
     /// the recommended place for it — avoid committing keys in config.yml.
     #[serde(default)]
@@ -121,7 +126,10 @@ impl Claude {
 #[async_trait]
 impl ModelProvider for Claude {
     fn model_id(&self) -> String {
-        self.config.model.clone()
+        self.config
+            .label
+            .clone()
+            .unwrap_or_else(|| self.config.model.clone())
     }
 
     async fn send_prompt(&self, conversation: &[Message]) -> Result<ModelResponse, ProviderError> {
@@ -261,11 +269,23 @@ mod tests {
     fn config() -> ClaudeConfig {
         ClaudeConfig {
             model: "claude-opus-4-8".to_string(),
+            label: None,
             api_key: Some("test-key".to_string()),
             max_tokens: default_max_tokens(),
             thinking: None,
             effort: Some("high".to_string()),
         }
+    }
+
+    #[test]
+    fn label_overrides_the_record_model_id() {
+        let claude = Claude::new(config()).unwrap();
+        assert_eq!(claude.model_id(), "claude-opus-4-8");
+
+        let mut labelled = config();
+        labelled.label = Some("opus-high-effort".to_string());
+        let claude = Claude::new(labelled).unwrap();
+        assert_eq!(claude.model_id(), "opus-high-effort");
     }
 
     #[test]

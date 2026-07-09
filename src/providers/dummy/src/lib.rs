@@ -18,6 +18,9 @@ pub struct DummyConfig {
     /// Cycle through the responses forever instead of consuming them.
     #[serde(default)]
     pub repeat: bool,
+    /// Label identifying this entry in output records; defaults to "dummy".
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +32,7 @@ enum Scripted {
 pub struct DummyProvider {
     responses: Mutex<VecDeque<Scripted>>,
     repeat: bool,
+    label: Option<String>,
     conversations: Mutex<Vec<Vec<Message>>>,
 }
 
@@ -42,6 +46,7 @@ impl DummyProvider {
                     .collect(),
             ),
             repeat: false,
+            label: None,
             conversations: Mutex::new(Vec::new()),
         }
     }
@@ -88,7 +93,8 @@ impl DummyProvider {
 
 impl From<DummyConfig> for DummyProvider {
     fn from(config: DummyConfig) -> Self {
-        let provider = Self::new(config.responses);
+        let mut provider = Self::new(config.responses);
+        provider.label = config.label;
         if config.repeat {
             provider.repeating()
         } else {
@@ -100,7 +106,7 @@ impl From<DummyConfig> for DummyProvider {
 #[async_trait]
 impl ModelProvider for DummyProvider {
     fn model_id(&self) -> String {
-        "dummy".to_string()
+        self.label.clone().unwrap_or_else(|| "dummy".to_string())
     }
 
     async fn send_prompt(&self, conversation: &[Message]) -> Result<ModelResponse, ProviderError> {

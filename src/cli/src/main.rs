@@ -293,6 +293,16 @@ async fn main() -> anyhow::Result<()> {
         .model_entries()
         .map(|(id, cfg)| build_model(id, cfg))
         .collect::<anyhow::Result<_>>()?;
+    // Provider IDs may repeat in config; the record-identifying label must
+    // not, or their results become indistinguishable.
+    let mut labels = std::collections::BTreeSet::new();
+    for model in &models {
+        let label = model.model_id();
+        anyhow::ensure!(
+            labels.insert(label.clone()),
+            "two model entries share the label `{label}`; set a distinct `label` on one"
+        );
+    }
 
     let abort = run_benchmarks(
         &config,

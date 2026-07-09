@@ -209,6 +209,7 @@ dependencies = [
  "db-typedb",
  "provider-claude",
  "provider-dummy",
+ "provider-openai-compatible",
  "serde",
  "serde_json",
  "tokio",
@@ -1864,6 +1865,17 @@ dependencies = [
  "bench-core",
  "serde",
  "tokio",
+]
+
+[[package]]
+name = "provider-openai-compatible"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bench-core",
+ "reqwest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

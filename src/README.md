@@ -40,6 +40,11 @@ Inputs (taken in through config file - see config.yml for a suggested format):
     - Will vary per provider
     - e.g. a local model might just require a url
     - claude will require auth info, model name, and thinking level
+    - the `openai-compatible` provider covers any endpoint speaking the OpenAI chat-completions
+      API (OpenAI itself, Groq, OpenRouter, local Ollama/vLLM): it takes a `base_url`, an optional
+      `api_key_env` naming the environment variable holding the key (omitted entirely for
+      unauthenticated local servers), and a `max_tokens_field` knob for OpenAI's newer models,
+      which require `max_completion_tokens` instead of the widely cloned `max_tokens`
 - Questions path
   - Path to the list of questions
   - List of questions will be a JSON file containing a list of questions

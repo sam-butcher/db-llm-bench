@@ -66,6 +66,21 @@ pub enum ProviderError {
     Fatal(String),
 }
 
+impl ProviderError {
+    /// Classify an HTTP failure by status code: 408/409/429 and all 5xx
+    /// (including 529 overloaded) are retryable — the same set the official
+    /// SDKs retry; the remaining 4xx (bad request, auth, not found) won't
+    /// get better on retry.
+    pub fn from_http_status(status: u16, message: String) -> ProviderError {
+        let detail = format!("HTTP {status}: {message}");
+        if status == 408 || status == 409 || status == 429 || status >= 500 {
+            ProviderError::Transient(detail)
+        } else {
+            ProviderError::Fatal(detail)
+        }
+    }
+}
+
 /// Unified interface implemented by each model provider package.
 #[async_trait]
 pub trait ModelProvider: Send + Sync {

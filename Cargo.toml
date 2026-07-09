@@ -9,6 +9,7 @@ members = [
     "src/dbs/typedb",
     "src/providers/claude",
     "src/providers/dummy",
+    "src/providers/openai-compatible",
     "src/runner",
     "src/output",
     "src/cli",
@@ -29,6 +30,7 @@ db-sql = { path = "src/dbs/sql" }
 db-typedb = { path = "src/dbs/typedb" }
 provider-claude = { path = "src/providers/claude" }
 provider-dummy = { path = "src/providers/dummy" }
+provider-openai-compatible = { path = "src/providers/openai-compatible" }
 
 anyhow = "1"
 async-trait = "0.1"

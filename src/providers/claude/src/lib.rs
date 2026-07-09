@@ -185,17 +185,9 @@ fn into_model_response(parsed: MessagesResponse) -> ModelResponse {
     }
 }
 
-/// 408/409/429 and all 5xx (including 529 overloaded) are retryable — the
-/// same set the official SDKs retry; the remaining 4xx (bad request, auth,
-/// not found) won't get better on retry.
 fn classify_error(status: u16, body: &str) -> ProviderError {
     let message = parse_error_message(body).unwrap_or_else(|| body.to_string());
-    let detail = format!("HTTP {status}: {message}");
-    if status == 408 || status == 409 || status == 429 || status >= 500 {
-        ProviderError::Transient(detail)
-    } else {
-        ProviderError::Fatal(detail)
-    }
+    ProviderError::from_http_status(status, message)
 }
 
 fn parse_error_message(body: &str) -> Option<String> {

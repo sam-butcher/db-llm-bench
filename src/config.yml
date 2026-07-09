@@ -23,6 +23,22 @@ models:
   # Uncomment to benchmark Claude (reads ANTHROPIC_API_KEY from the environment):
 #  - claude:
 #     model: claude-haiku-4-5-20251001
+  # openai-compatible covers any provider speaking the OpenAI chat-completions
+  # API: OpenAI itself, Groq, OpenRouter, or a local Ollama/vLLM server.
+#  - openai-compatible:
+#     model: llama-3.3-70b-versatile
+#     base_url: https://api.groq.com/openai/v1
+#     api_key_env: GROQ_API_KEY
+#  - openai-compatible:
+#     model: gpt-5-mini
+#     base_url: https://api.openai.com/v1
+#     api_key_env: OPENAI_API_KEY
+#     max_tokens_field: max_completion_tokens
+  # Local Ollama needs no key; omit api_key_env entirely:
+#  - openai-compatible:
+#     model: qwen2.5-coder:32b
+#     base_url: http://localhost:11434/v1
+#     label: qwen-coder-32b-local
 questionsPath: data/questions.json
 exampleCounts:
   - 0

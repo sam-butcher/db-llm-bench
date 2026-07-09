@@ -125,7 +125,8 @@ async fn collect_rows(txn: &mut Txn, query: &str) -> Result<Value, QueryError> {
         .execute(neo4rs::query(query))
         .await
         .map_err(map_neo4j_error)?;
-    let mut columns: Vec<String> = Vec::new();
+    let mut raw_names: Vec<String> = Vec::new();
+    let mut fields: Vec<String> = Vec::new();
     let mut table: Vec<Vec<Value>> = Vec::new();
     while let Some(row) = stream.next(txn.handle()).await.map_err(map_neo4j_error)? {
         if table.len() >= MAX_ROWS {
@@ -136,22 +137,42 @@ async fn collect_rows(txn: &mut Txn, query: &str) -> Result<Value, QueryError> {
         let cells: HashMap<String, BoltType> = row
             .to_strict()
             .map_err(|e| QueryError::WrongShape(format!("undecodable row: {e}")))?;
-        if columns.is_empty() {
-            columns = cells.keys().cloned().collect();
+        if raw_names.is_empty() {
+            raw_names = cells.keys().cloned().collect();
             // HashMap order is arbitrary; sorted keys keep row shaping
             // deterministic.
-            columns.sort();
+            raw_names.sort();
+            fields = raw_names.iter().map(|name| normalize_field(name)).collect();
         }
-        let mut row_values = Vec::with_capacity(columns.len());
-        for name in &columns {
-            let cell = cells.get(name).ok_or_else(|| {
-                QueryError::Infrastructure(format!("row missing column `{name}`"))
+        let mut row_values = Vec::with_capacity(fields.len());
+        for (field, raw_name) in fields.iter().zip(&raw_names) {
+            let cell = cells.get(raw_name).ok_or_else(|| {
+                QueryError::Infrastructure(format!("row missing column `{raw_name}`"))
             })?;
-            row_values.push(coerce_bolt(name, cell)?);
+            row_values.push(coerce_bolt(field, cell)?);
         }
         table.push(row_values);
     }
-    Ok(shape_rows(&columns, table))
+    Ok(shape_rows(&fields, table))
+}
+
+/// Cypher derives column names from expression text unless aliased, so an
+/// unaliased projection like `RETURN c.brand` is named "c.brand". Strip
+/// plain property-access prefixes so those match the same field names as
+/// the other DB packages; aggregates and aliases pass through untouched.
+/// (Two projections of the same property from different entities would
+/// collide after stripping — such queries need aliases regardless.)
+fn normalize_field(name: &str) -> String {
+    match name.rsplit_once('.') {
+        Some((entity, property)) if is_identifier(entity) && is_identifier(property) => {
+            property.to_string()
+        }
+        _ => name.to_string(),
+    }
+}
+
+fn is_identifier(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(|c| c.is_alphanumeric() || c == '_')
 }
 
 /// Scalars, lists, maps, and temporals coerce; graph entities (nodes,
@@ -338,6 +359,16 @@ mod tests {
             ),
             QueryError::Infrastructure(_)
         ));
+    }
+
+    #[test]
+    fn property_access_names_normalize_to_bare_fields() {
+        assert_eq!(normalize_field("c.brand"), "brand");
+        assert_eq!(normalize_field("car_1.model"), "model");
+        // Aliases, bare names, and aggregates pass through untouched.
+        assert_eq!(normalize_field("brand"), "brand");
+        assert_eq!(normalize_field("avg(c.price)"), "avg(c.price)");
+        assert_eq!(normalize_field("count(*)"), "count(*)");
     }
 
     #[test]

@@ -177,6 +177,35 @@ struct AttemptOutcome {
     outcome: Result<Value, Fault>,
 }
 
+/// The question text, plus a standardized field-naming instruction when
+/// the expected value is object-shaped — every model and DB gets the
+/// identical sentence, so field naming is scored uniformly with `expected`
+/// as the single source of truth.
+fn question_text(question: &Question) -> String {
+    match expected_fields(&question.expected) {
+        Some(fields) => format!(
+            "{}\nName the output fields exactly: {}.",
+            question.question,
+            fields.join(", ")
+        ),
+        None => question.question.clone(),
+    }
+}
+
+/// The field names implied by the expected value: an object's keys, or the
+/// keys of the row objects in a list (rows share one shape).
+fn expected_fields(expected: &Value) -> Option<Vec<String>> {
+    let object = match expected {
+        Value::Object(object) => Some(object),
+        Value::List(rows) => rows.iter().find_map(|row| match row {
+            Value::Object(object) => Some(object),
+            _ => None,
+        }),
+        _ => None,
+    }?;
+    Some(object.keys().cloned().collect())
+}
+
 /// Feedback for a retryable fault: honest about whether a query ran and
 /// failed, or no query could be extracted at all.
 fn retry_feedback(query_ran: bool, message: &str) -> String {
@@ -292,7 +321,7 @@ impl BenchmarkRunner<'_> {
     fn assemble(&self, question: &Question) -> String {
         assemble_prompt(
             &self.prompt_template,
-            &question.question,
+            &question_text(question),
             &self.schema,
             &self.examples,
             self.skills.as_deref().unwrap_or_default(),
@@ -445,6 +474,33 @@ mod run_tests {
             ordered: false,
             queries: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn object_expectations_append_the_naming_instruction() {
+        let object = Value::Object(BTreeMap::from([
+            ("model".to_string(), Value::String("Model 3".into())),
+            ("brand".to_string(), Value::String("Tesla".into())),
+        ]));
+        // Object keys drive the instruction (alphabetical, per BTreeMap).
+        assert_eq!(
+            question_text(&question(object.clone())),
+            "How many cars are there?\nName the output fields exactly: brand, model."
+        );
+        // A list of row objects derives from the rows' shared shape.
+        assert_eq!(
+            question_text(&question(Value::List(vec![object]))),
+            "How many cars are there?\nName the output fields exactly: brand, model."
+        );
+        // Scalar and scalar-list expectations get no instruction.
+        assert_eq!(
+            question_text(&question(Value::Int(3))),
+            "How many cars are there?"
+        );
+        assert_eq!(
+            question_text(&question(Value::List(vec![Value::Int(3)]))),
+            "How many cars are there?"
+        );
     }
 
     fn runner<'a>(db: &'a DummyDb, provider: &'a DummyProvider) -> BenchmarkRunner<'a> {

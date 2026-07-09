@@ -209,6 +209,7 @@ dependencies = [
  "db-typedb",
  "provider-claude",
  "provider-dummy",
+ "serde",
  "serde_json",
  "tokio",
 ]

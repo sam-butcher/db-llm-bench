@@ -131,7 +131,10 @@ impl ModelProvider for Claude {
 
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<unreadable body>".to_string());
             return Err(classify_error(status.as_u16(), &body));
         }
         let parsed: MessagesResponse = response
@@ -164,12 +167,13 @@ impl ModelProvider for Claude {
     }
 }
 
-/// 408/429 and all 5xx (including 529 overloaded) are retryable; the
-/// remaining 4xx (bad request, auth, not found) won't get better on retry.
+/// 408/409/429 and all 5xx (including 529 overloaded) are retryable — the
+/// same set the official SDKs retry; the remaining 4xx (bad request, auth,
+/// not found) won't get better on retry.
 fn classify_error(status: u16, body: &str) -> ProviderError {
     let message = parse_error_message(body).unwrap_or_else(|| body.to_string());
     let detail = format!("HTTP {status}: {message}");
-    if status == 408 || status == 429 || status >= 500 {
+    if status == 408 || status == 409 || status == 429 || status >= 500 {
         ProviderError::Transient(detail)
     } else {
         ProviderError::Fatal(detail)
@@ -351,6 +355,7 @@ mod tests {
         assert!(matches!(classify_error(529, "overloaded"), ProviderError::Transient(_)));
         assert!(matches!(classify_error(500, ""), ProviderError::Transient(_)));
         assert!(matches!(classify_error(408, ""), ProviderError::Transient(_)));
+        assert!(matches!(classify_error(409, ""), ProviderError::Transient(_)));
         assert!(matches!(classify_error(400, "bad"), ProviderError::Fatal(_)));
         assert!(matches!(classify_error(401, ""), ProviderError::Fatal(_)));
         assert!(matches!(classify_error(404, ""), ProviderError::Fatal(_)));

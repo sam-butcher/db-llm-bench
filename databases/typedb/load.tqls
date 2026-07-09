@@ -1,0 +1,7 @@
+database create bench
+transaction schema bench
+source /seed/schema.tql
+commit
+transaction write bench
+source /seed/data.tql
+commit

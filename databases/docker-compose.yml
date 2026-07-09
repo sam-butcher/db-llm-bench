@@ -1,8 +1,6 @@
 # The three benchmark DBs, each seeded with the car dataset from ../data.
 # Credentials match the defaults the DB packages expect (see src/config.yml).
 services:
-  # Seed with `cargo run -p db-typedb --example seed` (idempotent) — the
-  # server image ships no console, so seeding goes through our own driver.
   typedb:
     image: typedb/typedb:3.11.5
     ports:
@@ -12,6 +10,23 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
+
+  # One-shot loader; installs the console (the server image ships none) and
+  # drops + recreates `bench`, so re-runs reseed cleanly.
+  typedb-seed:
+    build: ./typedb
+    depends_on:
+      typedb:
+        condition: service_healthy
+    volumes:
+      - ../data/typedb:/seed:ro
+    command:
+      [
+        "--address=typedb:1729",
+        "--username=admin",
+        "--password=password",
+        "--tls-disabled",
+      ]
 
   postgres:
     image: postgres:16-alpine

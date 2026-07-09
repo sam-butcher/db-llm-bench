@@ -15,7 +15,7 @@ dbs:
   # Uncomment to benchmark Postgres and Neo4j (see databases/README.md):
   # - sql:
   #     prompts: data/sql
-  #     url: postgres://postgres:postgres@localhost/bench
+  #     url: postgres://bench_ro:bench_ro@localhost/bench
   #     schema: data/sql/schema.sql
   # - neo4j:
   #     prompts: data/neo4j

@@ -142,6 +142,7 @@ impl ModelProvider for Claude {
         // A `refusal` stop reason arrives as a successful response with no
         // text content; the empty text flows through extraction as a
         // malformed response and is scored against the model, not the run.
+        // The abnormal stop reason travels along for honest trace records.
         let text = parsed
             .content
             .iter()
@@ -149,12 +150,16 @@ impl ModelProvider for Claude {
             .map(|block| block.text.as_str())
             .collect::<Vec<_>>()
             .join("");
+        let stop = parsed
+            .stop_reason
+            .filter(|reason| reason != "end_turn" && reason != "stop_sequence");
         Ok(ModelResponse {
             text,
             tokens: TokenUsage {
                 input: parsed.usage.input_tokens,
                 output: parsed.usage.output_tokens,
             },
+            stop,
         })
     }
 }
@@ -206,6 +211,8 @@ struct OutputConfig<'a> {
 #[derive(Deserialize)]
 struct MessagesResponse {
     content: Vec<ContentBlock>,
+    #[serde(default)]
+    stop_reason: Option<String>,
     usage: Usage,
 }
 

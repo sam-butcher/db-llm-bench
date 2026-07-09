@@ -17,10 +17,20 @@ use neo4rs::{BoltType, Graph, Neo4jClientErrorKind, Neo4jErrorKind, Txn};
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
-/// Pathological queries surface as model-fault timeouts rather than hanging
-/// the run (the runner's 120s ceiling stays a last resort).
-const QUERY_TIMEOUT: Duration = Duration::from_secs(30);
+/// Client-side ceiling, deliberately longer than the server-side
+/// db.transaction.timeout configured in databases/docker-compose.yml (30s),
+/// so the server cancels first with a clean TransactionTimedOut instead of
+/// the client abandoning a transaction that keeps holding locks.
+const QUERY_TIMEOUT: Duration = Duration::from_secs(35);
 const MAX_ROWS: usize = 10_000;
+
+/// The server-side transaction timeout codes — the model's fault (a
+/// pathological query). Other codes merely containing "Timeout" (e.g. lock
+/// acquisition) are contention, classified by kind instead.
+const TIMEOUT_CODES: [&str; 2] = [
+    "Neo.ClientError.Transaction.TransactionTimedOut",
+    "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration",
+];
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -225,9 +235,9 @@ fn map_neo4j_error(error: neo4rs::Error) -> QueryError {
 /// Client-error codes describe the query — the model's fault — except the
 /// security/session/protocol kinds, which are the harness's problem.
 /// Transient, database, and unknown errors are infrastructure. Server-side
-/// timeouts are recognised by code.
+/// transaction timeouts are recognised by exact code.
 fn classify_neo4j(kind: Neo4jErrorKind, code: &str, display: &str) -> QueryError {
-    if code.contains("Timeout") || code.contains("TimedOut") {
+    if TIMEOUT_CODES.contains(&code) {
         return QueryError::Timeout;
     }
     match kind {
@@ -312,7 +322,7 @@ mod tests {
             ),
             QueryError::Infrastructure(_)
         ));
-        // Server-side timeouts map to the model-fault timeout.
+        // Server-side transaction timeouts map to the model-fault timeout.
         assert!(matches!(
             classify_neo4j(
                 Neo4jErrorKind::Client(Neo4jClientErrorKind::Other),
@@ -320,6 +330,16 @@ mod tests {
                 "timed out"
             ),
             QueryError::Timeout
+        ));
+        // Other timeout-ish codes are contention, not a pathological query:
+        // classified by kind, not blamed on the model.
+        assert!(matches!(
+            classify_neo4j(
+                Neo4jErrorKind::Transient,
+                "Neo.TransientError.Transaction.LockAcquisitionTimeout",
+                "lock timeout"
+            ),
+            QueryError::Infrastructure(_)
         ));
     }
 

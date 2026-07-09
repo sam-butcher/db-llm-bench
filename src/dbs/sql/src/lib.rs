@@ -1,7 +1,9 @@
 //! SQL package: Postgres via sqlx ("sql" is the generic language ID; the
-//! engine is Postgres). Safety is enforced server-side at connection time —
-//! every connection is read-only with a statement timeout — so generated
-//! queries can't mutate the dataset or run unbounded.
+//! engine is Postgres). Mutation safety is layered: connect as a
+//! SELECT-only role (the hard guarantee — see databases/postgres/roles.sql)
+//! with a read-only session default and server-side statement timeout as
+//! defense-in-depth, since a generated SET can disable session defaults but
+//! cannot escape grants.
 
 use std::time::Duration;
 
@@ -16,9 +18,11 @@ use sqlx::postgres::{PgColumn, PgConnectOptions, PgPool, PgPoolOptions, PgRow};
 use sqlx::{Column, Row, TypeInfo};
 use tokio::sync::OnceCell;
 
-/// Client-side ceiling; the matching server-side statement_timeout is the
-/// primary guard.
-const QUERY_TIMEOUT: Duration = Duration::from_secs(30);
+/// Client-side ceiling, deliberately longer than the server-side
+/// statement_timeout so the server cancels first — that path yields a clean
+/// SQLSTATE 57014 on a still-healthy connection, instead of the client
+/// dropping the stream mid-query.
+const QUERY_TIMEOUT: Duration = Duration::from_secs(35);
 const STATEMENT_TIMEOUT: &str = "30s";
 const MAX_ROWS: usize = 10_000;
 
@@ -182,11 +186,12 @@ fn map_sqlx_error(error: sqlx::Error) -> QueryError {
     }
 }
 
-/// SQLSTATE class decides fault ownership: data exceptions (22), constraint
-/// violations (23), invalid transaction state incl. read-only violations
-/// (25), syntax/access (42), and program limits (54) are the model's;
-/// 57014 is the statement timeout; everything else — connection, resource,
-/// internal — is infrastructure.
+/// SQLSTATE class decides fault ownership. The model owns everything its
+/// query text can cause: feature-not-supported (0A), cardinality (21), data
+/// exceptions (22), constraint violations (23), invalid transaction state
+/// incl. read-only violations (25), syntax/access (42), program limits
+/// (54), and PL/pgSQL raises (P0). 57014 is the statement timeout;
+/// everything else — connection, resource, internal — is infrastructure.
 fn classify_database_error(code: Option<&str>, message: &str) -> QueryError {
     let Some(code) = code else {
         return QueryError::Infrastructure(message.to_string());
@@ -195,9 +200,8 @@ fn classify_database_error(code: Option<&str>, message: &str) -> QueryError {
         return QueryError::Timeout;
     }
     match code.get(..2) {
-        Some("22") | Some("23") | Some("25") | Some("42") | Some("54") => {
-            QueryError::Syntax(message.to_string())
-        }
+        Some("0A") | Some("21") | Some("22") | Some("23") | Some("25") | Some("42")
+        | Some("54") | Some("P0") => QueryError::Syntax(message.to_string()),
         _ => QueryError::Infrastructure(message.to_string()),
     }
 }
@@ -226,6 +230,16 @@ mod tests {
         // Division by zero is a data exception: model fault.
         assert!(matches!(
             classify_database_error(Some("22012"), "division by zero"),
+            QueryError::Syntax(_)
+        ));
+        // Unsupported features and PL/pgSQL raises are things the query
+        // caused — not infrastructure.
+        assert!(matches!(
+            classify_database_error(Some("0A000"), "feature not supported"),
+            QueryError::Syntax(_)
+        ));
+        assert!(matches!(
+            classify_database_error(Some("P0001"), "raise_exception"),
             QueryError::Syntax(_)
         ));
         // The server-side statement timeout.
@@ -258,12 +272,22 @@ mod tests {
     #[ignore = "requires a running Postgres server (SQL_URL)"]
     async fn queries_a_live_server() {
         let url = std::env::var("SQL_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/bench".to_string());
+            .unwrap_or_else(|_| "postgres://bench_ro:bench_ro@localhost/bench".to_string());
         let db = Sql::new(&url, None, None).unwrap();
         let value = db.send_query("SELECT 1 + 1").await.unwrap();
         assert_eq!(value, Value::Int(2));
-        // The read-only guard must reject writes as a model fault.
+        // The read-only session default rejects writes as a model fault.
         let error = db.send_query("CREATE TABLE nope (id INT)").await.unwrap_err();
         assert!(matches!(error, QueryError::Syntax(m) if m.contains("read-only")));
+        // Even if a generated SET disables the session default, the
+        // SELECT-only role still blocks writes (grants are the hard layer).
+        db.send_query("SET default_transaction_read_only = off")
+            .await
+            .unwrap();
+        let error = db
+            .send_query("INSERT INTO cars (brand, model, wheels) VALUES ('X', 'Y', 4)")
+            .await
+            .unwrap_err();
+        assert!(matches!(error, QueryError::Syntax(_)));
     }
 }

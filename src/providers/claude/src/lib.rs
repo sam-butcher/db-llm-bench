@@ -20,9 +20,16 @@ fn default_max_tokens() -> u32 {
 /// Model families that accept `thinking: {type: "adaptive"}`. Older models
 /// (Haiku 4.5, Sonnet 4.5 and earlier) reject the parameter with a 400.
 fn supports_adaptive_thinking(model: &str) -> bool {
-    ["fable-5", "mythos-5", "opus-4-6", "opus-4-7", "opus-4-8", "sonnet-4-6"]
-        .iter()
-        .any(|family| model.contains(family))
+    [
+        "fable-5",
+        "mythos-5",
+        "opus-4-6",
+        "opus-4-7",
+        "opus-4-8",
+        "sonnet-4-6",
+    ]
+    .iter()
+    .any(|family| model.contains(family))
 }
 
 /// Deserialized from this provider's entry in config.yml.
@@ -141,29 +148,32 @@ impl ModelProvider for Claude {
             .json()
             .await
             .map_err(|e| ProviderError::Fatal(format!("undecodable API response: {e}")))?;
+        Ok(into_model_response(parsed))
+    }
+}
 
-        // A `refusal` stop reason arrives as a successful response with no
-        // text content; the empty text flows through extraction as a
-        // malformed response and is scored against the model, not the run.
-        // The abnormal stop reason travels along for honest trace records.
-        let text = parsed
-            .content
-            .iter()
-            .filter(|block| block.kind == "text")
-            .map(|block| block.text.as_str())
-            .collect::<Vec<_>>()
-            .join("");
-        let stop = parsed
-            .stop_reason
-            .filter(|reason| reason != "end_turn" && reason != "stop_sequence");
-        Ok(ModelResponse {
-            text,
-            tokens: TokenUsage {
-                input: parsed.usage.input_tokens,
-                output: parsed.usage.output_tokens,
-            },
-            stop,
-        })
+/// A `refusal` stop reason arrives as a successful response with no text
+/// content; the empty text flows through extraction as a malformed response
+/// and is scored against the model, not the run. The abnormal stop reason
+/// travels along for honest trace records.
+fn into_model_response(parsed: MessagesResponse) -> ModelResponse {
+    let text = parsed
+        .content
+        .iter()
+        .filter(|block| block.kind == "text")
+        .map(|block| block.text.as_str())
+        .collect::<Vec<_>>()
+        .join("");
+    let stop = parsed
+        .stop_reason
+        .filter(|reason| reason != "end_turn" && reason != "stop_sequence");
+    ModelResponse {
+        text,
+        tokens: TokenUsage {
+            input: parsed.usage.input_tokens,
+            output: parsed.usage.output_tokens,
+        },
+        stop,
     }
 }
 
@@ -321,7 +331,8 @@ mod tests {
 
     #[test]
     fn extracts_text_blocks_and_usage_from_a_response() {
-        // Thinking blocks (empty text under the default display) are skipped.
+        // Thinking blocks (empty text under the default display) are skipped
+        // and a normal end of turn records no abnormal stop.
         let parsed: MessagesResponse = serde_json::from_str(
             r#"{
                 "content": [
@@ -334,15 +345,26 @@ mod tests {
             }"#,
         )
         .unwrap();
-        let text: String = parsed
-            .content
-            .iter()
-            .filter(|b| b.kind == "text")
-            .map(|b| b.text.as_str())
-            .collect();
-        assert_eq!(text, "Here you go:\n```\nselect 1\n```");
-        assert_eq!(parsed.usage.input_tokens, 812);
-        assert_eq!(parsed.usage.output_tokens, 40);
+        let response = into_model_response(parsed);
+        assert_eq!(response.text, "Here you go:\n```\nselect 1\n```");
+        assert_eq!(response.tokens.input, 812);
+        assert_eq!(response.tokens.output, 40);
+        assert_eq!(response.stop, None);
+    }
+
+    #[test]
+    fn refusals_surface_as_an_abnormal_stop() {
+        let parsed: MessagesResponse = serde_json::from_str(
+            r#"{
+                "content": [],
+                "stop_reason": "refusal",
+                "usage": {"input_tokens": 100, "output_tokens": 0}
+            }"#,
+        )
+        .unwrap();
+        let response = into_model_response(parsed);
+        assert_eq!(response.text, "");
+        assert_eq!(response.stop.as_deref(), Some("refusal"));
     }
 
     #[test]
@@ -352,11 +374,26 @@ mod tests {
             classify_error(429, body),
             ProviderError::Transient(m) if m.contains("slow down")
         ));
-        assert!(matches!(classify_error(529, "overloaded"), ProviderError::Transient(_)));
-        assert!(matches!(classify_error(500, ""), ProviderError::Transient(_)));
-        assert!(matches!(classify_error(408, ""), ProviderError::Transient(_)));
-        assert!(matches!(classify_error(409, ""), ProviderError::Transient(_)));
-        assert!(matches!(classify_error(400, "bad"), ProviderError::Fatal(_)));
+        assert!(matches!(
+            classify_error(529, "overloaded"),
+            ProviderError::Transient(_)
+        ));
+        assert!(matches!(
+            classify_error(500, ""),
+            ProviderError::Transient(_)
+        ));
+        assert!(matches!(
+            classify_error(408, ""),
+            ProviderError::Transient(_)
+        ));
+        assert!(matches!(
+            classify_error(409, ""),
+            ProviderError::Transient(_)
+        ));
+        assert!(matches!(
+            classify_error(400, "bad"),
+            ProviderError::Fatal(_)
+        ));
         assert!(matches!(classify_error(401, ""), ProviderError::Fatal(_)));
         assert!(matches!(classify_error(404, ""), ProviderError::Fatal(_)));
     }

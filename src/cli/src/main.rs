@@ -215,6 +215,57 @@ fn load_skills(dir: &Path) -> anyhow::Result<Vec<String>> {
         .collect()
 }
 
+/// Run every DB x model x example-count x skills combination, folding
+/// records into `outputs`. On an unrecoverable failure the completed work
+/// is still marshalled, and the abort message is returned for reporting
+/// after the partial results are written.
+async fn run_benchmarks(
+    config: &Config,
+    questions: &QuestionFile,
+    models: &[Box<dyn ModelProvider>],
+    retry_levels: &[u32],
+    max_retries: u32,
+    outputs: &mut [QuestionOutput],
+) -> anyhow::Result<Option<String>> {
+    for (db_id, db_cfg) in config.db_entries() {
+        let db = build_db(db_id, db_cfg)?;
+        let assets = load_db_assets(db_cfg)?;
+        seed_db_slots(outputs, questions, db_id, db.query_language());
+
+        for model in models {
+            for &example_count in &config.example_counts {
+                let count = example_count as usize;
+                anyhow::ensure!(
+                    count <= assets.examples.len(),
+                    "example count {count} exceeds the {} example files in {}",
+                    assets.examples.len(),
+                    db_cfg.prompts.display()
+                );
+                for skills in skills_variants(&assets.skills) {
+                    let runner = BenchmarkRunner {
+                        db: db.as_ref(),
+                        model: model.as_ref(),
+                        prompt_template: assets.prompt_template.clone(),
+                        schema: assets.schema.clone(),
+                        examples: assets.examples[..count].to_vec(),
+                        skills,
+                        max_retries,
+                    };
+                    match runner.run(&questions.questions).await {
+                        Ok(runs) => append_run_records(outputs, db_id, retry_levels, runs),
+                        Err(failure) => {
+                            let message = format!("aborted on DB {db_id}: {failure}");
+                            append_run_records(outputs, db_id, retry_levels, failure.completed);
+                            return Ok(Some(message));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let (config_path, output_path) = parse_args();
@@ -243,50 +294,15 @@ async fn main() -> anyhow::Result<()> {
         .map(|(id, cfg)| build_model(id, cfg))
         .collect::<anyhow::Result<_>>()?;
 
-    // On an unrecoverable failure, everything completed so far is still
-    // marshalled and written before the error is reported.
-    let mut abort: Option<String> = None;
-    'combos: for (db_id, db_cfg) in config.db_entries() {
-        let db = build_db(db_id, db_cfg)?;
-        let assets = load_db_assets(db_cfg)?;
-        seed_db_slots(&mut outputs, &questions, db_id, db.query_language());
-
-        for model in &models {
-            for &example_count in &config.example_counts {
-                let count = example_count as usize;
-                anyhow::ensure!(
-                    count <= assets.examples.len(),
-                    "example count {count} exceeds the {} example files in {}",
-                    assets.examples.len(),
-                    db_cfg.prompts.display()
-                );
-                for skills in skills_variants(&assets.skills) {
-                    let runner = BenchmarkRunner {
-                        db: db.as_ref(),
-                        model: model.as_ref(),
-                        prompt_template: assets.prompt_template.clone(),
-                        schema: assets.schema.clone(),
-                        examples: assets.examples[..count].to_vec(),
-                        skills,
-                        max_retries,
-                    };
-                    match runner.run(&questions.questions).await {
-                        Ok(runs) => append_run_records(&mut outputs, db_id, &retry_levels, runs),
-                        Err(failure) => {
-                            abort = Some(format!("aborted on DB {db_id}: {failure}"));
-                            append_run_records(
-                                &mut outputs,
-                                db_id,
-                                &retry_levels,
-                                failure.completed,
-                            );
-                            break 'combos;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let abort = run_benchmarks(
+        &config,
+        &questions,
+        &models,
+        &retry_levels,
+        max_retries,
+        &mut outputs,
+    )
+    .await?;
 
     let output = BenchmarkOutput { questions: outputs };
     bench_output::write_output(&output_path, &output)

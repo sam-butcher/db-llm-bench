@@ -104,7 +104,10 @@ impl ModelProvider for DummyProvider {
     }
 
     async fn send_prompt(&self, conversation: &[Message]) -> Result<ModelResponse, ProviderError> {
-        let latest = conversation.last().map(|m| m.content.as_str()).unwrap_or("");
+        let latest = conversation
+            .last()
+            .map(|m| m.content.as_str())
+            .unwrap_or("");
         eprintln!(
             "[dummy model] prompt received ({} message(s)); latest:\n{latest}",
             conversation.len()

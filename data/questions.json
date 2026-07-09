@@ -1,5 +1,5 @@
 {
-  "questions" : [
+  "questions": [
     {
       "question": "How many cars are there?",
       "difficulty": "easy",
@@ -47,7 +47,11 @@
     {
       "question": "What are the brands of all the cars?",
       "difficulty": "easy",
-      "expected": ["Ford", "Tesla", "Toyota"],
+      "expected": [
+        "Ford",
+        "Tesla",
+        "Toyota"
+      ],
       "queries": {
         "typeql": "match $x isa car, has brand $b; select $b;",
         "sql": "SELECT brand FROM cars;",
@@ -64,6 +68,44 @@
         "sql": "SELECT registered FROM cars WHERE model = 'Corolla';",
         "cypher": "MATCH (c:Car {model: 'Corolla'}) RETURN c.registered",
         "dummy": "\"2020-01-05\""
+      }
+    },
+    {
+      "question": "What are the brand and model of the car with 6 wheels?",
+      "difficulty": "medium",
+      "expected": {
+        "brand": "Tesla",
+        "model": "Model 3"
+      },
+      "queries": {
+        "typeql": "match $x isa car, has wheels 6;\nfetch {\n  \"brand\": $x.brand,\n  \"model\": $x.model\n};",
+        "sql": "SELECT brand, model FROM cars WHERE wheels = 6;",
+        "cypher": "MATCH (c:Car {wheels: 6}) RETURN c.brand, c.model",
+        "dummy": "{\"brand\": \"Tesla\", \"model\": \"Model 3\"}"
+      }
+    },
+    {
+      "question": "What are the brand and model of each car?",
+      "difficulty": "medium",
+      "expected": [
+        {
+          "brand": "Toyota",
+          "model": "Corolla"
+        },
+        {
+          "brand": "Ford",
+          "model": "Fiesta"
+        },
+        {
+          "brand": "Tesla",
+          "model": "Model 3"
+        }
+      ],
+      "queries": {
+        "typeql": "match $x isa car;\nfetch {\n  \"brand\": $x.brand,\n  \"model\": $x.model\n};",
+        "sql": "SELECT brand, model FROM cars;",
+        "cypher": "MATCH (c:Car) RETURN c.brand, c.model",
+        "dummy": "[{\"brand\": \"Toyota\", \"model\": \"Corolla\"}, {\"brand\": \"Ford\", \"model\": \"Fiesta\"}, {\"brand\": \"Tesla\", \"model\": \"Model 3\"}]"
       }
     }
   ]

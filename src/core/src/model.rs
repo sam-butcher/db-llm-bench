@@ -47,6 +47,11 @@ impl TokenUsage {
 pub struct ModelResponse {
     pub text: String,
     pub tokens: TokenUsage,
+    /// An abnormal stop the provider observed (e.g. "refusal",
+    /// "max_tokens"); None for a normal end of turn. Recorded in the
+    /// attempt trace so a refusal or truncation isn't indistinguishable
+    /// from a merely malformed response.
+    pub stop: Option<String>,
 }
 
 /// Provider errors are never the model's fault, so neither variant counts

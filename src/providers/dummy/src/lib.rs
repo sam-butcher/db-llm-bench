@@ -122,6 +122,7 @@ impl ModelProvider for DummyProvider {
                         output: text.len() as u64,
                     },
                     text,
+                    stop: None,
                 })
             }
             Some(Scripted::TransientError(message)) => {

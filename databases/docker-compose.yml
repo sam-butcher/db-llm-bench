@@ -40,6 +40,7 @@ services:
       # initdb runs these on first boot of an empty data volume.
       - ../data/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ../data/sql/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+      - ./postgres/roles.sql:/docker-entrypoint-initdb.d/03-roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d bench"]
       interval: 2s
@@ -50,6 +51,9 @@ services:
     image: neo4j:5-community
     environment:
       NEO4J_AUTH: neo4j/password
+      # Server-side transaction timeout; the DB package's client ceiling is
+      # slightly longer so this fires first with a clean TransactionTimedOut.
+      NEO4J_db_transaction_timeout: 30s
     ports:
       - "7687:7687"
       - "7474:7474" # browser UI, handy for debugging

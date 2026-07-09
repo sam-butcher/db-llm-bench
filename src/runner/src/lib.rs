@@ -313,11 +313,15 @@ impl BenchmarkRunner<'_> {
                 0,
                 Err(Fault::Terminal("declared UNANSWERABLE".to_string())),
             ),
-            Extraction::Malformed => (
-                None,
-                0,
-                Err(Fault::Retryable("no query found in response".to_string())),
-            ),
+            // An abnormal stop (refusal, truncation) makes the trace say
+            // why there was no query, not just that there wasn't one.
+            Extraction::Malformed => {
+                let message = match &response.stop {
+                    Some(reason) => format!("no query found in response (stop reason: {reason})"),
+                    None => "no query found in response".to_string(),
+                };
+                (None, 0, Err(Fault::Retryable(message)))
+            }
         };
         Ok(AttemptOutcome {
             query,

@@ -1,8 +1,8 @@
 dbs:
-  - dummy:
-      prompts: data/dummy
-      url: unused
-      schema: data/dummy/schema.txt
+#  - dummy:
+#      prompts: data/dummy
+#      url: unused
+#      schema: data/dummy/schema.txt
   - typedb:
       prompts: data/typedb
       url: http://localhost:1729
@@ -30,26 +30,26 @@ models:
   # effort explicitly would be a fatal 400).
   - claude:
      model: claude-haiku-4-5-20251001
-  - dummy:
-      repeat: true
-      responses:
-        - |
-          Here is the query:
-          ```
-          match
-            $x isa car;
-          fetch {
-            "wheels": $x.wheels
-          };
-          ```
-        - |
-          Here is the query:
-          ```
-          match $x isa car; reduce $count = count;
-          ```
-        - The answer is three.
+#  - dummy:
+#      repeat: true
+#      responses:
+#        - |
+#          Here is the query:
+#          ```
+#          match
+#            $x isa car;
+#          fetch {
+#            "wheels": $x.wheels
+#          };
+#          ```
+#        - |
+#          Here is the query:
+#          ```
+#          match $x isa car; reduce $count = count;
+#          ```
+#        - The answer is three.
 questionsPath: data/questions.json
 exampleCounts:
-  - 0
+  - 3
 maxRetryCounts:
   - 0

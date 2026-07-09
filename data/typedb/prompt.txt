@@ -1,8 +1,8 @@
-Given an input question create a syntactically correct TypeQL query leveraging the provided schema and notes.
+Given an input question create a syntactically correct TypeQL 3.x query leveraging the provided schema and notes.
 Only query for relevant types given the question.
 Pay attention to using only the types that you can see in the schema description.
 Be careful not to query for types that do not exist.
-Only provide the TypeQL query, without any further explanations.
+Only provide the TypeQL 3.x query, without any further explanations.
 
 Schema:
 {{schema}}

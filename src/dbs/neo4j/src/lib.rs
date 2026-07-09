@@ -127,11 +127,7 @@ async fn collect_rows(txn: &mut Txn, query: &str) -> Result<Value, QueryError> {
         .map_err(map_neo4j_error)?;
     let mut columns: Vec<String> = Vec::new();
     let mut table: Vec<Vec<Value>> = Vec::new();
-    while let Some(row) = stream
-        .next(txn.handle())
-        .await
-        .map_err(map_neo4j_error)?
-    {
+    while let Some(row) = stream.next(txn.handle()).await.map_err(map_neo4j_error)? {
         if table.len() >= MAX_ROWS {
             return Err(QueryError::WrongShape(format!(
                 "result exceeded {MAX_ROWS} rows"
@@ -226,9 +222,10 @@ fn bolt_kind(value: &BoltType) -> &'static str {
 }
 
 fn map_neo4j_error(error: neo4rs::Error) -> QueryError {
-    match &error {
-        neo4rs::Error::Neo4j(e) => classify_neo4j(e.kind(), e.code(), &error.to_string()),
-        _ => QueryError::Infrastructure(error.to_string()),
+    let display = error.to_string();
+    match error {
+        neo4rs::Error::Neo4j(e) => classify_neo4j(e.kind(), e.code(), &display),
+        _ => QueryError::Infrastructure(display),
     }
 }
 
@@ -362,7 +359,9 @@ mod tests {
         let value = db.send_query("RETURN 1 + 1 AS result").await.unwrap();
         assert_eq!(value, Value::Int(2));
         // Writes execute but are rolled back: the node must not survive.
-        db.send_query("CREATE (n:BenchRollbackProbe)").await.unwrap();
+        db.send_query("CREATE (n:BenchRollbackProbe)")
+            .await
+            .unwrap();
         let count = db
             .send_query("MATCH (n:BenchRollbackProbe) RETURN count(n)")
             .await

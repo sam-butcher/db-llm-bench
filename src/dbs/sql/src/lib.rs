@@ -42,11 +42,7 @@ impl Sql {
     /// Validates the URL eagerly so a config typo fails at startup. The URL
     /// may embed credentials and a database (postgres://user:pass@host/db);
     /// explicit `database`/`auth` config overrides them.
-    pub fn new(
-        url: &str,
-        database: Option<&str>,
-        auth: Option<&SqlAuth>,
-    ) -> Result<Self, String> {
+    pub fn new(url: &str, database: Option<&str>, auth: Option<&SqlAuth>) -> Result<Self, String> {
         let mut options: PgConnectOptions = url
             .parse()
             .map_err(|e| format!("invalid Postgres URL `{url}`: {e}"))?;
@@ -129,9 +125,8 @@ fn coerce_column(row: &PgRow, column: &PgColumn) -> Result<Value, QueryError> {
     let name = column.name();
     let type_name = column.type_info().name();
     let index = column.ordinal();
-    let decode_error = |e: sqlx::Error| {
-        QueryError::WrongShape(format!("column `{name}` ({type_name}): {e}"))
-    };
+    let decode_error =
+        |e: sqlx::Error| QueryError::WrongShape(format!("column `{name}` ({type_name}): {e}"));
 
     macro_rules! cell {
         ($t:ty, $map:expr) => {
@@ -173,16 +168,14 @@ fn coerce_column(row: &PgRow, column: &PgColumn) -> Result<Value, QueryError> {
 }
 
 fn map_sqlx_error(error: sqlx::Error) -> QueryError {
-    match &error {
-        sqlx::Error::Database(db) => {
-            classify_database_error(db.code().as_deref(), db.message())
-        }
+    match error {
+        sqlx::Error::Database(db) => classify_database_error(db.code().as_deref(), db.message()),
         // Decode failures mean the query selected something outside the
         // coercible types — the model can fix that.
-        sqlx::Error::ColumnDecode { .. } | sqlx::Error::Decode(_) => {
+        error @ (sqlx::Error::ColumnDecode { .. } | sqlx::Error::Decode(_)) => {
             QueryError::WrongShape(error.to_string())
         }
-        _ => QueryError::Infrastructure(error.to_string()),
+        error => QueryError::Infrastructure(error.to_string()),
     }
 }
 
@@ -277,7 +270,10 @@ mod tests {
         let value = db.send_query("SELECT 1 + 1").await.unwrap();
         assert_eq!(value, Value::Int(2));
         // The read-only session default rejects writes as a model fault.
-        let error = db.send_query("CREATE TABLE nope (id INT)").await.unwrap_err();
+        let error = db
+            .send_query("CREATE TABLE nope (id INT)")
+            .await
+            .unwrap_err();
         assert!(matches!(error, QueryError::Syntax(m) if m.contains("read-only")));
         // Even if a generated SET disables the session default, the
         // SELECT-only role still blocks writes (grants are the hard layer).

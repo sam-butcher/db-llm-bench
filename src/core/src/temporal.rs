@@ -31,7 +31,10 @@ mod tests {
         assert_eq!(canonical_date(date), "2024-01-15");
 
         let datetime = NaiveDateTime::new(date, NaiveTime::from_hms_opt(10, 30, 0).unwrap());
-        assert_eq!(canonical_datetime(datetime), "2024-01-15T10:30:00.000000000");
+        assert_eq!(
+            canonical_datetime(datetime),
+            "2024-01-15T10:30:00.000000000"
+        );
         assert_eq!(
             canonical_datetime_utc(DateTime::from_naive_utc_and_offset(datetime, Utc)),
             "2024-01-15T10:30:00.000000000Z"

@@ -134,9 +134,9 @@ impl Database for TypeDb {
 /// on the model.
 fn map_driver_error(error: typedb_driver::Error) -> QueryError {
     use typedb_driver::Error;
-    match &error {
-        Error::Analyze(_) | Error::Server(_) => QueryError::Syntax(error.to_string()),
-        _ => QueryError::Infrastructure(error.to_string()),
+    match error {
+        error @ (Error::Analyze(_) | Error::Server(_)) => QueryError::Syntax(error.to_string()),
+        error => QueryError::Infrastructure(error.to_string()),
     }
 }
 

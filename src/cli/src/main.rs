@@ -155,6 +155,13 @@ fn build_model(id: &str, cfg: &serde_json::Value) -> anyhow::Result<Box<dyn Mode
             )
             .map_err(anyhow::Error::msg)?,
         ),
+        "openai-compatible" => Box::new(
+            provider_openai_compatible::OpenAiCompatible::new(
+                serde_json::from_value(cfg.clone())
+                    .context("parsing openai-compatible model config (expects model, base_url, optional label/api_key_env/max_tokens/max_tokens_field)")?,
+            )
+            .map_err(anyhow::Error::msg)?,
+        ),
         "dummy" => Box::new(provider_dummy::DummyProvider::from(
             serde_json::from_value::<provider_dummy::DummyConfig>(cfg.clone())?,
         )),

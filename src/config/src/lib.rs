@@ -151,7 +151,12 @@ impl Config {
             Ok(())
         }
         no_duplicates("DB", self.db_entries().map(|(id, _)| id))?;
-        no_duplicates("model", self.model_entries().map(|(id, _)| id))?;
+        // Model provider IDs may repeat (e.g. several `claude` blocks
+        // benchmarking different models or settings); uniqueness is
+        // enforced on the built providers' model labels instead.
+        if self.model_entries().next().is_none() {
+            return Err(ConfigError::Invalid("no models configured".to_string()));
+        }
         if self.example_counts.is_empty() {
             return Err(ConfigError::Invalid("exampleCounts is empty".to_string()));
         }
@@ -216,6 +221,32 @@ maxRetryCounts: [0, 2]
             "not: [valid".parse::<Config>(),
             Err(ConfigError::Parse { .. })
         ));
+    }
+
+    #[test]
+    fn repeated_model_providers_are_allowed() {
+        let yaml = "\
+dbs:
+  - dummy:
+      prompts: p
+      url: u
+      schema: s
+models:
+  - claude:
+      model: claude-opus-4-8
+  - claude:
+      model: claude-haiku-4-5
+questionsPath: q.json
+exampleCounts: [0]
+maxRetryCounts: [0]
+";
+        let config: Config = yaml.parse().unwrap();
+        assert_eq!(config.model_entries().count(), 2);
+        assert!(
+            config
+                .model_entries()
+                .all(|(provider, _)| provider == "claude")
+        );
     }
 
     #[test]

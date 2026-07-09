@@ -3,3 +3,5 @@ Nodes with the label Car, each with properties:
   - brand: string
   - model: string
   - wheels: integer
+  - price: float
+  - registered: date

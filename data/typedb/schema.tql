@@ -3,8 +3,12 @@ define
 attribute wheels, value integer;
 attribute model, value string;
 attribute brand, value string;
+attribute price, value double;
+attribute registered, value date;
 
 entity car,
     owns wheels,
     owns model,
-    owns brand;
+    owns brand,
+    owns price,
+    owns registered;

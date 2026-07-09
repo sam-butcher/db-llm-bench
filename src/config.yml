@@ -1,8 +1,4 @@
 dbs:
-#  - dummy:
-#      prompts: data/dummy
-#      url: unused
-#      schema: data/dummy/schema.txt
   - typedb:
       prompts: data/typedb
       url: http://localhost:1729
@@ -12,44 +8,27 @@ dbs:
         password: password
         tls: false
       schema: data/typedb/schema.tql
-  # Uncomment to benchmark Postgres and Neo4j (see databases/README.md):
-  # - sql:
-  #     prompts: data/sql
-  #     url: postgres://bench_ro:bench_ro@localhost/bench
-  #     schema: data/sql/schema.sql
-  # - neo4j:
-  #     prompts: data/neo4j
-  #     url: bolt://localhost:7687
-  #     auth:
-  #       username: neo4j
-  #       password: password
-  #     schema: data/neo4j/schema.txt
+  - sql:
+     prompts: data/sql
+     url: postgres://bench_ro:bench_ro@localhost/bench
+     schema: data/sql/schema.sql
+  - neo4j:
+     prompts: data/neo4j
+     url: bolt://localhost:7687
+     auth:
+       username: neo4j
+       password: password
+     schema: data/neo4j/schema.txt
 models:
   # Uncomment to benchmark Claude (reads ANTHROPIC_API_KEY from the environment):
-  # Note: effort/thinking are not supported on Haiku (auto-omitted; setting
-  # effort explicitly would be a fatal 400).
-  - claude:
-     model: claude-haiku-4-5-20251001
-#  - dummy:
-#      repeat: true
-#      responses:
-#        - |
-#          Here is the query:
-#          ```
-#          match
-#            $x isa car;
-#          fetch {
-#            "wheels": $x.wheels
-#          };
-#          ```
-#        - |
-#          Here is the query:
-#          ```
-#          match $x isa car; reduce $count = count;
-#          ```
-#        - The answer is three.
+#  - claude:
+#     model: claude-haiku-4-5-20251001
 questionsPath: data/questions.json
 exampleCounts:
+  - 0
+  - 1
   - 3
 maxRetryCounts:
   - 0
+  - 2
+  - 4

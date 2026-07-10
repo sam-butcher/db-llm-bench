@@ -57,6 +57,19 @@ pub struct ClaudeConfig {
 }
 
 impl ClaudeConfig {
+    /// Resolve the API key: the inline `api_key` wins, else fall back to
+    /// ANTHROPIC_API_KEY. Run before constructing the provider — the
+    /// provider itself never reads the environment.
+    pub fn resolve_api_key(&self) -> Result<String, String> {
+        self.api_key
+            .clone()
+            .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
+            .ok_or_else(|| {
+                "no Anthropic API key: set ANTHROPIC_API_KEY or `api_key` in the model config"
+                    .to_string()
+            })
+    }
+
     fn thinking_enabled(&self) -> bool {
         self.thinking
             .unwrap_or_else(|| supports_adaptive_thinking(&self.model))
@@ -70,15 +83,7 @@ pub struct Claude {
 }
 
 impl Claude {
-    pub fn new(config: ClaudeConfig) -> Result<Self, String> {
-        let api_key = config
-            .api_key
-            .clone()
-            .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
-            .ok_or_else(|| {
-                "no Anthropic API key: set ANTHROPIC_API_KEY or `api_key` in the model config"
-                    .to_string()
-            })?;
+    pub fn new(config: ClaudeConfig, api_key: String) -> Result<Self, String> {
         Ok(Self {
             config,
             api_key,
@@ -209,18 +214,18 @@ mod tests {
 
     #[test]
     fn label_overrides_the_record_model_id() {
-        let claude = Claude::new(config()).unwrap();
+        let claude = Claude::new(config(), "test-key".to_string()).unwrap();
         assert_eq!(claude.model_id(), "claude-opus-4-8");
 
         let mut labelled = config();
         labelled.label = Some("opus-high-effort".to_string());
-        let claude = Claude::new(labelled).unwrap();
+        let claude = Claude::new(labelled, "test-key".to_string()).unwrap();
         assert_eq!(claude.model_id(), "opus-high-effort");
     }
 
     #[test]
     fn builds_the_expected_request_shape() {
-        let claude = Claude::new(config()).unwrap();
+        let claude = Claude::new(config(), "test-key".to_string()).unwrap();
         let conversation = [
             Message::user("generate a query"),
             Message::assistant("```\nbad\n```"),
@@ -248,7 +253,7 @@ mod tests {
         let mut cfg = config();
         cfg.thinking = Some(false);
         cfg.effort = None;
-        let claude = Claude::new(cfg).unwrap();
+        let claude = Claude::new(cfg, "test-key".to_string()).unwrap();
         let request = serde_json::to_value(claude.build_request(&[Message::user("q")])).unwrap();
         assert!(request.get("thinking").is_none());
         assert!(request.get("output_config").is_none());
@@ -261,11 +266,11 @@ mod tests {
         let mut cfg = config();
         cfg.model = "claude-haiku-4-5-20251001".to_string();
         cfg.effort = None;
-        let claude = Claude::new(cfg).unwrap();
+        let claude = Claude::new(cfg, "test-key".to_string()).unwrap();
         let request = serde_json::to_value(claude.build_request(&[Message::user("q")])).unwrap();
         assert!(request.get("thinking").is_none());
 
-        let claude = Claude::new(config()).unwrap();
+        let claude = Claude::new(config(), "test-key".to_string()).unwrap();
         let request = serde_json::to_value(claude.build_request(&[Message::user("q")])).unwrap();
         assert_eq!(request["thinking"], serde_json::json!({"type": "adaptive"}));
 
@@ -274,7 +279,7 @@ mod tests {
         cfg.model = "claude-haiku-4-5-20251001".to_string();
         cfg.thinking = Some(true);
         cfg.effort = None;
-        let claude = Claude::new(cfg).unwrap();
+        let claude = Claude::new(cfg, "test-key".to_string()).unwrap();
         let request = serde_json::to_value(claude.build_request(&[Message::user("q")])).unwrap();
         assert_eq!(request["thinking"], serde_json::json!({"type": "adaptive"}));
     }
@@ -318,12 +323,14 @@ mod tests {
     }
 
     #[test]
-    fn missing_api_key_is_an_error() {
+    fn resolving_without_any_key_source_is_an_error() {
         let mut cfg = config();
         cfg.api_key = None;
         // Only meaningful when the env var is absent; skip otherwise.
         if std::env::var("ANTHROPIC_API_KEY").is_err() {
-            assert!(Claude::new(cfg).is_err());
+            assert!(cfg.resolve_api_key().is_err());
         }
+        // The inline key wins without touching the environment.
+        assert_eq!(config().resolve_api_key().unwrap(), "test-key");
     }
 }

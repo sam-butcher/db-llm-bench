@@ -50,6 +50,21 @@ pub struct OpenAiCompatibleConfig {
     pub max_tokens_field: MaxTokensField,
 }
 
+impl OpenAiCompatibleConfig {
+    /// Resolve the API key from the environment variable named by
+    /// `api_key_env`; None (no Authorization header) when the field is
+    /// omitted. Run before constructing the provider — the provider itself
+    /// never reads the environment.
+    pub fn resolve_api_key(&self) -> Result<Option<String>, String> {
+        match &self.api_key_env {
+            Some(env_var) => std::env::var(env_var).map(Some).map_err(|_| {
+                format!("api_key_env `{env_var}` is set in config but the variable is not set")
+            }),
+            None => Ok(None),
+        }
+    }
+}
+
 pub struct OpenAiCompatible {
     config: OpenAiCompatibleConfig,
     /// None for unauthenticated local servers.
@@ -59,13 +74,7 @@ pub struct OpenAiCompatible {
 }
 
 impl OpenAiCompatible {
-    pub fn new(config: OpenAiCompatibleConfig) -> Result<Self, String> {
-        let api_key = match &config.api_key_env {
-            Some(env_var) => Some(std::env::var(env_var).map_err(|_| {
-                format!("api_key_env `{env_var}` is set in config but the variable is not set")
-            })?),
-            None => None,
-        };
+    pub fn new(config: OpenAiCompatibleConfig, api_key: Option<String>) -> Result<Self, String> {
         let url = endpoint_url(&config.base_url)?;
         Ok(Self {
             config,
@@ -218,7 +227,7 @@ mod tests {
 
     #[test]
     fn builds_the_minimal_portable_request() {
-        let provider = OpenAiCompatible::new(config()).unwrap();
+        let provider = OpenAiCompatible::new(config(), None).unwrap();
         assert_eq!(
             provider.url.as_str(),
             "https://api.groq.com/openai/v1/chat/completions"
@@ -247,7 +256,7 @@ mod tests {
     fn max_completion_tokens_knob_switches_the_wire_field() {
         let mut cfg = config();
         cfg.max_tokens_field = MaxTokensField::MaxCompletionTokens;
-        let provider = OpenAiCompatible::new(cfg).unwrap();
+        let provider = OpenAiCompatible::new(cfg, None).unwrap();
         let request = serde_json::to_value(provider.build_request(&[Message::user("q")])).unwrap();
         assert!(request.get("max_tokens").is_none());
         assert_eq!(request["max_completion_tokens"], 4096);
@@ -257,11 +266,11 @@ mod tests {
     fn invalid_base_urls_fail_at_startup() {
         let mut missing_scheme = config();
         missing_scheme.base_url = "localhost:11434/v1".to_string();
-        assert!(OpenAiCompatible::new(missing_scheme).is_err());
+        assert!(OpenAiCompatible::new(missing_scheme, None).is_err());
 
         let mut garbage = config();
         garbage.base_url = "not a url".to_string();
-        assert!(OpenAiCompatible::new(garbage).is_err());
+        assert!(OpenAiCompatible::new(garbage, None).is_err());
     }
 
     #[test]
@@ -320,22 +329,22 @@ mod tests {
     }
 
     #[test]
-    fn api_key_env_is_required_when_named() {
+    fn resolving_a_named_env_var_requires_it_to_be_set() {
         let mut cfg = config();
         cfg.api_key_env = Some("BENCH_TEST_NO_SUCH_KEY".to_string());
-        assert!(OpenAiCompatible::new(cfg).is_err());
+        assert!(cfg.resolve_api_key().is_err());
         // No api_key_env at all means an unauthenticated local server.
-        assert!(OpenAiCompatible::new(config()).unwrap().api_key.is_none());
+        assert_eq!(config().resolve_api_key().unwrap(), None);
     }
 
     #[test]
     fn label_overrides_the_record_model_id() {
-        let provider = OpenAiCompatible::new(config()).unwrap();
+        let provider = OpenAiCompatible::new(config(), None).unwrap();
         assert_eq!(provider.model_id(), "llama-3.3-70b-versatile");
 
         let mut labelled = config();
         labelled.label = Some("llama-70b-groq".to_string());
-        let provider = OpenAiCompatible::new(labelled).unwrap();
+        let provider = OpenAiCompatible::new(labelled, None).unwrap();
         assert_eq!(provider.model_id(), "llama-70b-groq");
     }
 }

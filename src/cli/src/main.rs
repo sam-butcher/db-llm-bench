@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -62,7 +62,11 @@ fn seed_db_slots(
             db_id.to_string(),
             DbOutput {
                 language: language.to_string(),
-                correct: question.queries.get(language).cloned().unwrap_or_default(),
+                correct: question
+                    .queries
+                    .get(language)
+                    .cloned()
+                    .expect("validated: every question has a query in this language"),
                 results: Vec::new(),
             },
         );
@@ -234,7 +238,7 @@ struct PreparedDb<'a> {
 
 /// Build and validate every configured DB up-front, so a bad entry fails
 /// the run before any benchmarking (and any spend) begins.
-fn prepare_dbs<'a>(
+async fn prepare_dbs<'a>(
     config: &'a Config,
     questions: &QuestionFile,
 ) -> anyhow::Result<Vec<PreparedDb<'a>>> {
@@ -243,22 +247,24 @@ fn prepare_dbs<'a>(
         .iter()
         .max()
         .expect("validated non-empty") as usize;
-    config
-        .db_entries()
-        .map(|(db_id, db_cfg)| {
-            let db = build_db(db_id, db_cfg)?;
-            let assets = load_db_assets(db_cfg)?;
-            validate_db_inputs(
-                db_id,
-                db_cfg,
-                &assets,
-                db.query_language(),
-                questions,
-                max_examples,
-            )?;
-            Ok(PreparedDb { id: db_id, db, assets })
-        })
-        .collect()
+    let mut prepared = Vec::new();
+    for (db_id, db_cfg) in config.db_entries() {
+        let db = build_db(db_id, db_cfg)?;
+        let assets = load_db_assets(db_cfg)?;
+        validate_db_inputs(
+            db_id,
+            db_cfg,
+            &assets,
+            db.query_language(),
+            questions,
+            max_examples,
+        )?;
+        db.health_check()
+            .await
+            .map_err(|e| anyhow::anyhow!("DB {db_id} failed its health check: {e}"))?;
+        prepared.push(PreparedDb { id: db_id, db, assets });
+    }
+    Ok(prepared)
 }
 
 /// The cross-checks between a DB's assets and the rest of the run's
@@ -321,7 +327,7 @@ fn build_models(config: &Config) -> anyhow::Result<Vec<Box<dyn ModelProvider>>> 
         .model_entries()
         .map(|(id, cfg)| build_model(id, cfg))
         .collect::<anyhow::Result<_>>()?;
-    let mut labels = std::collections::BTreeSet::new();
+    let mut labels = BTreeSet::new();
     for model in &models {
         let label = model.model_id();
         anyhow::ensure!(
@@ -338,17 +344,17 @@ fn build_models(config: &Config) -> anyhow::Result<Vec<Box<dyn ModelProvider>>> 
 /// one the completed work is still marshalled, and the abort message is
 /// returned for reporting after the partial results are written.
 async fn run_benchmarks(
-    config: &Config,
     questions: &QuestionFile,
     dbs: &[PreparedDb<'_>],
     models: &[Box<dyn ModelProvider>],
+    example_counts: &[u32],
     retry_levels: &[u32],
     max_retries: u32,
     outputs: &mut [QuestionOutput],
 ) -> Option<String> {
     for prepared in dbs {
         for model in models {
-            for &example_count in &config.example_counts {
+            for &example_count in example_counts {
                 for skills in skills_variants(&prepared.assets.skills) {
                     let runner = BenchmarkRunner {
                         db: prepared.db.as_ref(),
@@ -383,7 +389,6 @@ async fn main() -> anyhow::Result<()> {
     // the attempt trace afterwards.
     let mut retry_levels = config.max_retry_counts.clone();
     retry_levels.sort_unstable();
-    retry_levels.dedup();
     let max_retries = *retry_levels.last().expect("validated non-empty");
 
     let mut outputs: Vec<QuestionOutput> = questions
@@ -400,16 +405,16 @@ async fn main() -> anyhow::Result<()> {
     // Validate the whole run up-front: any provider, DB, or asset problem
     // should fail here, before any benchmarking begins.
     let models = build_models(&config)?;
-    let dbs = prepare_dbs(&config, &questions)?;
+    let dbs = prepare_dbs(&config, &questions).await?;
     for prepared in &dbs {
         seed_db_slots(&mut outputs, &questions, prepared.id, prepared.db.query_language());
     }
 
     let abort = run_benchmarks(
-        &config,
         &questions,
         &dbs,
         &models,
+        &config.example_counts,
         &retry_levels,
         max_retries,
         &mut outputs,

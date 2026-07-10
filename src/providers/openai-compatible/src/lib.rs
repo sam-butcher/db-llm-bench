@@ -7,8 +7,8 @@
 use async_trait::async_trait;
 use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, TokenUsage};
 use provider_http_util::{
-    WireMessage, build_client, default_max_tokens, model_label, parse_error_message,
-    send_for_body, wire_messages,
+    WireMessage, build_client, decode_json, default_max_tokens, model_label,
+    parse_error_message, send_for_body, wire_messages,
 };
 use serde::{Deserialize, Serialize};
 
@@ -135,13 +135,13 @@ impl ModelProvider for OpenAiCompatible {
 /// an error object inside an HTTP 200 body. Surface those as Transient with
 /// the API's own message rather than aborting on "undecodable response".
 fn decode_response(body: &str) -> Result<ModelResponse, ProviderError> {
-    match serde_json::from_str::<ChatResponse>(body) {
+    match decode_json::<ChatResponse>(body) {
         Ok(parsed) => into_model_response(parsed),
-        Err(decode_error) => Err(match parse_error_message(body) {
+        Err(undecodable) => Err(match parse_error_message(body) {
             Some(message) => {
                 ProviderError::Transient(format!("API error in HTTP 200 response: {message}"))
             }
-            None => ProviderError::Fatal(format!("undecodable API response: {decode_error}")),
+            None => undecodable,
         }),
     }
 }

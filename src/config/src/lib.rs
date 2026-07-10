@@ -157,12 +157,25 @@ impl Config {
         if self.model_entries().next().is_none() {
             return Err(ConfigError::Invalid("no models configured".to_string()));
         }
-        if self.example_counts.is_empty() {
-            return Err(ConfigError::Invalid("exampleCounts is empty".to_string()));
+        // Duplicate counts would silently duplicate whole benchmark runs
+        // (or, for retry levels, duplicate derived records) — reject them
+        // rather than dedup, so the config says what actually runs.
+        fn unique_counts(kind: &str, counts: &[u32]) -> Result<(), ConfigError> {
+            if counts.is_empty() {
+                return Err(ConfigError::Invalid(format!("{kind} is empty")));
+            }
+            let mut seen = std::collections::BTreeSet::new();
+            for &count in counts {
+                if !seen.insert(count) {
+                    return Err(ConfigError::Invalid(format!(
+                        "duplicate {kind} entry: {count}"
+                    )));
+                }
+            }
+            Ok(())
         }
-        if self.max_retry_counts.is_empty() {
-            return Err(ConfigError::Invalid("maxRetryCounts is empty".to_string()));
-        }
+        unique_counts("exampleCounts", &self.example_counts)?;
+        unique_counts("maxRetryCounts", &self.max_retry_counts)?;
         Ok(())
     }
 }
@@ -172,10 +185,20 @@ pub fn load_questions(path: &Path) -> Result<QuestionFile, ConfigError> {
         path: path.to_path_buf(),
         source,
     })?;
-    serde_json::from_str(&raw).map_err(|e| ConfigError::Parse {
-        source_name: path.display().to_string(),
+    parse_questions(&raw, &path.display().to_string())
+}
+
+fn parse_questions(raw: &str, source_name: &str) -> Result<QuestionFile, ConfigError> {
+    let questions: QuestionFile = serde_json::from_str(raw).map_err(|e| ConfigError::Parse {
+        source_name: source_name.to_string(),
         message: e.to_string(),
-    })
+    })?;
+    if questions.questions.is_empty() {
+        return Err(ConfigError::Invalid(format!(
+            "{source_name} contains no questions"
+        )));
+    }
+    Ok(questions)
 }
 
 #[cfg(test)]
@@ -292,6 +315,43 @@ maxRetryCounts: [0]
         assert!(matches!(
             yaml.parse::<Config>(),
             Err(ConfigError::Invalid(msg)) if msg.contains("exampleCounts")
+        ));
+    }
+
+    #[test]
+    fn duplicate_counts_are_rejected() {
+        let yaml = "\
+dbs:
+  - dummy:
+      prompts: p
+      url: u
+      schema: s
+models:
+  - dummy:
+      responses: []
+questionsPath: q.json
+exampleCounts: [0, 3, 3]
+maxRetryCounts: [0]
+";
+        assert!(matches!(
+            yaml.parse::<Config>(),
+            Err(ConfigError::Invalid(msg)) if msg.contains("duplicate exampleCounts entry: 3")
+        ));
+
+        let yaml = yaml
+            .replace("exampleCounts: [0, 3, 3]", "exampleCounts: [0]")
+            .replace("maxRetryCounts: [0]", "maxRetryCounts: [2, 2]");
+        assert!(matches!(
+            yaml.parse::<Config>(),
+            Err(ConfigError::Invalid(msg)) if msg.contains("duplicate maxRetryCounts entry: 2")
+        ));
+    }
+
+    #[test]
+    fn empty_question_files_are_rejected() {
+        assert!(matches!(
+            parse_questions(r#"{"questions": []}"#, "q.json"),
+            Err(ConfigError::Invalid(msg)) if msg.contains("contains no questions")
         ));
     }
 }

@@ -110,6 +110,12 @@ impl Database for TypeDb {
         "typeql"
     }
 
+    /// Driving the lazy connection validates the address, credentials, and
+    /// database existence.
+    async fn health_check(&self) -> Result<(), QueryError> {
+        self.driver().await.map(|_| ())
+    }
+
     async fn send_query(&self, query: &str) -> Result<Value, QueryError> {
         let driver = self.driver().await?;
         let transaction = driver

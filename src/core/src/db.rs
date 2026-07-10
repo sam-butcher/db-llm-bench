@@ -44,4 +44,12 @@ pub trait Database: Send + Sync {
     fn query_language(&self) -> &'static str;
 
     async fn send_query(&self, query: &str) -> Result<Value, QueryError>;
+
+    /// Establish connectivity, so a down server, bad credentials, or missing
+    /// database fails the run up-front instead of at the first query. The
+    /// default does nothing; packages that connect lazily should override it
+    /// to drive their connection once.
+    async fn health_check(&self) -> Result<(), QueryError> {
+        Ok(())
+    }
 }

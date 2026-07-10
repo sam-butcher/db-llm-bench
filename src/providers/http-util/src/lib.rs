@@ -60,15 +60,27 @@ pub async fn send_for_body(request: reqwest::RequestBuilder) -> Result<String, P
         .await
         .map_err(|e| ProviderError::Transient(format!("request failed: {e}")))?;
     let status = response.status();
-    let body = response
-        .text()
-        .await
-        .unwrap_or_else(|_| "<unreadable body>".to_string());
     if status.is_success() {
-        Ok(body)
+        // A read failure on a good status is a network blip mid-body, not a
+        // bad response.
+        response
+            .text()
+            .await
+            .map_err(|e| ProviderError::Transient(format!("reading response body: {e}")))
     } else {
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "<unreadable body>".to_string());
         Err(classify_error(status.as_u16(), &body))
     }
+}
+
+/// Decode a successful response body; a failure is Fatal — by this point
+/// the status was 2xx, so an undecodable body is a wrong-shaped API.
+pub fn decode_json<T: serde::de::DeserializeOwned>(body: &str) -> Result<T, ProviderError> {
+    serde_json::from_str(body)
+        .map_err(|e| ProviderError::Fatal(format!("undecodable API response: {e}")))
 }
 
 fn classify_error(status: u16, body: &str) -> ProviderError {

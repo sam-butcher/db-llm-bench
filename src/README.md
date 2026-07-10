@@ -74,8 +74,9 @@ Inputs (taken in through config file - see config.yml for a suggested format):
   - Runs only execute at the highest configured retry count; results for the lower counts are derived from the attempt trace rather than re-run
 
 Before any benchmarking begins, the full configuration is validated up-front, so a bad combination
-fails immediately rather than partway through a run: every provider and DB client is built, all
-prompt assets load, each DB has at least as many example files as the highest example count,
+fails immediately rather than partway through a run: every provider and DB client is built, each DB
+answers a connectivity health check (catching a down server, bad credentials, or missing database),
+all prompt assets load, each DB has at least as many example files as the highest example count,
 prompt templates contain the required slots ({{question}} and {{schema}} always; {{examples}} when
 examples are configured; {{skills}} when a skills folder is), skills folders are non-empty, and
 every question has a ground-truth query for each configured DB's language.

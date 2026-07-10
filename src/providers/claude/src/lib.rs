@@ -5,7 +5,8 @@
 use async_trait::async_trait;
 use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, TokenUsage};
 use provider_http_util::{
-    WireMessage, build_client, default_max_tokens, model_label, send_for_body, wire_messages,
+    WireMessage, build_client, decode_json, default_max_tokens, model_label, send_for_body,
+    wire_messages,
 };
 use serde::{Deserialize, Serialize};
 
@@ -123,9 +124,7 @@ impl ModelProvider for Claude {
             .header("anthropic-version", ANTHROPIC_VERSION)
             .json(&self.build_request(conversation));
         let body = send_for_body(request).await?;
-        let parsed: MessagesResponse = serde_json::from_str(&body)
-            .map_err(|e| ProviderError::Fatal(format!("undecodable API response: {e}")))?;
-        Ok(into_model_response(parsed))
+        Ok(into_model_response(decode_json(&body)?))
     }
 }
 

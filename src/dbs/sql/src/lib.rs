@@ -83,6 +83,12 @@ impl Database for Sql {
         "sql"
     }
 
+    /// Driving the lazy pool validates the host, credentials, and database
+    /// (all part of the connect options).
+    async fn health_check(&self) -> Result<(), QueryError> {
+        self.pool().await.map(|_| ())
+    }
+
     async fn send_query(&self, query: &str) -> Result<Value, QueryError> {
         let pool = self.pool().await?;
         tokio::time::timeout(QUERY_TIMEOUT, run_query(pool, query))

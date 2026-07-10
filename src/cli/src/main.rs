@@ -148,20 +148,22 @@ fn build_db(id: &str, cfg: &DbConfig) -> anyhow::Result<Box<dyn Database>> {
 /// its own config entry.
 fn build_model(id: &str, cfg: &serde_json::Value) -> anyhow::Result<Box<dyn ModelProvider>> {
     Ok(match id {
-        "claude" => Box::new(
-            provider_claude::Claude::new(
+        "claude" => {
+            let config: provider_claude::ClaudeConfig = serde_json::from_value(cfg.clone())
+                .context("parsing claude model config (expects model, optional api_key/max_tokens/thinking/effort)")?;
+            let api_key = config.resolve_api_key().map_err(anyhow::Error::msg)?;
+            Box::new(provider_claude::Claude::new(config, api_key).map_err(anyhow::Error::msg)?)
+        }
+        "openai-compatible" => {
+            let config: provider_openai_compatible::OpenAiCompatibleConfig =
                 serde_json::from_value(cfg.clone())
-                    .context("parsing claude model config (expects model, optional api_key/max_tokens/thinking/effort)")?,
+                    .context("parsing openai-compatible model config (expects model, base_url, optional label/api_key_env/max_tokens/max_tokens_field)")?;
+            let api_key = config.resolve_api_key().map_err(anyhow::Error::msg)?;
+            Box::new(
+                provider_openai_compatible::OpenAiCompatible::new(config, api_key)
+                    .map_err(anyhow::Error::msg)?,
             )
-            .map_err(anyhow::Error::msg)?,
-        ),
-        "openai-compatible" => Box::new(
-            provider_openai_compatible::OpenAiCompatible::new(
-                serde_json::from_value(cfg.clone())
-                    .context("parsing openai-compatible model config (expects model, base_url, optional label/api_key_env/max_tokens/max_tokens_field)")?,
-            )
-            .map_err(anyhow::Error::msg)?,
-        ),
+        }
         "dummy" => Box::new(provider_dummy::DummyProvider::from(
             serde_json::from_value::<provider_dummy::DummyConfig>(cfg.clone())?,
         )),

@@ -224,55 +224,154 @@ fn load_skills(dir: &Path) -> anyhow::Result<Vec<String>> {
         .collect()
 }
 
+/// A DB whose client, prompt assets, and cross-checks against the run's
+/// questions and example counts have all passed validation.
+struct PreparedDb<'a> {
+    id: &'a str,
+    db: Box<dyn Database>,
+    assets: DbAssets,
+}
+
+/// Build and validate every configured DB up-front, so a bad entry fails
+/// the run before any benchmarking (and any spend) begins.
+fn prepare_dbs<'a>(
+    config: &'a Config,
+    questions: &QuestionFile,
+) -> anyhow::Result<Vec<PreparedDb<'a>>> {
+    let max_examples = *config
+        .example_counts
+        .iter()
+        .max()
+        .expect("validated non-empty") as usize;
+    config
+        .db_entries()
+        .map(|(db_id, db_cfg)| {
+            let db = build_db(db_id, db_cfg)?;
+            let assets = load_db_assets(db_cfg)?;
+            validate_db_inputs(
+                db_id,
+                db_cfg,
+                &assets,
+                db.query_language(),
+                questions,
+                max_examples,
+            )?;
+            Ok(PreparedDb { id: db_id, db, assets })
+        })
+        .collect()
+}
+
+/// The cross-checks between a DB's assets and the rest of the run's
+/// configuration; each of these would otherwise only fail mid-run, once
+/// the combination (or output record) that needs it is reached.
+fn validate_db_inputs(
+    db_id: &str,
+    db_cfg: &DbConfig,
+    assets: &DbAssets,
+    language: &str,
+    questions: &QuestionFile,
+    max_examples: usize,
+) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        max_examples <= assets.examples.len(),
+        "example count {max_examples} exceeds the {} example files in {}",
+        assets.examples.len(),
+        db_cfg.prompts.display()
+    );
+    let mut required_slots = vec!["{{question}}", "{{schema}}"];
+    if max_examples > 0 {
+        required_slots.push("{{examples}}");
+    }
+    if assets.skills.is_some() {
+        required_slots.push("{{skills}}");
+    }
+    for slot in required_slots {
+        anyhow::ensure!(
+            assets.prompt_template.contains(slot),
+            "prompt template {} is missing its {slot} slot",
+            db_cfg.prompts.join("prompt.txt").display()
+        );
+    }
+    if let Some(skills) = &assets.skills {
+        anyhow::ensure!(
+            !skills.is_empty(),
+            "skills folder {} contains no .md files",
+            db_cfg
+                .skills
+                .as_ref()
+                .expect("skills were loaded from this path")
+                .display()
+        );
+    }
+    for question in &questions.questions {
+        anyhow::ensure!(
+            question.queries.contains_key(language),
+            "question `{}` has no ground-truth {language} query for DB {db_id}",
+            question.question
+        );
+    }
+    Ok(())
+}
+
+/// Build every configured provider and require the record-identifying
+/// labels to be unique: provider IDs may repeat in config, but same-label
+/// results would be indistinguishable in the output.
+fn build_models(config: &Config) -> anyhow::Result<Vec<Box<dyn ModelProvider>>> {
+    let models: Vec<Box<dyn ModelProvider>> = config
+        .model_entries()
+        .map(|(id, cfg)| build_model(id, cfg))
+        .collect::<anyhow::Result<_>>()?;
+    let mut labels = std::collections::BTreeSet::new();
+    for model in &models {
+        let label = model.model_id();
+        anyhow::ensure!(
+            labels.insert(label.clone()),
+            "two model entries share the label `{label}`; set a distinct `label` on one"
+        );
+    }
+    Ok(models)
+}
+
 /// Run every DB x model x example-count x skills combination, folding
-/// records into `outputs`. On an unrecoverable failure the completed work
-/// is still marshalled, and the abort message is returned for reporting
-/// after the partial results are written.
+/// records into `outputs`. All inputs were validated by `prepare_dbs` and
+/// `build_models`, so only runtime failures remain; on an unrecoverable
+/// one the completed work is still marshalled, and the abort message is
+/// returned for reporting after the partial results are written.
 async fn run_benchmarks(
     config: &Config,
     questions: &QuestionFile,
+    dbs: &[PreparedDb<'_>],
     models: &[Box<dyn ModelProvider>],
     retry_levels: &[u32],
     max_retries: u32,
     outputs: &mut [QuestionOutput],
-) -> anyhow::Result<Option<String>> {
-    for (db_id, db_cfg) in config.db_entries() {
-        let db = build_db(db_id, db_cfg)?;
-        let assets = load_db_assets(db_cfg)?;
-        seed_db_slots(outputs, questions, db_id, db.query_language());
-
+) -> Option<String> {
+    for prepared in dbs {
         for model in models {
             for &example_count in &config.example_counts {
-                let count = example_count as usize;
-                anyhow::ensure!(
-                    count <= assets.examples.len(),
-                    "example count {count} exceeds the {} example files in {}",
-                    assets.examples.len(),
-                    db_cfg.prompts.display()
-                );
-                for skills in skills_variants(&assets.skills) {
+                for skills in skills_variants(&prepared.assets.skills) {
                     let runner = BenchmarkRunner {
-                        db: db.as_ref(),
+                        db: prepared.db.as_ref(),
                         model: model.as_ref(),
-                        prompt_template: assets.prompt_template.clone(),
-                        schema: assets.schema.clone(),
-                        examples: assets.examples[..count].to_vec(),
+                        prompt_template: prepared.assets.prompt_template.clone(),
+                        schema: prepared.assets.schema.clone(),
+                        examples: prepared.assets.examples[..example_count as usize].to_vec(),
                         skills,
                         max_retries,
                     };
                     match runner.run(&questions.questions).await {
-                        Ok(runs) => append_run_records(outputs, db_id, retry_levels, runs),
+                        Ok(runs) => append_run_records(outputs, prepared.id, retry_levels, runs),
                         Err(failure) => {
-                            let message = format!("aborted on DB {db_id}: {failure}");
-                            append_run_records(outputs, db_id, retry_levels, failure.completed);
-                            return Ok(Some(message));
+                            let message = format!("aborted on DB {}: {failure}", prepared.id);
+                            append_run_records(outputs, prepared.id, retry_levels, failure.completed);
+                            return Some(message);
                         }
                     }
                 }
             }
         }
     }
-    Ok(None)
+    None
 }
 
 #[tokio::main]
@@ -298,30 +397,24 @@ async fn main() -> anyhow::Result<()> {
         })
         .collect();
 
-    let models: Vec<Box<dyn ModelProvider>> = config
-        .model_entries()
-        .map(|(id, cfg)| build_model(id, cfg))
-        .collect::<anyhow::Result<_>>()?;
-    // Provider IDs may repeat in config; the record-identifying label must
-    // not, or their results become indistinguishable.
-    let mut labels = std::collections::BTreeSet::new();
-    for model in &models {
-        let label = model.model_id();
-        anyhow::ensure!(
-            labels.insert(label.clone()),
-            "two model entries share the label `{label}`; set a distinct `label` on one"
-        );
+    // Validate the whole run up-front: any provider, DB, or asset problem
+    // should fail here, before any benchmarking begins.
+    let models = build_models(&config)?;
+    let dbs = prepare_dbs(&config, &questions)?;
+    for prepared in &dbs {
+        seed_db_slots(&mut outputs, &questions, prepared.id, prepared.db.query_language());
     }
 
     let abort = run_benchmarks(
         &config,
         &questions,
+        &dbs,
         &models,
         &retry_levels,
         max_retries,
         &mut outputs,
     )
-    .await?;
+    .await;
 
     let output = BenchmarkOutput { questions: outputs };
     bench_output::write_output(&output_path, &output)
@@ -336,4 +429,99 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("{message}; partial results written");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bench_core::{Question, Value};
+
+    const FULL_TEMPLATE: &str = "{{schema}} {{examples}} {{skills}} {{question}}";
+
+    fn db_cfg(skills: Option<PathBuf>) -> DbConfig {
+        DbConfig {
+            prompts: PathBuf::from("prompts"),
+            url: "http://localhost".to_string(),
+            database: None,
+            auth: None,
+            skills,
+            schema: PathBuf::from("schema.txt"),
+        }
+    }
+
+    fn assets(template: &str, examples: usize, skills: Option<Vec<String>>) -> DbAssets {
+        DbAssets {
+            prompt_template: template.to_string(),
+            schema: "schema".to_string(),
+            examples: vec!["example".to_string(); examples],
+            skills,
+        }
+    }
+
+    fn questions() -> QuestionFile {
+        QuestionFile {
+            questions: vec![Question {
+                question: "How many cars are there?".to_string(),
+                difficulty: "easy".to_string(),
+                expected: Value::Int(3),
+                ordered: false,
+                queries: BTreeMap::from([("sql".to_string(), "SELECT 1".to_string())]),
+            }],
+        }
+    }
+
+    #[test]
+    fn valid_inputs_pass() {
+        let cfg = db_cfg(None);
+        let full = assets(FULL_TEMPLATE, 3, None);
+        assert!(validate_db_inputs("sql", &cfg, &full, "sql", &questions(), 3).is_ok());
+    }
+
+    #[test]
+    fn insufficient_examples_are_rejected() {
+        let cfg = db_cfg(None);
+        let two = assets(FULL_TEMPLATE, 2, None);
+        let err = validate_db_inputs("sql", &cfg, &two, "sql", &questions(), 3).unwrap_err();
+        assert!(err.to_string().contains("example count 3 exceeds"));
+    }
+
+    #[test]
+    fn missing_template_slots_are_rejected() {
+        let cfg = db_cfg(None);
+        let no_question = assets("{{schema}}", 0, None);
+        let err = validate_db_inputs("sql", &cfg, &no_question, "sql", &questions(), 0).unwrap_err();
+        assert!(err.to_string().contains("{{question}}"));
+
+        // The examples slot is only required once examples are in play.
+        let no_examples_slot = assets("{{schema}} {{question}}", 3, None);
+        assert!(validate_db_inputs("sql", &cfg, &no_examples_slot, "sql", &questions(), 0).is_ok());
+        let err =
+            validate_db_inputs("sql", &cfg, &no_examples_slot, "sql", &questions(), 3).unwrap_err();
+        assert!(err.to_string().contains("{{examples}}"));
+
+        // The skills slot is only required when a skills folder is configured
+        // (otherwise the skills-on variant would silently equal skills-off).
+        let with_skills = db_cfg(Some(PathBuf::from("skills")));
+        let no_skills_slot = assets("{{schema}} {{question}}", 0, Some(vec!["skill".to_string()]));
+        let err = validate_db_inputs("sql", &with_skills, &no_skills_slot, "sql", &questions(), 0)
+            .unwrap_err();
+        assert!(err.to_string().contains("{{skills}}"));
+    }
+
+    #[test]
+    fn empty_skills_folder_is_rejected() {
+        let cfg = db_cfg(Some(PathBuf::from("skills")));
+        let empty_skills = assets(FULL_TEMPLATE, 0, Some(Vec::new()));
+        let err =
+            validate_db_inputs("sql", &cfg, &empty_skills, "sql", &questions(), 0).unwrap_err();
+        assert!(err.to_string().contains("no .md files"));
+    }
+
+    #[test]
+    fn every_question_needs_a_query_in_the_dbs_language() {
+        let cfg = db_cfg(None);
+        let full = assets(FULL_TEMPLATE, 3, None);
+        let err = validate_db_inputs("neo4j", &cfg, &full, "cypher", &questions(), 3).unwrap_err();
+        assert!(err.to_string().contains("no ground-truth cypher query"));
+    }
 }

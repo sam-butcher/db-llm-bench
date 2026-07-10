@@ -9,7 +9,7 @@ members = [
     "src/dbs/typedb",
     "src/providers/claude",
     "src/providers/dummy",
-    "src/providers/http",
+    "src/providers/http-util",
     "src/providers/openai-compatible",
     "src/runner",
     "src/output",
@@ -31,7 +31,7 @@ db-sql = { path = "src/dbs/sql" }
 db-typedb = { path = "src/dbs/typedb" }
 provider-claude = { path = "src/providers/claude" }
 provider-dummy = { path = "src/providers/dummy" }
-provider-http = { path = "src/providers/http" }
+provider-http-util = { path = "src/providers/http-util" }
 provider-openai-compatible = { path = "src/providers/openai-compatible" }
 
 anyhow = "1"

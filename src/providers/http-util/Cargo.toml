@@ -1,5 +1,5 @@
 [package]
-name = "provider-http"
+name = "provider-http-util"
 version.workspace = true
 edition.workspace = true
 

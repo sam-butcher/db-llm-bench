@@ -2,20 +2,15 @@
 //! Messages API (there is no official Rust SDK). Uses adaptive thinking by
 //! default, per current API guidance for Claude 4.6+ models.
 
-use std::time::Duration;
-
 use async_trait::async_trait;
-use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, Role, TokenUsage};
+use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, TokenUsage};
+use provider_http::{
+    WireMessage, build_client, default_max_tokens, model_label, send_for_body, wire_messages,
+};
 use serde::{Deserialize, Serialize};
 
 const MESSAGES_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-/// Generous ceiling; the runner's own 600s guard stays the last resort.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
-
-fn default_max_tokens() -> u32 {
-    4096
-}
 
 /// Model families that accept `thinking: {type: "adaptive"}`. Older models
 /// (Haiku 4.5, Sonnet 4.5 and earlier) reject the parameter with a 400.
@@ -47,7 +42,6 @@ pub struct ClaudeConfig {
     /// the recommended place for it — avoid committing keys in config.yml.
     #[serde(default)]
     pub api_key: Option<String>,
-    /// Deliberately modest default: the expected output is a single query.
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
     /// Adaptive thinking on/off. Defaults per model: on for families that
@@ -85,14 +79,10 @@ impl Claude {
                 "no Anthropic API key: set ANTHROPIC_API_KEY or `api_key` in the model config"
                     .to_string()
             })?;
-        let http = reqwest::Client::builder()
-            .timeout(REQUEST_TIMEOUT)
-            .build()
-            .map_err(|e| format!("building HTTP client: {e}"))?;
         Ok(Self {
             config,
             api_key,
-            http,
+            http: build_client()?,
         })
     }
 
@@ -100,16 +90,7 @@ impl Claude {
         MessagesRequest {
             model: &self.config.model,
             max_tokens: self.config.max_tokens,
-            messages: conversation
-                .iter()
-                .map(|message| WireMessage {
-                    role: match message.role {
-                        Role::User => "user",
-                        Role::Assistant => "assistant",
-                    },
-                    content: &message.content,
-                })
-                .collect(),
+            messages: wire_messages(conversation),
             thinking: self
                 .config
                 .thinking_enabled()
@@ -126,35 +107,18 @@ impl Claude {
 #[async_trait]
 impl ModelProvider for Claude {
     fn model_id(&self) -> String {
-        self.config
-            .label
-            .clone()
-            .unwrap_or_else(|| self.config.model.clone())
+        model_label(self.config.label.as_deref(), &self.config.model)
     }
 
     async fn send_prompt(&self, conversation: &[Message]) -> Result<ModelResponse, ProviderError> {
-        let response = self
+        let request = self
             .http
             .post(MESSAGES_URL)
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", ANTHROPIC_VERSION)
-            .json(&self.build_request(conversation))
-            .send()
-            .await
-            // Network failures and client-side timeouts are worth a retry.
-            .map_err(|e| ProviderError::Transient(format!("request failed: {e}")))?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<unreadable body>".to_string());
-            return Err(classify_error(status.as_u16(), &body));
-        }
-        let parsed: MessagesResponse = response
-            .json()
-            .await
+            .json(&self.build_request(conversation));
+        let body = send_for_body(request).await?;
+        let parsed: MessagesResponse = serde_json::from_str(&body)
             .map_err(|e| ProviderError::Fatal(format!("undecodable API response: {e}")))?;
         Ok(into_model_response(parsed))
     }
@@ -185,16 +149,6 @@ fn into_model_response(parsed: MessagesResponse) -> ModelResponse {
     }
 }
 
-fn classify_error(status: u16, body: &str) -> ProviderError {
-    let message = parse_error_message(body).unwrap_or_else(|| body.to_string());
-    ProviderError::from_http_status(status, message)
-}
-
-fn parse_error_message(body: &str) -> Option<String> {
-    let parsed: ErrorResponse = serde_json::from_str(body).ok()?;
-    Some(parsed.error.message)
-}
-
 #[derive(Serialize)]
 struct MessagesRequest<'a> {
     model: &'a str,
@@ -204,12 +158,6 @@ struct MessagesRequest<'a> {
     thinking: Option<Thinking>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output_config: Option<OutputConfig<'a>>,
-}
-
-#[derive(Serialize)]
-struct WireMessage<'a> {
-    role: &'static str,
-    content: &'a str,
 }
 
 #[derive(Serialize)]
@@ -242,16 +190,6 @@ struct ContentBlock {
 struct Usage {
     input_tokens: u64,
     output_tokens: u64,
-}
-
-#[derive(Deserialize)]
-struct ErrorResponse {
-    error: ErrorDetail,
-}
-
-#[derive(Deserialize)]
-struct ErrorDetail {
-    message: String,
 }
 
 #[cfg(test)]
@@ -377,37 +315,6 @@ mod tests {
         let response = into_model_response(parsed);
         assert_eq!(response.text, "");
         assert_eq!(response.stop.as_deref(), Some("refusal"));
-    }
-
-    #[test]
-    fn classifies_statuses_by_retryability() {
-        let body = r#"{"type":"error","error":{"type":"rate_limit_error","message":"slow down"}}"#;
-        assert!(matches!(
-            classify_error(429, body),
-            ProviderError::Transient(m) if m.contains("slow down")
-        ));
-        assert!(matches!(
-            classify_error(529, "overloaded"),
-            ProviderError::Transient(_)
-        ));
-        assert!(matches!(
-            classify_error(500, ""),
-            ProviderError::Transient(_)
-        ));
-        assert!(matches!(
-            classify_error(408, ""),
-            ProviderError::Transient(_)
-        ));
-        assert!(matches!(
-            classify_error(409, ""),
-            ProviderError::Transient(_)
-        ));
-        assert!(matches!(
-            classify_error(400, "bad"),
-            ProviderError::Fatal(_)
-        ));
-        assert!(matches!(classify_error(401, ""), ProviderError::Fatal(_)));
-        assert!(matches!(classify_error(404, ""), ProviderError::Fatal(_)));
     }
 
     #[test]

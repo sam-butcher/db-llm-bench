@@ -4,18 +4,13 @@
 //! cloned core of the API (model + messages + output cap), which is what
 //! keeps it portable across providers.
 
-use std::time::Duration;
-
 use async_trait::async_trait;
-use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, Role, TokenUsage};
+use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, TokenUsage};
+use provider_http::{
+    WireMessage, build_client, default_max_tokens, model_label, parse_error_message,
+    send_for_body, wire_messages,
+};
 use serde::{Deserialize, Serialize};
-
-/// Generous ceiling; the runner's own 600s guard stays the last resort.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
-
-fn default_max_tokens() -> u32 {
-    4096
-}
 
 /// Which wire field carries the output cap. `max_tokens` is the widely
 /// cloned form (Groq, OpenRouter, Ollama, ...); OpenAI's newest models
@@ -47,7 +42,6 @@ pub struct OpenAiCompatibleConfig {
     /// Omit entirely for unauthenticated local servers.
     #[serde(default)]
     pub api_key_env: Option<String>,
-    /// Deliberately modest default: the expected output is a single query.
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
     /// Wire field for the output cap: "max_tokens" (default) or
@@ -60,7 +54,7 @@ pub struct OpenAiCompatible {
     config: OpenAiCompatibleConfig,
     /// None for unauthenticated local servers.
     api_key: Option<String>,
-    url: String,
+    url: reqwest::Url,
     http: reqwest::Client,
 }
 
@@ -72,19 +66,12 @@ impl OpenAiCompatible {
             })?),
             None => None,
         };
-        let url = format!(
-            "{}/chat/completions",
-            config.base_url.trim_end_matches('/')
-        );
-        let http = reqwest::Client::builder()
-            .timeout(REQUEST_TIMEOUT)
-            .build()
-            .map_err(|e| format!("building HTTP client: {e}"))?;
+        let url = endpoint_url(&config.base_url)?;
         Ok(Self {
             config,
             api_key,
             url,
-            http,
+            http: build_client()?,
         })
     }
 
@@ -95,55 +82,58 @@ impl OpenAiCompatible {
         };
         ChatRequest {
             model: &self.config.model,
-            messages: conversation
-                .iter()
-                .map(|message| WireMessage {
-                    role: match message.role {
-                        Role::User => "user",
-                        Role::Assistant => "assistant",
-                    },
-                    content: &message.content,
-                })
-                .collect(),
+            messages: wire_messages(conversation),
             max_tokens,
             max_completion_tokens,
         }
     }
 }
 
+/// Join and validate eagerly, so a typo'd base_url fails at startup rather
+/// than surfacing mid-run as a retried-with-backoff network error.
+fn endpoint_url(base_url: &str) -> Result<reqwest::Url, String> {
+    let url = reqwest::Url::parse(&format!("{}/chat/completions", base_url.trim_end_matches('/')))
+        .map_err(|e| format!("invalid base_url `{base_url}`: {e}"))?;
+    // A scheme-less "localhost:11434/v1" parses with "localhost" as the
+    // scheme, so a plain parse check isn't enough.
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(format!(
+            "invalid base_url `{base_url}`: expected an http:// or https:// URL"
+        ));
+    }
+    Ok(url)
+}
+
 #[async_trait]
 impl ModelProvider for OpenAiCompatible {
     fn model_id(&self) -> String {
-        self.config
-            .label
-            .clone()
-            .unwrap_or_else(|| self.config.model.clone())
+        model_label(self.config.label.as_deref(), &self.config.model)
     }
 
     async fn send_prompt(&self, conversation: &[Message]) -> Result<ModelResponse, ProviderError> {
-        let mut request = self.http.post(&self.url).json(&self.build_request(conversation));
+        let mut request = self
+            .http
+            .post(self.url.clone())
+            .json(&self.build_request(conversation));
         if let Some(api_key) = &self.api_key {
             request = request.bearer_auth(api_key);
         }
-        let response = request
-            .send()
-            .await
-            // Network failures and client-side timeouts are worth a retry.
-            .map_err(|e| ProviderError::Transient(format!("request failed: {e}")))?;
+        decode_response(&send_for_body(request).await?)
+    }
+}
 
-        let status = response.status();
-        if !status.is_success() {
-            let body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<unreadable body>".to_string());
-            return Err(classify_error(status.as_u16(), &body));
-        }
-        let parsed: ChatResponse = response
-            .json()
-            .await
-            .map_err(|e| ProviderError::Fatal(format!("undecodable API response: {e}")))?;
-        into_model_response(parsed)
+/// Some gateways (notably OpenRouter) deliver upstream-provider failures as
+/// an error object inside an HTTP 200 body. Surface those as Transient with
+/// the API's own message rather than aborting on "undecodable response".
+fn decode_response(body: &str) -> Result<ModelResponse, ProviderError> {
+    match serde_json::from_str::<ChatResponse>(body) {
+        Ok(parsed) => into_model_response(parsed),
+        Err(decode_error) => Err(match parse_error_message(body) {
+            Some(message) => {
+                ProviderError::Transient(format!("API error in HTTP 200 response: {message}"))
+            }
+            None => ProviderError::Fatal(format!("undecodable API response: {decode_error}")),
+        }),
     }
 }
 
@@ -171,16 +161,6 @@ fn into_model_response(parsed: ChatResponse) -> Result<ModelResponse, ProviderEr
     })
 }
 
-fn classify_error(status: u16, body: &str) -> ProviderError {
-    let message = parse_error_message(body).unwrap_or_else(|| body.to_string());
-    ProviderError::from_http_status(status, message)
-}
-
-fn parse_error_message(body: &str) -> Option<String> {
-    let parsed: ErrorResponse = serde_json::from_str(body).ok()?;
-    Some(parsed.error.message)
-}
-
 #[derive(Serialize)]
 struct ChatRequest<'a> {
     model: &'a str,
@@ -191,17 +171,12 @@ struct ChatRequest<'a> {
     max_completion_tokens: Option<u32>,
 }
 
-#[derive(Serialize)]
-struct WireMessage<'a> {
-    role: &'static str,
-    content: &'a str,
-}
-
 #[derive(Deserialize)]
 struct ChatResponse {
     choices: Vec<Choice>,
-    /// Some providers omit usage in edge cases; zeros beat a decode error.
-    #[serde(default)]
+    /// The Option (rather than a defaulted Usage) tolerates an explicit
+    /// `"usage": null` as well as a missing field; zeros beat a decode
+    /// error either way.
     usage: Option<Usage>,
 }
 
@@ -226,16 +201,6 @@ struct Usage {
     completion_tokens: u64,
 }
 
-#[derive(Deserialize)]
-struct ErrorResponse {
-    error: ErrorDetail,
-}
-
-#[derive(Deserialize)]
-struct ErrorDetail {
-    message: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,7 +220,7 @@ mod tests {
     fn builds_the_minimal_portable_request() {
         let provider = OpenAiCompatible::new(config()).unwrap();
         assert_eq!(
-            provider.url,
+            provider.url.as_str(),
             "https://api.groq.com/openai/v1/chat/completions"
         );
         let conversation = [
@@ -289,8 +254,19 @@ mod tests {
     }
 
     #[test]
+    fn invalid_base_urls_fail_at_startup() {
+        let mut missing_scheme = config();
+        missing_scheme.base_url = "localhost:11434/v1".to_string();
+        assert!(OpenAiCompatible::new(missing_scheme).is_err());
+
+        let mut garbage = config();
+        garbage.base_url = "not a url".to_string();
+        assert!(OpenAiCompatible::new(garbage).is_err());
+    }
+
+    #[test]
     fn parses_a_normal_response() {
-        let parsed: ChatResponse = serde_json::from_str(
+        let response = decode_response(
             r#"{
                 "choices": [{
                     "message": {"role": "assistant", "content": "```\nselect 1\n```"},
@@ -300,7 +276,6 @@ mod tests {
             }"#,
         )
         .unwrap();
-        let response = into_model_response(parsed).unwrap();
         assert_eq!(response.text, "```\nselect 1\n```");
         assert_eq!(response.tokens.input, 640);
         assert_eq!(response.tokens.output, 22);
@@ -309,21 +284,37 @@ mod tests {
 
     #[test]
     fn truncation_and_null_content_surface_as_abnormal() {
-        let parsed: ChatResponse = serde_json::from_str(
+        let response = decode_response(
             r#"{
-                "choices": [{"message": {"content": null}, "finish_reason": "content_filter"}]
+                "choices": [{"message": {"content": null}, "finish_reason": "content_filter"}],
+                "usage": null
             }"#,
         )
         .unwrap();
-        let response = into_model_response(parsed).unwrap();
         assert_eq!(response.text, "");
         assert_eq!(response.stop.as_deref(), Some("content_filter"));
-        // Missing usage decodes to zeros rather than failing.
+        // Null usage decodes to zeros rather than failing.
         assert_eq!(response.tokens.input, 0);
 
-        let empty: ChatResponse = serde_json::from_str(r#"{"choices": []}"#).unwrap();
         assert!(matches!(
-            into_model_response(empty),
+            decode_response(r#"{"choices": []}"#),
+            Err(ProviderError::Fatal(_))
+        ));
+    }
+
+    #[test]
+    fn an_error_body_behind_http_200_is_transient() {
+        let result = decode_response(
+            r#"{"error": {"message": "upstream provider unavailable", "code": 502}}"#,
+        );
+        assert!(matches!(
+            result,
+            Err(ProviderError::Transient(m)) if m.contains("upstream provider unavailable")
+        ));
+
+        // Truly undecodable bodies stay fatal.
+        assert!(matches!(
+            decode_response("<html>bad gateway</html>"),
             Err(ProviderError::Fatal(_))
         ));
     }

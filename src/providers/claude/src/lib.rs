@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, TokenUsage};
-use provider_http::{
+use provider_http_util::{
     WireMessage, build_client, default_max_tokens, model_label, send_for_body, wire_messages,
 };
 use serde::{Deserialize, Serialize};

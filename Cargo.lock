@@ -1852,6 +1852,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bench-core",
+ "provider-http",
  "reqwest",
  "serde",
  "serde_json",
@@ -1868,11 +1869,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-http"
+version = "0.1.0"
+dependencies = [
+ "bench-core",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "provider-openai-compatible"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "bench-core",
+ "provider-http",
  "reqwest",
  "serde",
  "serde_json",

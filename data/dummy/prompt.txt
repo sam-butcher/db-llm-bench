@@ -1,9 +1,9 @@
 Generate JSON to answer the given question.
 
+{{skills}}
+
 Schema:
 {{schema}}
-
-{{skills}}
 
 {{examples}}
 

@@ -4,10 +4,10 @@ Pay attention to using only the types that you can see in the schema description
 Be careful not to query for types that do not exist.
 Only provide the TypeQL 3.x query, without any further explanations.
 
+{{skills}}
+
 Schema:
 {{schema}}
-
-{{skills}}
 
 {{examples}}
 

@@ -323,15 +323,20 @@ fn build_models(config: &Config) -> anyhow::Result<Vec<Box<dyn ModelProvider>>> 
         .model_entries()
         .map(|(id, cfg)| build_model(id, cfg))
         .collect::<anyhow::Result<_>>()?;
+    validate_models(&models)?;
+    Ok(models)
+}
+
+fn validate_models(models: &Vec<Box<dyn ModelProvider>>) -> anyhow::Result<()> {
     let mut labels = BTreeSet::new();
-    for model in &models {
+    for model in models {
         let label = model.model_id();
         anyhow::ensure!(
             labels.insert(label.clone()),
             "two model entries share the label `{label}`; set a distinct `label` on one"
         );
     }
-    Ok(models)
+    Ok(())
 }
 
 /// Run every DB x model x example-count x skills combination, folding
@@ -502,7 +507,7 @@ mod tests {
 
     #[test]
     fn skills_folders_without_md_files_are_rejected() {
-        let dir = std::env::temp_dir().join("bench-cli-empty-skills-test");
+        let dir = env::temp_dir().join("bench-cli-empty-skills-test");
         fs::create_dir_all(&dir).unwrap();
         let err = load_skills(&dir).unwrap_err();
         assert!(err.to_string().contains("no .md files"));

@@ -374,14 +374,10 @@ impl BenchmarkRunner<'_> {
         loop {
             let started = Instant::now();
             let outcome =
-                match tokio::time::timeout(PROVIDER_TIMEOUT, self.model.send_prompt(conversation))
-                    .await
-                {
-                    Ok(outcome) => outcome,
-                    Err(_) => Err(ProviderError::Transient(format!(
-                        "provider exceeded the harness ceiling of {PROVIDER_TIMEOUT:?}"
-                    ))),
-                };
+                tokio::time::timeout(PROVIDER_TIMEOUT, self.model.send_prompt(conversation))
+                    .await.unwrap_or_else(|_| Err(ProviderError::Transient(format!(
+                    "provider exceeded the harness ceiling of {PROVIDER_TIMEOUT:?}"
+                ))));
             let latency_ms = started.elapsed().as_millis() as u64;
             match outcome {
                 Ok(response) => return Ok((response, latency_ms)),
@@ -405,12 +401,10 @@ impl BenchmarkRunner<'_> {
         let mut infra_failures = 0;
         loop {
             let started = Instant::now();
-            let outcome = match tokio::time::timeout(DB_TIMEOUT, self.db.send_query(query)).await {
-                Ok(outcome) => outcome,
-                Err(_) => Err(QueryError::Infrastructure(format!(
+            let outcome = tokio::time::timeout(DB_TIMEOUT, self.db.send_query(query))
+                .await.unwrap_or_else(|_| Err(QueryError::Infrastructure(format!(
                     "query exceeded the harness ceiling of {DB_TIMEOUT:?}"
-                ))),
-            };
+                ))));
             let latency_ms = started.elapsed().as_millis() as u64;
             match outcome {
                 Ok(value) => return Ok((Ok(value), latency_ms)),

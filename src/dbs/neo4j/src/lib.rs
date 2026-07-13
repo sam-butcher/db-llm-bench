@@ -97,17 +97,17 @@ impl Database for Neo4j {
         "cypher"
     }
 
-    /// Connecting alone doesn't validate the database name (it's selected
-    /// per-transaction), so run a trivial query through the full path.
-    async fn health_check(&self) -> Result<(), QueryError> {
-        self.send_query("RETURN 1").await.map(|_| ())
-    }
-
     async fn send_query(&self, query: &str) -> Result<Value, QueryError> {
         let graph = self.graph().await?;
         tokio::time::timeout(QUERY_TIMEOUT, run_query(graph, query))
             .await
             .map_err(|_| QueryError::Timeout)?
+    }
+
+    /// Connecting alone doesn't validate the database name (it's selected
+    /// per-transaction), so run a trivial query through the full path.
+    async fn health_check(&self) -> Result<(), QueryError> {
+        self.send_query("RETURN 1").await.map(|_| ())
     }
 }
 

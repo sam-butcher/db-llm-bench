@@ -212,6 +212,8 @@ fn load_db_assets(cfg: &DbConfig) -> anyhow::Result<DbAssets> {
     })
 }
 
+/// Guarantees at least one skill: a configured-but-empty folder would
+/// make the skills-on variant silently identical to skills-off.
 fn load_skills(dir: &Path) -> anyhow::Result<Vec<String>> {
     let mut paths: Vec<PathBuf> = fs::read_dir(dir)
         .with_context(|| format!("reading skills folder {}", dir.display()))?
@@ -220,6 +222,11 @@ fn load_skills(dir: &Path) -> anyhow::Result<Vec<String>> {
         .filter(|path| path.extension().is_some_and(|ext| ext == "md"))
         .collect();
     paths.sort();
+    anyhow::ensure!(
+        !paths.is_empty(),
+        "skills folder {} contains no .md files",
+        dir.display()
+    );
     paths
         .into_iter()
         .map(|path| {
@@ -253,7 +260,7 @@ async fn prepare_dbs<'a>(
         let assets = load_db_assets(db_cfg)?;
         validate_db_inputs(
             db_id,
-            db_cfg,
+            &db_cfg.prompts,
             &assets,
             db.query_language(),
             questions,
@@ -272,7 +279,7 @@ async fn prepare_dbs<'a>(
 /// the combination (or output record) that needs it is reached.
 fn validate_db_inputs(
     db_id: &str,
-    db_cfg: &DbConfig,
+    prompts: &Path,
     assets: &DbAssets,
     language: &str,
     questions: &QuestionFile,
@@ -282,7 +289,7 @@ fn validate_db_inputs(
         max_examples <= assets.examples.len(),
         "example count {max_examples} exceeds the {} example files in {}",
         assets.examples.len(),
-        db_cfg.prompts.display()
+        prompts.display()
     );
     let mut required_slots = vec!["{{question}}", "{{schema}}"];
     if max_examples > 0 {
@@ -295,18 +302,7 @@ fn validate_db_inputs(
         anyhow::ensure!(
             assets.prompt_template.contains(slot),
             "prompt template {} is missing its {slot} slot",
-            db_cfg.prompts.join("prompt.txt").display()
-        );
-    }
-    if let Some(skills) = &assets.skills {
-        anyhow::ensure!(
-            !skills.is_empty(),
-            "skills folder {} contains no .md files",
-            db_cfg
-                .skills
-                .as_ref()
-                .expect("skills were loaded from this path")
-                .display()
+            prompts.join("prompt.txt").display()
         );
     }
     for question in &questions.questions {
@@ -443,17 +439,6 @@ mod tests {
 
     const FULL_TEMPLATE: &str = "{{schema}} {{examples}} {{skills}} {{question}}";
 
-    fn db_cfg(skills: Option<PathBuf>) -> DbConfig {
-        DbConfig {
-            prompts: PathBuf::from("prompts"),
-            url: "http://localhost".to_string(),
-            database: None,
-            auth: None,
-            skills,
-            schema: PathBuf::from("schema.txt"),
-        }
-    }
-
     fn assets(template: &str, examples: usize, skills: Option<Vec<String>>) -> DbAssets {
         DbAssets {
             prompt_template: template.to_string(),
@@ -477,56 +462,58 @@ mod tests {
 
     #[test]
     fn valid_inputs_pass() {
-        let cfg = db_cfg(None);
+        let prompts = Path::new("prompts");
         let full = assets(FULL_TEMPLATE, 3, None);
-        assert!(validate_db_inputs("sql", &cfg, &full, "sql", &questions(), 3).is_ok());
+        assert!(validate_db_inputs("sql", prompts, &full, "sql", &questions(), 3).is_ok());
     }
 
     #[test]
     fn insufficient_examples_are_rejected() {
-        let cfg = db_cfg(None);
+        let prompts = Path::new("prompts");
         let two = assets(FULL_TEMPLATE, 2, None);
-        let err = validate_db_inputs("sql", &cfg, &two, "sql", &questions(), 3).unwrap_err();
+        let err = validate_db_inputs("sql", prompts, &two, "sql", &questions(), 3).unwrap_err();
         assert!(err.to_string().contains("example count 3 exceeds"));
     }
 
     #[test]
     fn missing_template_slots_are_rejected() {
-        let cfg = db_cfg(None);
+        let prompts = Path::new("prompts");
         let no_question = assets("{{schema}}", 0, None);
-        let err = validate_db_inputs("sql", &cfg, &no_question, "sql", &questions(), 0).unwrap_err();
+        let err =
+            validate_db_inputs("sql", prompts, &no_question, "sql", &questions(), 0).unwrap_err();
         assert!(err.to_string().contains("{{question}}"));
 
         // The examples slot is only required once examples are in play.
         let no_examples_slot = assets("{{schema}} {{question}}", 3, None);
-        assert!(validate_db_inputs("sql", &cfg, &no_examples_slot, "sql", &questions(), 0).is_ok());
-        let err =
-            validate_db_inputs("sql", &cfg, &no_examples_slot, "sql", &questions(), 3).unwrap_err();
+        assert!(
+            validate_db_inputs("sql", prompts, &no_examples_slot, "sql", &questions(), 0).is_ok()
+        );
+        let err = validate_db_inputs("sql", prompts, &no_examples_slot, "sql", &questions(), 3)
+            .unwrap_err();
         assert!(err.to_string().contains("{{examples}}"));
 
-        // The skills slot is only required when a skills folder is configured
+        // The skills slot is only required when skills were loaded
         // (otherwise the skills-on variant would silently equal skills-off).
-        let with_skills = db_cfg(Some(PathBuf::from("skills")));
         let no_skills_slot = assets("{{schema}} {{question}}", 0, Some(vec!["skill".to_string()]));
-        let err = validate_db_inputs("sql", &with_skills, &no_skills_slot, "sql", &questions(), 0)
+        let err = validate_db_inputs("sql", prompts, &no_skills_slot, "sql", &questions(), 0)
             .unwrap_err();
         assert!(err.to_string().contains("{{skills}}"));
     }
 
     #[test]
-    fn empty_skills_folder_is_rejected() {
-        let cfg = db_cfg(Some(PathBuf::from("skills")));
-        let empty_skills = assets(FULL_TEMPLATE, 0, Some(Vec::new()));
-        let err =
-            validate_db_inputs("sql", &cfg, &empty_skills, "sql", &questions(), 0).unwrap_err();
+    fn skills_folders_without_md_files_are_rejected() {
+        let dir = std::env::temp_dir().join("bench-cli-empty-skills-test");
+        fs::create_dir_all(&dir).unwrap();
+        let err = load_skills(&dir).unwrap_err();
         assert!(err.to_string().contains("no .md files"));
     }
 
     #[test]
     fn every_question_needs_a_query_in_the_dbs_language() {
-        let cfg = db_cfg(None);
+        let prompts = Path::new("prompts");
         let full = assets(FULL_TEMPLATE, 3, None);
-        let err = validate_db_inputs("neo4j", &cfg, &full, "cypher", &questions(), 3).unwrap_err();
+        let err =
+            validate_db_inputs("neo4j", prompts, &full, "cypher", &questions(), 3).unwrap_err();
         assert!(err.to_string().contains("no ground-truth cypher query"));
     }
 }

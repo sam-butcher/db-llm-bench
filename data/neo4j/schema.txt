@@ -1,7 +1,6 @@
-Nodes with the label Car, each with properties:
-  - id: integer (unique)
-  - brand: string
-  - model: string
-  - wheels: integer
-  - price: float
-  - registered: date
+Car {id: INTEGER, brand: STRING, model: STRING, wheels: INTEGER, price: FLOAT, registered: DATE},Driver {id: INTEGER, name: STRING}
+Relationship properties are the following:
+INSURES {company: STRING, endDate: DATE}
+The relationships are the following:
+(:Driver)-[:INSURES]->(:Car)
+

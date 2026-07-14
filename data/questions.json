@@ -107,6 +107,11 @@
         "cypher": "MATCH (c:Car) RETURN c.brand, c.model",
         "dummy": "[{\"brand\": \"Toyota\", \"model\": \"Corolla\"}, {\"brand\": \"Ford\", \"model\": \"Fiesta\"}, {\"brand\": \"Tesla\", \"model\": \"Model 3\"}]"
       }
+    },
+    {
+      "question": "What colour is each car?",
+      "difficulty": "medium",
+      "unanswerable": true
     }
   ]
 }

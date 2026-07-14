@@ -107,6 +107,32 @@ mod tests {
     }
 
     #[test]
+    fn cutting_a_correct_decline_behaves_like_any_success() {
+        // An error attempt, then a correct decline on an unanswerable
+        // question (a decline attempt carries no query).
+        let decline = Attempt {
+            query: None,
+            ..attempt("", None)
+        };
+        let record = ResultRecord {
+            attempts: vec![attempt("first", Some("syntax error")), decline],
+            result: RecordResult::Unanswerable,
+            accurate: true,
+            generated: "first".to_string(),
+            retries_used: 1,
+            ..full_record()
+        };
+
+        let cut = derive_retry_level(&record, 0);
+        assert!(matches!(cut.result, RecordResult::Error));
+        assert!(!cut.accurate);
+
+        let kept = derive_retry_level(&record, 1);
+        assert!(matches!(kept.result, RecordResult::Unanswerable));
+        assert!(kept.accurate);
+    }
+
+    #[test]
     fn cutting_after_success_keeps_the_outcome() {
         let derived = derive_retry_level(&full_record(), 2);
         assert_eq!(derived.retries_used, 2);

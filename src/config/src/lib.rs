@@ -198,6 +198,24 @@ fn parse_questions(raw: &str, source_name: &str) -> Result<QuestionFile, ConfigE
             "{source_name} contains no questions"
         )));
     }
+    // An unanswerable question's whole point is that no expected value or
+    // ground-truth query exists; the fields must agree so a half-edited
+    // question fails loudly instead of scoring nonsense.
+    for question in &questions.questions {
+        if question.unanswerable {
+            if question.expected.is_some() || !question.queries.is_empty() || question.ordered {
+                return Err(ConfigError::Invalid(format!(
+                    "unanswerable question `{}` must not set expected, ordered, or queries",
+                    question.question
+                )));
+            }
+        } else if question.expected.is_none() {
+            return Err(ConfigError::Invalid(format!(
+                "question `{}` has no expected value (set \"unanswerable\": true if it deliberately has no answer)",
+                question.question
+            )));
+        }
+    }
     Ok(questions)
 }
 
@@ -352,6 +370,50 @@ maxRetryCounts: [0]
         assert!(matches!(
             parse_questions(r#"{"questions": []}"#, "q.json"),
             Err(ConfigError::Invalid(msg)) if msg.contains("contains no questions")
+        ));
+    }
+
+    #[test]
+    fn unanswerable_questions_parse_without_expected_or_queries() {
+        let questions = parse_questions(
+            r#"{"questions": [{"question": "What colour is each car?", "difficulty": "easy", "unanswerable": true}]}"#,
+            "q.json",
+        )
+        .unwrap();
+        let question = &questions.questions[0];
+        assert!(question.unanswerable);
+        assert!(question.expected.is_none());
+        assert!(question.queries.is_empty());
+    }
+
+    #[test]
+    fn unanswerable_questions_must_not_set_answer_fields() {
+        for extra in [
+            r#""expected": 3"#,
+            r#""queries": {"sql": "SELECT 1"}"#,
+            r#""ordered": true"#,
+        ] {
+            let raw = format!(
+                r#"{{"questions": [{{"question": "q", "difficulty": "easy", "unanswerable": true, {extra}}}]}}"#
+            );
+            assert!(
+                matches!(
+                    parse_questions(&raw, "q.json"),
+                    Err(ConfigError::Invalid(msg)) if msg.contains("must not set")
+                ),
+                "accepted unanswerable question with {extra}"
+            );
+        }
+    }
+
+    #[test]
+    fn answerable_questions_require_an_expected_value() {
+        assert!(matches!(
+            parse_questions(
+                r#"{"questions": [{"question": "q", "difficulty": "easy", "queries": {}}]}"#,
+                "q.json",
+            ),
+            Err(ConfigError::Invalid(msg)) if msg.contains("no expected value")
         ));
     }
 }

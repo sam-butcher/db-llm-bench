@@ -17,7 +17,13 @@ pub struct BenchmarkOutput {
 pub struct QuestionOutput {
     pub question: String,
     pub difficulty: String,
-    pub expected: Value,
+    /// Only present (as `true`) for deliberately-unanswerable questions,
+    /// so answerable questions serialize exactly as before.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub unanswerable: bool,
+    /// None only for unanswerable questions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected: Option<Value>,
     /// Keyed by DB ID not query language
     pub dbs: BTreeMap<String, DbOutput>,
 }
@@ -25,7 +31,9 @@ pub struct QuestionOutput {
 #[derive(Debug, Serialize)]
 pub struct DbOutput {
     pub language: String,
-    pub correct: String,
+    /// The ground-truth query; None only for unanswerable questions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correct: Option<String>,
     pub results: Vec<ResultRecord>,
 }
 
@@ -79,6 +87,11 @@ pub fn attempt_totals(attempts: &[Attempt]) -> (TokenUsage, u64) {
 pub enum RecordResult {
     /// The coerced result of a successfully executed query.
     Value(Value),
+    /// The model correctly declared a deliberately-unanswerable question
+    /// UNANSWERABLE. A wrong decline on an answerable question is `Error`
+    /// (with "declared UNANSWERABLE" in the attempt trace), so this variant
+    /// always means an accurate record.
+    Unanswerable,
     /// The query never produced a usable result; details are in the attempt
     /// trace.
     Error,
@@ -88,6 +101,7 @@ impl Serialize for RecordResult {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             RecordResult::Value(v) => v.serialize(serializer),
+            RecordResult::Unanswerable => serializer.serialize_str("unanswerable"),
             RecordResult::Error => serializer.serialize_str("error"),
         }
     }

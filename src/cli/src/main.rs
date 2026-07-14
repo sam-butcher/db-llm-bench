@@ -62,11 +62,9 @@ fn seed_db_slots(
             db_id.to_string(),
             DbOutput {
                 language: language.to_string(),
-                correct: question
-                    .queries
-                    .get(language)
-                    .cloned()
-                    .expect("validated: every question has a query in this language"),
+                // Validated present for every answerable question; only
+                // unanswerable questions have no ground-truth query.
+                correct: question.queries.get(language).cloned(),
                 results: Vec::new(),
             },
         );
@@ -269,7 +267,11 @@ async fn prepare_dbs<'a>(
         db.health_check()
             .await
             .map_err(|e| anyhow::anyhow!("DB {db_id} failed its health check: {e}"))?;
-        prepared.push(PreparedDb { id: db_id, db, assets });
+        prepared.push(PreparedDb {
+            id: db_id,
+            db,
+            assets,
+        });
     }
     Ok(prepared)
 }
@@ -307,7 +309,7 @@ fn validate_db_inputs(
     }
     for question in &questions.questions {
         anyhow::ensure!(
-            question.queries.contains_key(language),
+            question.unanswerable || question.queries.contains_key(language),
             "question `{}` has no ground-truth {language} query for DB {db_id}",
             question.question
         );
@@ -370,7 +372,12 @@ async fn run_benchmarks(
                         Ok(runs) => append_run_records(outputs, prepared.id, retry_levels, runs),
                         Err(failure) => {
                             let message = format!("aborted on DB {}: {failure}", prepared.id);
-                            append_run_records(outputs, prepared.id, retry_levels, failure.completed);
+                            append_run_records(
+                                outputs,
+                                prepared.id,
+                                retry_levels,
+                                failure.completed,
+                            );
                             return Some(message);
                         }
                     }
@@ -398,6 +405,7 @@ async fn main() -> anyhow::Result<()> {
         .map(|q| QuestionOutput {
             question: q.question.clone(),
             difficulty: q.difficulty.clone(),
+            unanswerable: q.unanswerable,
             expected: q.expected.clone(),
             dbs: BTreeMap::new(),
         })
@@ -408,7 +416,12 @@ async fn main() -> anyhow::Result<()> {
     let models = build_models(&config)?;
     let dbs = prepare_dbs(&config, &questions).await?;
     for prepared in &dbs {
-        seed_db_slots(&mut outputs, &questions, prepared.id, prepared.db.query_language());
+        seed_db_slots(
+            &mut outputs,
+            &questions,
+            prepared.id,
+            prepared.db.query_language(),
+        );
     }
 
     let abort = run_benchmarks(
@@ -458,7 +471,8 @@ mod tests {
             questions: vec![Question {
                 question: "How many cars are there?".to_string(),
                 difficulty: "easy".to_string(),
-                expected: Value::Int(3),
+                unanswerable: false,
+                expected: Some(Value::Int(3)),
                 ordered: false,
                 queries: BTreeMap::from([("sql".to_string(), "SELECT 1".to_string())]),
             }],
@@ -499,7 +513,11 @@ mod tests {
 
         // The skills slot is only required when skills were loaded
         // (otherwise the skills-on variant would silently equal skills-off).
-        let no_skills_slot = assets("{{schema}} {{question}}", 0, Some(vec!["skill".to_string()]));
+        let no_skills_slot = assets(
+            "{{schema}} {{question}}",
+            0,
+            Some(vec!["skill".to_string()]),
+        );
         let err = validate_db_inputs("sql", prompts, &no_skills_slot, "sql", &questions(), 0)
             .unwrap_err();
         assert!(err.to_string().contains("{{skills}}"));
@@ -520,5 +538,22 @@ mod tests {
         let err =
             validate_db_inputs("neo4j", prompts, &full, "cypher", &questions(), 3).unwrap_err();
         assert!(err.to_string().contains("no ground-truth cypher query"));
+    }
+
+    #[test]
+    fn unanswerable_questions_need_no_ground_truth_query() {
+        let prompts = Path::new("prompts");
+        let full = assets(FULL_TEMPLATE, 3, None);
+        let questions = QuestionFile {
+            questions: vec![Question {
+                question: "What colour is each car?".to_string(),
+                difficulty: "easy".to_string(),
+                unanswerable: true,
+                expected: None,
+                ordered: false,
+                queries: BTreeMap::new(),
+            }],
+        };
+        assert!(validate_db_inputs("neo4j", prompts, &full, "cypher", &questions, 3).is_ok());
     }
 }

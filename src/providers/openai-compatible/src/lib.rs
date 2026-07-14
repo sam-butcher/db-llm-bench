@@ -7,8 +7,8 @@
 use async_trait::async_trait;
 use bench_core::{Message, ModelProvider, ModelResponse, ProviderError, TokenUsage};
 use provider_http_util::{
-    WireMessage, build_client, decode_json, default_max_tokens, model_label,
-    parse_error_message, send_for_body, wire_messages,
+    WireMessage, build_client, decode_json, default_max_tokens, model_label, parse_error_message,
+    send_for_body, wire_messages,
 };
 use serde::{Deserialize, Serialize};
 
@@ -101,8 +101,11 @@ impl OpenAiCompatible {
 /// Join and validate eagerly, so a typo'd base_url fails at startup rather
 /// than surfacing mid-run as a retried-with-backoff network error.
 fn endpoint_url(base_url: &str) -> Result<reqwest::Url, String> {
-    let url = reqwest::Url::parse(&format!("{}/chat/completions", base_url.trim_end_matches('/')))
-        .map_err(|e| format!("invalid base_url `{base_url}`: {e}"))?;
+    let url = reqwest::Url::parse(&format!(
+        "{}/chat/completions",
+        base_url.trim_end_matches('/')
+    ))
+    .map_err(|e| format!("invalid base_url `{base_url}`: {e}"))?;
     // A scheme-less "localhost:11434/v1" parses with "localhost" as the
     // scheme, so a plain parse check isn't enough.
     if !matches!(url.scheme(), "http" | "https") {
@@ -156,9 +159,7 @@ fn into_model_response(parsed: ChatResponse) -> Result<ModelResponse, ProviderEr
         .into_iter()
         .next()
         .ok_or_else(|| ProviderError::Fatal("API response contained no choices".to_string()))?;
-    let stop = choice
-        .finish_reason
-        .filter(|reason| reason != "stop");
+    let stop = choice.finish_reason.filter(|reason| reason != "stop");
     let usage = parsed.usage.unwrap_or_default();
     Ok(ModelResponse {
         text: choice.message.content.unwrap_or_default(),

@@ -50,6 +50,9 @@ Inputs (taken in through config file - see config.yml for a suggested format):
   - List of questions will be a JSON file containing a list of questions
   - each question also has a difficulty level, correct query in each language (under a `queries` map,
     keyed by language), and expected result
+  - a question may instead set `"unanswerable": true` when it deliberately cannot be answered against
+    the schema: it then omits `expected` and `queries` entirely (a half-edited mix is rejected at load),
+    and the only correct response is the `UNANSWERABLE` token
   - a question may set `"ordered": true` when the order of a top-level list result is part of
     correctness (i.e. the question demands an ordering); the default is unordered, comparing rows as a
     bag. Nested lists always compare ordered, as tuples
@@ -79,7 +82,8 @@ answers a connectivity health check (catching a down server, bad credentials, or
 all prompt assets load, each DB has at least as many example files as the highest example count,
 prompt templates contain the required slots ({{question}} and {{schema}} always; {{examples}} when
 examples are configured; {{skills}} when a skills folder is), skills folders are non-empty, and
-every question has a ground-truth query for each configured DB's language.
+every question has a ground-truth query for each configured DB's language (deliberately-unanswerable
+questions excepted - they have none by definition).
 
 With these inputs the program will do the following for each DB/example count/skills on-off/model combination
 (max retry count is not part of the combination - see below)
@@ -89,8 +93,11 @@ With these inputs the program will do the following for each DB/example count/sk
   token when both appear, and an unterminated trailing block still counts, so truncated responses yield
   their partial query and a real execution error rather than "no query found"), and use it to query the
   database
-  - An explicit `UNANSWERABLE` response is terminal (never retried) and scored as a failure for answerable
-    questions - and as correct if we later add deliberately-unanswerable questions
+  - An explicit `UNANSWERABLE` response is terminal (never retried): scored as a failure for answerable
+    questions, and as correct for deliberately-unanswerable ones (recorded with `"result": "unanswerable"`).
+    A query that executes and returns a value on an unanswerable question is a wrong-but-valid result -
+    inaccurate, and not retried; query errors still feed back as retries, giving the model the chance to
+    realise the question has no answer
   - A response with neither a code block nor the `UNANSWERABLE` marker is malformed, and counts as a
     retryable error ("no query found in response") - safe because declining has an explicit channel,
     so retrying doesn't pressure the model into hallucinating a query

@@ -157,6 +157,9 @@ mod tests {
     #[test]
     fn label_falls_back_to_the_model_id() {
         assert_eq!(model_label(None, "gpt-5"), "gpt-5");
-        assert_eq!(model_label(Some("gpt-5-via-proxy"), "gpt-5"), "gpt-5-via-proxy");
+        assert_eq!(
+            model_label(Some("gpt-5-via-proxy"), "gpt-5"),
+            "gpt-5-via-proxy"
+        );
     }
 }

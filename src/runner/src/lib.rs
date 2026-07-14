@@ -39,9 +39,8 @@ pub const UNANSWERABLE_TOKEN: &str = "UNANSWERABLE";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Extraction {
     Query(String),
-    /// Terminal — never retried. Scored as a failure for answerable
-    /// questions (and as correct if deliberately-unanswerable questions are
-    /// added later).
+    /// Terminal — never retried. Correct for deliberately-unanswerable
+    /// questions, a failure otherwise.
     Unanswerable,
     /// Neither a code block nor the UNANSWERABLE marker. Retryable, since
     /// declining has an explicit channel — retrying doesn't pressure the
@@ -168,13 +167,22 @@ impl Fault {
     }
 }
 
+/// A terminal, successful attempt outcome.
+enum Success {
+    /// A query executed and produced a value (accuracy still to be judged).
+    Value(Value),
+    /// The model declined a deliberately-unanswerable question — the
+    /// correct response, by definition.
+    Unanswerable,
+}
+
 /// Everything one prompt-extract-execute round trip produced.
 struct AttemptOutcome {
     query: Option<String>,
     tokens: TokenUsage,
     latency_ms: u64,
     response_text: String,
-    outcome: Result<Value, Fault>,
+    outcome: Result<Success, Fault>,
 }
 
 /// The question text, plus a standardized field-naming instruction when
@@ -182,7 +190,7 @@ struct AttemptOutcome {
 /// identical sentence, so field naming is scored uniformly with `expected`
 /// as the single source of truth.
 fn question_text(question: &Question) -> String {
-    match expected_fields(&question.expected) {
+    match question.expected.as_ref().and_then(expected_fields) {
         Some(fields) => format!(
             "{}\nName the output fields exactly: {}.",
             question.question,
@@ -278,7 +286,7 @@ impl BenchmarkRunner<'_> {
                 latency_ms,
                 response_text,
                 outcome,
-            } = self.attempt(&conversation).await?;
+            } = self.attempt(&conversation, question.unanswerable).await?;
             attempts.push(Attempt {
                 query: query.clone(),
                 tokens,
@@ -290,13 +298,26 @@ impl BenchmarkRunner<'_> {
             });
 
             match outcome {
-                Ok(value) => {
-                    let accurate = value.matches_question(&question.expected, question.ordered);
+                Ok(Success::Value(value)) => {
+                    // An unanswerable question has no expected value, so any
+                    // returned value is inaccurate.
+                    let accurate = question
+                        .expected
+                        .as_ref()
+                        .is_some_and(|expected| value.matches_question(expected, question.ordered));
                     return Ok(self.build_record(
                         repetition,
                         attempts,
                         RecordResult::Value(value),
                         accurate,
+                    ));
+                }
+                Ok(Success::Unanswerable) => {
+                    return Ok(self.build_record(
+                        repetition,
+                        attempts,
+                        RecordResult::Unanswerable,
+                        true,
                     ));
                 }
                 Err(Fault::Terminal(_)) => {
@@ -329,14 +350,21 @@ impl BenchmarkRunner<'_> {
     }
 
     /// One prompt-extract-execute round trip; never touches retry
-    /// bookkeeping.
-    async fn attempt(&self, conversation: &[Message]) -> Result<AttemptOutcome, RunError> {
+    /// bookkeeping. `unanswerable` is the question's flag: it decides
+    /// whether a declined response is the correct answer or a terminal
+    /// failure.
+    async fn attempt(
+        &self,
+        conversation: &[Message],
+        unanswerable: bool,
+    ) -> Result<AttemptOutcome, RunError> {
         let (response, provider_latency_ms) = self.send_with_backoff(conversation).await?;
         let (query, db_latency_ms, outcome) = match extract_query(&response.text) {
             Extraction::Query(query) => {
                 let (outcome, db_latency_ms) = self.query_with_backoff(&query).await?;
-                (Some(query), db_latency_ms, outcome)
+                (Some(query), db_latency_ms, outcome.map(Success::Value))
             }
+            Extraction::Unanswerable if unanswerable => (None, 0, Ok(Success::Unanswerable)),
             Extraction::Unanswerable => (
                 None,
                 0,
@@ -375,9 +403,12 @@ impl BenchmarkRunner<'_> {
             let started = Instant::now();
             let outcome =
                 tokio::time::timeout(PROVIDER_TIMEOUT, self.model.send_prompt(conversation))
-                    .await.unwrap_or_else(|_| Err(ProviderError::Transient(format!(
-                    "provider exceeded the harness ceiling of {PROVIDER_TIMEOUT:?}"
-                ))));
+                    .await
+                    .unwrap_or_else(|_| {
+                        Err(ProviderError::Transient(format!(
+                            "provider exceeded the harness ceiling of {PROVIDER_TIMEOUT:?}"
+                        )))
+                    });
             let latency_ms = started.elapsed().as_millis() as u64;
             match outcome {
                 Ok(response) => return Ok((response, latency_ms)),
@@ -402,9 +433,12 @@ impl BenchmarkRunner<'_> {
         loop {
             let started = Instant::now();
             let outcome = tokio::time::timeout(DB_TIMEOUT, self.db.send_query(query))
-                .await.unwrap_or_else(|_| Err(QueryError::Infrastructure(format!(
-                    "query exceeded the harness ceiling of {DB_TIMEOUT:?}"
-                ))));
+                .await
+                .unwrap_or_else(|_| {
+                    Err(QueryError::Infrastructure(format!(
+                        "query exceeded the harness ceiling of {DB_TIMEOUT:?}"
+                    )))
+                });
             let latency_ms = started.elapsed().as_millis() as u64;
             match outcome {
                 Ok(value) => return Ok((Ok(value), latency_ms)),
@@ -464,7 +498,19 @@ mod run_tests {
         Question {
             question: "How many cars are there?".to_string(),
             difficulty: "easy".to_string(),
-            expected,
+            unanswerable: false,
+            expected: Some(expected),
+            ordered: false,
+            queries: BTreeMap::new(),
+        }
+    }
+
+    fn unanswerable_question() -> Question {
+        Question {
+            question: "What colour is each car?".to_string(),
+            difficulty: "easy".to_string(),
+            unanswerable: true,
+            expected: None,
             ordered: false,
             queries: BTreeMap::new(),
         }
@@ -616,6 +662,61 @@ mod run_tests {
             record.attempts[0].error.as_deref(),
             Some("declared UNANSWERABLE")
         );
+    }
+
+    #[tokio::test]
+    async fn declining_an_unanswerable_question_is_accurate() {
+        let db = DummyDb::new();
+        let provider = per_repetition("UNANSWERABLE");
+        let runs = runner(&db, &provider)
+            .run(&[unanswerable_question()])
+            .await
+            .unwrap();
+
+        for record in &runs[0].records {
+            assert!(record.accurate);
+            assert!(matches!(record.result, RecordResult::Unanswerable));
+            assert!(record.attempts[0].error.is_none());
+            assert!(record.attempts[0].query.is_none());
+            assert_eq!(record.generated, "");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_value_on_an_unanswerable_question_is_inaccurate_and_terminal() {
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(["```\n3\n```"]).repeating();
+        let runs = runner_with_retries(&db, &provider, 2)
+            .run(&[unanswerable_question()])
+            .await
+            .unwrap();
+
+        let record = &runs[0].records[0];
+        assert!(!record.accurate);
+        // The query ran fine, so this is a wrong result, not an error —
+        // and wrong-but-valid results are never retried.
+        assert!(matches!(&record.result, RecordResult::Value(Value::Int(3))));
+        assert!(record.attempts[0].error.is_none());
+        assert_eq!(record.attempts.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn query_errors_on_an_unanswerable_question_still_earn_retries() {
+        let db = DummyDb::new();
+        // A failing query first, then the model realizes and declines.
+        let provider = DummyProvider::new(["```\nnot json\n```", "UNANSWERABLE"]).repeating();
+        let runs = runner_with_retries(&db, &provider, 2)
+            .run(&[unanswerable_question()])
+            .await
+            .unwrap();
+
+        for record in &runs[0].records {
+            assert!(record.accurate);
+            assert!(matches!(record.result, RecordResult::Unanswerable));
+            assert_eq!(record.attempts.len(), 2);
+            assert!(record.attempts[0].error.is_some());
+            assert!(record.attempts[1].error.is_none());
+        }
     }
 
     #[tokio::test(start_paused = true)]

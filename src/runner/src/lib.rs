@@ -11,7 +11,7 @@ use bench_core::{
 use thiserror::Error;
 
 /// Repetitions per question/setup cell, to account for LLM non-determinism.
-pub const REPETITIONS: u32 = 3;
+pub const REPETITIONS: u32 = 1;
 
 /// Harness-level retries for transient provider errors (rate limits, network
 /// blips). These never count against the model's retry budget. Doubling from

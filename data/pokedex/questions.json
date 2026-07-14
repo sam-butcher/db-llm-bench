@@ -163,6 +163,11 @@
         "sql": "SELECT p.name FROM pokemon p JOIN pokemon_poketype pt ON pt.pokemon_id = p.id JOIN poketype t ON pt.poketype_id = t.id WHERE t.name = 'Fire' AND NOT EXISTS (SELECT 1 FROM pokemon_move pm JOIN move m ON pm.move_id = m.id JOIN poketype wt ON m.poketype_id = wt.id WHERE pm.pokemon_id = p.id AND wt.name = 'Water');",
         "cypher": "MATCH (p:Pokemon)-[:HAS_TYPE]->(:PokeType {name: 'Fire'}) WHERE NOT EXISTS { MATCH (p)-[:LEARNS]->(:Learning)-[:OF_MOVE]->(:Move)-[:OF_TYPE]->(:PokeType {name: 'Water'}) } RETURN p.name"
       }
+    },
+    {
+      "question": "What pokemon were on Wolfe Glick's 2016 World Championships winning team?",
+      "difficulty": "easy",
+      "unanswerable": "true"
     }
   ]
 }

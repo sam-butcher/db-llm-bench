@@ -363,11 +363,13 @@ models:
       responses:
 """
 
+# Retries off: gold queries must be correct first try, and retrying a scripted
+# dummy just misaligns the response stream on any failure.
 footer = """questionsPath: data/pokedex/questions.json
 exampleCounts:
   - 3
 maxRetryCounts:
-  - 2
+  - 0
 """
 
 open(f"{ROOT}/src/pokedex-golden.yml","w").write(header + "\n".join(responses) + "\n" + footer)

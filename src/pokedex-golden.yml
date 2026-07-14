@@ -191,4 +191,4 @@ questionsPath: data/pokedex/questions.json
 exampleCounts:
   - 3
 maxRetryCounts:
-  - 2
+  - 0

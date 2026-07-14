@@ -5,6 +5,8 @@ services:
     image: typedb/typedb:3.11.5
     ports:
       - "1729:1729"
+    command:
+      - "--development-mode.enabled=true"
     healthcheck:
       test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/1729'"]
       interval: 2s

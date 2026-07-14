@@ -1,0 +1,45 @@
+# Pokedex pilot: the three real DB packages answer the 12 questions in
+# data/pokedex/questions.json, benchmarked against a local Ollama model.
+#
+# Prereqs:
+#   1. Seed the pilot stack (run only this stack, not the cars one):
+#        cd databases/pokedex && docker compose up -d --build
+#   2. Have an OpenAI-compatible endpoint up. The block below points at a local
+#      Ollama server (no API key). Start it and pull the model:
+#        ollama serve &   ollama pull qwen2.5-coder:7b
+#
+# Run:  cargo run -p bench-cli -- src/pokedex.yml results-pokedex.json
+dbs:
+  - typedb:
+      prompts: data/pokedex/typedb
+      url: http://localhost:1729
+      database: bench
+      auth:
+        username: admin
+        password: password
+        tls: false
+      schema: data/pokedex/typedb/schema.tql
+  - sql:
+      prompts: data/pokedex/sql
+      url: postgres://bench_ro:bench_ro@localhost/bench
+      schema: data/pokedex/sql/schema.sql
+  - neo4j:
+      prompts: data/pokedex/neo4j
+      url: bolt://localhost:7687
+      auth:
+        username: neo4j
+        password: password
+      schema: data/pokedex/neo4j/schema.txt
+models:
+  - openai-compatible:
+      model: qwen2.5-coder:7b
+      base_url: http://localhost:11434/v1
+      label: qwen-coder-7b-local
+  # Uncomment to also benchmark Claude (reads ANTHROPIC_API_KEY from the env):
+#  - claude:
+#     model: claude-haiku-4-5-20251001
+questionsPath: data/pokedex/questions.json
+exampleCounts:
+  - 3
+maxRetryCounts:
+  - 2

@@ -1,0 +1,4 @@
+Question: What are the names of all the types?
+```
+match $t isa poketype, has name $n; select $n;
+```

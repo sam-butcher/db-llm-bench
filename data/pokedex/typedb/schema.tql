@@ -1,0 +1,68 @@
+define
+
+# The elemental type entity is named `poketype` (not `type`, which is a
+# reserved word in TypeQL). Its `name` holds "Fire", "Water", etc.
+
+attribute name, value string;
+attribute generation, value integer;
+attribute power, value integer;
+attribute damage-class, value string;
+attribute slot, value integer;
+attribute is-hidden, value boolean;
+attribute level, value integer;
+attribute factor, value integer;
+
+entity pokemon,
+    owns name,
+    owns generation,
+    plays typing:bearer,
+    plays ability-slot:owner,
+    plays learning:learner;
+
+entity poketype,
+    owns name,
+    plays typing:category,
+    plays move-type:category,
+    plays efficacy:attacker,
+    plays efficacy:defender;
+
+entity ability,
+    owns name,
+    plays ability-slot:granted;
+
+entity move,
+    owns name,
+    owns power,
+    owns damage-class,
+    plays move-type:typed,
+    plays learning:learned;
+
+entity move-method,
+    owns name,
+    plays learning:via;
+
+relation typing,
+    relates bearer,
+    relates category,
+    owns slot;
+
+relation move-type,
+    relates typed,
+    relates category;
+
+relation ability-slot,
+    relates owner,
+    relates granted,
+    owns is-hidden,
+    owns slot;
+
+relation learning,
+    relates learner,
+    relates learned,
+    relates via,
+    owns level;
+
+relation efficacy,
+    relates attacker,
+    relates defender,
+    owns factor;

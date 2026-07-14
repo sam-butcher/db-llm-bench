@@ -1,0 +1,4 @@
+Question: What are the names of all the types?
+```
+MATCH (t:PokeType) RETURN t.name
+```

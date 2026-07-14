@@ -1,0 +1,4 @@
+Question: What is the power of the move Surf?
+```
+match $m isa move, has name "Surf", has power $p; select $p;
+```

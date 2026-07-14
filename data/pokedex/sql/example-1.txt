@@ -1,0 +1,4 @@
+Question: How many Pokémon are there?
+```
+SELECT COUNT(*) FROM pokemon;
+```

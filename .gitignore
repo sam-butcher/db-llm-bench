@@ -1,5 +1,5 @@
 .idea
 /target
 *.iml
-/results.json
+/results*.json
 /src/local.yml

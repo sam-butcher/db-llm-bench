@@ -1,0 +1,4 @@
+Question: How many Pokémon are there?
+```
+MATCH (p:Pokemon) RETURN count(p)
+```

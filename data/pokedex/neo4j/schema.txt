@@ -1,0 +1,13 @@
+Node properties are the following:
+Pokemon {id: INTEGER, name: STRING, generation: INTEGER},PokeType {name: STRING},Ability {name: STRING},Move {id: INTEGER, name: STRING, power: INTEGER, damage_class: STRING},MoveMethod {name: STRING},Learning {level: INTEGER}
+Relationship properties are the following:
+HAS_TYPE {slot: INTEGER},HAS_ABILITY {is_hidden: BOOLEAN, slot: INTEGER},EFFECTIVE_AGAINST {factor: INTEGER}
+The relationships are the following:
+(:Pokemon)-[:HAS_TYPE]->(:PokeType)
+(:Pokemon)-[:HAS_ABILITY]->(:Ability)
+(:Move)-[:OF_TYPE]->(:PokeType)
+(:Pokemon)-[:LEARNS]->(:Learning)
+(:Learning)-[:OF_MOVE]->(:Move)
+(:Learning)-[:VIA]->(:MoveMethod)
+(:PokeType)-[:EFFECTIVE_AGAINST]->(:PokeType)
+A Learning node reifies one way a Pokemon can learn a Move: it links the Pokemon, the Move, and the MoveMethod, and carries the level at which it is learned.

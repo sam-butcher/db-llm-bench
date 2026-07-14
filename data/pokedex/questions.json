@@ -167,7 +167,7 @@
     {
       "question": "What pokemon were on Wolfe Glick's 2016 World Championships winning team?",
       "difficulty": "easy",
-      "unanswerable": "true"
+      "unanswerable": true
     }
   ]
 }

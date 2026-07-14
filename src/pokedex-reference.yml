@@ -1,11 +1,11 @@
-# Gold-equivalence check for the pokedex pilot: the three real DB packages
-# each run their own gold query (fed by a dummy model), and the result is
+# Reference-equivalence check for the pokedex pilot: the three real DB packages
+# each run their own reference query (fed by a dummy model), and the result is
 # compared to `expected`. Because all three DBs compare against the SAME
-# expected value, 36/36 accurate proves the gold queries are mutually
+# expected value, 36/36 accurate proves the reference queries are mutually
 # equivalent as well as correct. This validates the dataset WITHOUT any LLM.
 #
 # Prereq: pilot stack up and seeded (cd databases/pokedex && docker compose up -d --build).
-# Run:    cargo run -p bench-cli -- src/pokedex-golden.yml results-pokedex-golden.json
+# Run:    cargo run -p bench-cli -- src/pokedex-reference.yml results-pokedex-reference.json
 #         (expect: "36/36 accurate")
 #
 # Responses are consumed in DB order (typedb, sql, neo4j), 12 per DB, in

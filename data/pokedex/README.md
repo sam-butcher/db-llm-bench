@@ -49,7 +49,7 @@ names are materialized directly (no `_names`/`identifier` i18n tables), and a
 single game version is assumed (so `learning` doesn't fan out across versions).
 
 The three data files (`sql/data.sql`, `neo4j/data.cypher`, `typedb/data.tql`),
-`questions.json`, and `src/pokedex-golden.yml` are all generated from one master
+`questions.json`, and `src/pokedex-reference.yml` are all generated from one master
 definition in [`generate.py`](generate.py) (`python3 data/pokedex/generate.py`),
 so they can never drift apart. `generate.py` also independently computes each
 expected answer, cross-checking the values in `questions.json`. The `schema.*`,
@@ -57,8 +57,8 @@ expected answer, cross-checking the values in `questions.json`. The `schema.*`,
 
 ## Running it
 
-See `src/pokedex.yml` (benchmark against a model) and `src/pokedex-golden.yml`
-(gold-equivalence check with no LLM). Both expect the pilot DB stack:
+See `src/pokedex.yml` (benchmark against a model) and `src/pokedex-reference.yml`
+(reference-equivalence check with no LLM). Both expect the pilot DB stack:
 
 ```sh
 cd databases/pokedex && docker compose up -d --build   # run only this stack

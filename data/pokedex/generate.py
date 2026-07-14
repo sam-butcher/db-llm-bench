@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Single source of truth for the pokedex pilot. Regenerates the three
 data files, questions.json (expected values cross-checked), and
-src/pokedex-golden.yml. Run: python3 data/pokedex/generate.py"""
+src/pokedex-reference.yml. Run: python3 data/pokedex/generate.py"""
 #!/usr/bin/env python3
 """Generate the three pokedex data files from one master definition, and
 compute the expected answers for the questions so they can be cross-checked.
@@ -307,7 +307,7 @@ questions = [
 open(f"{ROOT}/data/pokedex/questions.json","w").write(json.dumps({"questions":questions}, indent=2, ensure_ascii=False) + "\n")
 print(f"wrote {len(questions)} questions")
 
-# ---- src/pokedex-golden.yml ------------------------------------------------
+# ---- src/pokedex-reference.yml ---------------------------------------------
 qs = json.load(open(f"{ROOT}/data/pokedex/questions.json"))["questions"]
 
 # DB order in src/pokedex.yml -> language key per DB.
@@ -325,14 +325,14 @@ for _db, lang in order:
     for q in qs:
         responses.append(block(q["queries"][lang]))
 
-header = """# Gold-equivalence check for the pokedex pilot: the three real DB packages
-# each run their own gold query (fed by a dummy model), and the result is
+header = """# Reference-equivalence check for the pokedex pilot: the three real DB packages
+# each run their own reference query (fed by a dummy model), and the result is
 # compared to `expected`. Because all three DBs compare against the SAME
-# expected value, 36/36 accurate proves the gold queries are mutually
+# expected value, 36/36 accurate proves the reference queries are mutually
 # equivalent as well as correct. This validates the dataset WITHOUT any LLM.
 #
 # Prereq: pilot stack up and seeded (cd databases/pokedex && docker compose up -d --build).
-# Run:    cargo run -p bench-cli -- src/pokedex-golden.yml results-pokedex-golden.json
+# Run:    cargo run -p bench-cli -- src/pokedex-reference.yml results-pokedex-reference.json
 #         (expect: "36/36 accurate")
 #
 # Responses are consumed in DB order (typedb, sql, neo4j), 12 per DB, in
@@ -363,8 +363,8 @@ models:
       responses:
 """
 
-# Retries off: gold queries must be correct first try, and retrying a scripted
-# dummy just misaligns the response stream on any failure.
+# Retries off: reference queries must be correct first try, and retrying a
+# scripted dummy just misaligns the response stream on any failure.
 footer = """questionsPath: data/pokedex/questions.json
 exampleCounts:
   - 3
@@ -372,5 +372,5 @@ maxRetryCounts:
   - 0
 """
 
-open(f"{ROOT}/src/pokedex-golden.yml","w").write(header + "\n".join(responses) + "\n" + footer)
-print(f"wrote {len(responses)} scripted gold responses")
+open(f"{ROOT}/src/pokedex-reference.yml","w").write(header + "\n".join(responses) + "\n" + footer)
+print(f"wrote {len(responses)} scripted reference responses")

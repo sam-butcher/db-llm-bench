@@ -11,7 +11,7 @@ use bench_core::{
 use thiserror::Error;
 
 /// Repetitions per question/setup cell, to account for LLM non-determinism.
-pub const REPETITIONS: u32 = 1;
+pub const REPETITIONS: u32 = 3;
 
 /// Harness-level retries for transient provider errors (rate limits, network
 /// blips). These never count against the model's retry budget. Doubling from
@@ -240,6 +240,7 @@ impl BenchmarkRunner<'_> {
         for (question_index, question) in questions.iter().enumerate() {
             let mut records = Vec::with_capacity(REPETITIONS as usize);
             for repetition in 1..=REPETITIONS {
+                eprintln!("Running question {question_index}");
                 match self.run_once(question, repetition).await {
                     Ok(record) => records.push(record),
                     Err(error) => {

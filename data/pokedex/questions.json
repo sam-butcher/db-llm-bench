@@ -77,7 +77,7 @@
       }
     },
     {
-      "question": "What are the three highest-power moves, from highest to lowest?",
+      "question": "List the names of the three highest-power moves, from highest to lowest.",
       "difficulty": "medium",
       "ordered": true,
       "expected": [

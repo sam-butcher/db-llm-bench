@@ -265,7 +265,7 @@ questions = [
    "sql":"SELECT m.name AS move, m.power FROM move m JOIN poketype t ON m.poketype_id = t.id WHERE t.name = 'Electric';",
    "cypher":"MATCH (m:Move)-[:OF_TYPE]->(:PokeType {name: 'Electric'}) RETURN m.name AS move, m.power AS power"}},
 
- {"question":"What are the three highest-power moves, from highest to lowest?","difficulty":"medium","ordered":True,
+ {"question":"List the names of the three highest-power moves, from highest to lowest.","difficulty":"medium","ordered":True,
   "expected":["Hyper Beam","Fire Blast","Hydro Pump"],
   "queries":{
    "typeql":'match $m isa move, has name $name, has power $power; sort $power desc; limit 3; select $name;',
@@ -302,6 +302,10 @@ questions = [
    "typeql":'match $fire isa poketype, has name "Fire"; typing (bearer: $p, category: $fire); not { $water isa poketype, has name "Water"; move-type (typed: $m, category: $water); learning (learner: $p, learned: $m); }; $p has name $n; select $n;',
    "sql":"SELECT p.name FROM pokemon p JOIN pokemon_poketype pt ON pt.pokemon_id = p.id JOIN poketype t ON pt.poketype_id = t.id WHERE t.name = 'Fire' AND NOT EXISTS (SELECT 1 FROM pokemon_move pm JOIN move m ON pm.move_id = m.id JOIN poketype wt ON m.poketype_id = wt.id WHERE pm.pokemon_id = p.id AND wt.name = 'Water');",
    "cypher":"MATCH (p:Pokemon)-[:HAS_TYPE]->(:PokeType {name: 'Fire'}) WHERE NOT EXISTS { MATCH (p)-[:LEARNS]->(:Learning)-[:OF_MOVE]->(:Move)-[:OF_TYPE]->(:PokeType {name: 'Water'}) } RETURN p.name"}},
+
+ # Deliberately unanswerable: no expected value or queries; the only correct
+ # response is the UNANSWERABLE token.
+ {"question":"What pokemon were on Wolfe Glick's 2016 World Championships winning team?","difficulty":"easy","unanswerable":True},
 ]
 
 open(f"{ROOT}/data/pokedex/questions.json","w").write(json.dumps({"questions":questions}, indent=2, ensure_ascii=False) + "\n")
@@ -313,6 +317,11 @@ qs = json.load(open(f"{ROOT}/data/pokedex/questions.json"))["questions"]
 # DB order in src/pokedex.yml -> language key per DB.
 order = [("typedb","typeql"), ("sql","sql"), ("neo4j","cypher")]
 
+# Must match REPETITIONS in src/runner/src/lib.rs: the runner asks the dummy
+# for one response per repetition, so each question's response is scripted this
+# many times, consecutively, to stay aligned.
+REPETITIONS = 3
+
 def block(query):
     lines = ["        - |", "          ```"]
     for ln in query.split("\n"):
@@ -320,23 +329,31 @@ def block(query):
     lines.append("          ```")
     return "\n".join(lines)
 
+def token_block(tok):
+    # A bare token on its own line (NOT fenced), so the runner reads it as the
+    # decline marker rather than as a query to execute.
+    return f"        - |\n          {tok}"
+
 responses = []
 for _db, lang in order:
     for q in qs:
-        responses.append(block(q["queries"][lang]))
+        resp = token_block("UNANSWERABLE") if q.get("unanswerable") else block(q["queries"][lang])
+        responses.extend([resp] * REPETITIONS)
 
 header = """# Reference-equivalence check for the pokedex pilot: the three real DB packages
 # each run their own reference query (fed by a dummy model), and the result is
 # compared to `expected`. Because all three DBs compare against the SAME
-# expected value, 36/36 accurate proves the reference queries are mutually
+# expected value, an all-accurate run proves the reference queries are mutually
 # equivalent as well as correct. This validates the dataset WITHOUT any LLM.
+# The unanswerable question is scripted with the UNANSWERABLE token, so it too
+# is validated end-to-end.
 #
 # Prereq: pilot stack up and seeded (cd databases/pokedex && docker compose up -d --build).
 # Run:    cargo run -p bench-cli -- src/pokedex-reference.yml results-pokedex-reference.json
-#         (expect: "36/36 accurate")
+#         (expect all records accurate: 13 questions x 3 DBs x 3 repetitions = 117)
 #
-# Responses are consumed in DB order (typedb, sql, neo4j), 12 per DB, in
-# question order. Generated from data/pokedex/questions.json.
+# Responses are consumed in DB order (typedb, sql, neo4j); each question's
+# response is repeated once per repetition. Generated from data/pokedex/questions.json.
 dbs:
   - typedb:
       prompts: data/pokedex/typedb

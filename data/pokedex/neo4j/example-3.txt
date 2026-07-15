@@ -1,4 +1,4 @@
-Question: What are the names of all the types?
+Question: What types does Bulbasaur have?
 ```
-MATCH (t:PokeType) RETURN t.name
+MATCH (:Pokemon {name: 'Bulbasaur'})-[:HAS_TYPE]->(t:PokeType) RETURN t.name
 ```

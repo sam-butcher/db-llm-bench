@@ -125,10 +125,14 @@ Approximate entity counts refer to a benchmark-relevant core, not every table.
   perception; upstream stores display names in i18n tables (simplified on load).
 
 ### MusicBrainz subset (12 core entities + link tables)
-- **Pros:** systematic relationship model (`l_*` link tables with attributes) and
-  type/alias hierarchy (strong n-ary and inheritance); real downloadable Postgres
-  dumps; no canonical query workload.
-- **Cons:** full schema is 100+ tables and requires deliberate subsetting; some
+- **Pros:** systematic, richly-typed relationship model (`l_<entity1>_<entity2>`
+  tables plus hierarchical `link_type` / `link_attribute_type` taxonomies —
+  thousands of relationship types in a tree); attribute qualifiers on
+  relationships can express ternary facts (e.g. an instrument on a performance);
+  real downloadable Postgres dumps; no canonical query workload.
+- **Cons:** relationships are binary-with-attributes, not native n-ary relations;
+  no entity inheritance (the hierarchy is in the type taxonomies, not the
+  entities); full schema is 100+ tables and requires deliberate subsetting; some
   self-hosted SQL exists in the wild.
 
 ### TMDB (movie domain)

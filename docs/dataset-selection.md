@@ -36,10 +36,7 @@ Weighted factors used to compare candidates that meet the hard requirements.
   choosing a dataset with no large query corpus in any language.
 - Contamination attaches to queries and their schema pairing, not to schema/data
   alone. A real-but-not-benchmark dataset with reference queries authored fresh
-  minimizes it; a novel purpose-built schema eliminates it (excluded here on
-  effort grounds).
-- Running three languages provides a diagnostic: SQL results inflated by
-  dataset-specific practice show as an SQL-vs-graph gap beyond the base-rate.
+  minimizes it; a novel purpose-built schema eliminates it.
 
 ### Schema scale
 
@@ -53,12 +50,12 @@ Weighted factors used to compare candidates that meet the hard requirements.
 - Schema scale and data volume are independent: sparse data keeps expected
   answers exact regardless of schema size.
 
-| Bracket | Entities | Effect |
-|---|---|---|
-| Tiny | 1–5 | Trivial, trustworthy reference queries; little navigation difficulty; poor model discrimination |
-| Small | 6–12 | Manageable authoring; some multi-hop depth if graph-shaped; model still fits the whole schema |
-| Medium | 15–40 | Real navigation + structural difficulty; good discrimination; still fits the prompt; authoring needs execution-based validation |
-| Large | 50–200+ | Maximal difficulty; exceeds prompt context; authoring expensive and error-prone |
+| Bracket | Entities | Effect                                                                                                                          |
+|---------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| Tiny    | 1–5      | Trivial, trustworthy reference queries; little navigation difficulty; poor model discrimination                                 |
+| Small   | 6–12     | Manageable authoring; some multi-hop depth if graph-shaped; model still fits the whole schema                                   |
+| Medium  | 15–40    | Real navigation + structural difficulty; good discrimination; still fits the prompt; authoring needs execution-based validation |
+| Large   | 50–200+  | Maximal difficulty; exceeds prompt context; authoring expensive and error-prone                                                 |
 
 ### Relationship richness
 
@@ -79,12 +76,16 @@ reshaping or subsetting.
 Approximate entity counts refer to a benchmark-relevant core, not every table.
 
 ### Biolink via LinkML (generation approach)
-- **Pros:** LinkML's SQL DDL generator is first-party and mature; Biolink is
-  large and richly modeled.
-- **Cons:** no LinkML Cypher generator (design guidance only); TypeQL generator
-  is a 4-commit, no-release proof-of-concept predating TypeDB 3.x; generates
-  schema only, not data/questions/reference queries; Biolink ships no instance
-  data and is very large (hundreds of classes, reification-heavy associations).
+- **Pros:** first-party SQL DDL generator (mature); first-party TypeDB generator
+  (`gen-typedb` / `TypeDBGenerator`) emitting TypeQL 3.x `define` blocks; Biolink
+  is large and richly modeled.
+- **Cons:** no first-party Cypher/Neo4j generator (design-pattern guidance only);
+  all LinkML generators produce *schema only* — not instance data, questions, or
+  reference queries (the expensive parts); the TypeDB generator has documented
+  limitations (enum values recorded as comments, not enforced; `xsd:duration`
+  stored as string; partial mixin/multiple-inheritance support; auto-renames
+  reserved-keyword collisions); Biolink ships no instance data and is very large
+  (hundreds of classes, reification-heavy associations).
 
 ### IMDB / JOB (~21 entities)
 - **Pros:** real, correlated data; genuine n-ary (cast: person/movie/character);

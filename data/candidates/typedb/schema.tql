@@ -1,0 +1,184 @@
+define
+
+# Democracy Club candidates data, normalised from data/candidates/headers.csv.
+# Each CSV row is one candidacy; `candidacy` is the native n-ary relation
+# (candidate + ballot + party) carrying the result. Attribute names mirror the
+# CSV columns.
+
+# --- person ---
+attribute person_id, value integer;
+attribute person_name, value string;
+attribute honorific_prefix, value string;
+attribute honorific_suffix, value string;
+attribute gender, value string;
+attribute birth_date, value date;
+attribute death_date, value date;
+attribute favourite_biscuit, value string;
+attribute email, value string;
+attribute facebook_page_url, value string;
+attribute facebook_personal_url, value string;
+attribute homepage_url, value string;
+attribute blog_url, value string;
+attribute linkedin_url, value string;
+attribute party_ppc_page_url, value string;
+attribute twitter_username, value string;
+attribute mastodon_username, value string;
+attribute wikipedia_url, value string;
+attribute wikidata_id, value string;
+attribute youtube_profile, value string;
+attribute instagram_url, value string;
+attribute blue_sky_url, value string;
+attribute threads_url, value string;
+attribute tiktok_url, value string;
+attribute other_url, value string;
+attribute mnis_id, value string;
+attribute twfy_id, value string;
+attribute image, value string;
+attribute person_last_updated, value datetime;
+
+# --- party ---
+attribute party_id, value string;
+attribute party_name, value string;
+attribute legacy_party_id, value string;
+
+# --- organisation ---
+attribute organisation_name, value string;
+
+# --- post ---
+attribute post_id, value string;
+attribute post_label, value string;
+attribute gss, value string;
+attribute nuts1, value string;
+
+# --- election ---
+attribute election_id, value string;
+attribute election_date, value date;
+attribute election_current, value boolean;
+
+# --- ballot ---
+attribute ballot_paper_id, value string;
+attribute seats_contested, value integer;
+attribute cancelled_poll, value boolean;
+attribute by_election, value boolean;
+attribute by_election_reason, value string;
+attribute party_lists_in_use, value boolean;
+attribute candidates_locked, value boolean;
+attribute total_electorate, value integer;
+attribute turnout_reported, value integer;
+attribute turnout_percentage, value double;
+attribute spoilt_ballots, value integer;
+attribute results_source, value string;
+
+# --- candidacy (result + nomination details) ---
+attribute party_description_text, value string;
+attribute party_list_position, value integer;
+attribute previous_party_affiliations, value string;
+attribute sopn_first_names, value string;
+attribute sopn_last_name, value string;
+attribute votes_cast, value integer;
+attribute elected, value boolean;
+attribute tied_vote_winner, value boolean;
+attribute rank, value integer;
+attribute statement_to_voters, value string;
+attribute statement_last_updated, value datetime;
+
+entity person,
+    owns person_id @key,
+    owns person_name,
+    owns honorific_prefix,
+    owns honorific_suffix,
+    owns gender,
+    owns birth_date,
+    owns death_date,
+    owns favourite_biscuit,
+    owns email,
+    owns facebook_page_url,
+    owns facebook_personal_url,
+    owns homepage_url,
+    owns blog_url,
+    owns linkedin_url,
+    owns party_ppc_page_url,
+    owns twitter_username,
+    owns mastodon_username,
+    owns wikipedia_url,
+    owns wikidata_id,
+    owns youtube_profile,
+    owns instagram_url,
+    owns blue_sky_url,
+    owns threads_url,
+    owns tiktok_url,
+    owns other_url,
+    owns mnis_id,
+    owns twfy_id,
+    owns image,
+    owns person_last_updated,
+    plays candidacy:candidate;
+
+entity party,
+    owns party_id @key,
+    owns party_name,
+    owns legacy_party_id,
+    plays candidacy:party;
+
+entity organisation,
+    owns organisation_name @key,
+    plays in_organisation:organisation;
+
+entity post,
+    owns post_id @key,
+    owns post_label,
+    owns gss,
+    owns nuts1,
+    plays for_post:post,
+    plays in_organisation:post;
+
+entity election,
+    owns election_id @key,
+    owns election_date,
+    owns election_current,
+    plays at_election:election;
+
+entity ballot,
+    owns ballot_paper_id @key,
+    owns seats_contested,
+    owns cancelled_poll,
+    owns by_election,
+    owns by_election_reason,
+    owns party_lists_in_use,
+    owns candidates_locked,
+    owns total_electorate,
+    owns turnout_reported,
+    owns turnout_percentage,
+    owns spoilt_ballots,
+    owns results_source,
+    plays at_election:ballot,
+    plays for_post:ballot,
+    plays candidacy:ballot;
+
+relation at_election,
+    relates ballot,
+    relates election;
+
+relation for_post,
+    relates ballot,
+    relates post;
+
+relation in_organisation,
+    relates post,
+    relates organisation;
+
+relation candidacy,
+    relates candidate,
+    relates ballot,
+    relates party,
+    owns party_description_text,
+    owns party_list_position,
+    owns previous_party_affiliations,
+    owns sopn_first_names,
+    owns sopn_last_name,
+    owns votes_cast,
+    owns elected,
+    owns tied_vote_winner,
+    owns rank,
+    owns statement_to_voters,
+    owns statement_last_updated;

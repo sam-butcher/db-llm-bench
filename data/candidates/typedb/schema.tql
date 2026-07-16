@@ -122,15 +122,14 @@ entity party,
 
 entity organisation,
     owns organisation_name @key,
-    plays in_organisation:organisation;
+    plays elects_to:organisation;
 
 entity post,
     owns post_id @key,
     owns post_label,
     owns gss,
     owns nuts1,
-    plays for_post:post,
-    plays in_organisation:post;
+    plays for_post:post;
 
 entity election,
     owns election_id @key,
@@ -153,6 +152,7 @@ entity ballot,
     owns results_source,
     plays at_election:ballot,
     plays for_post:ballot,
+    plays elects_to:ballot,
     plays candidacy:ballot;
 
 relation at_election,
@@ -163,8 +163,8 @@ relation for_post,
     relates ballot,
     relates post;
 
-relation in_organisation,
-    relates post,
+relation elects_to,
+    relates ballot,
     relates organisation;
 
 relation candidacy,

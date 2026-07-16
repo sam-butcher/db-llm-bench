@@ -136,11 +136,10 @@ WHERE NULLIF(person_id,'') IS NOT NULL
 ORDER BY person_id
 ON CONFLICT (person_id) DO NOTHING;
 
-INSERT INTO post (post_id, post_label, organisation_name, gss, nuts1)
+INSERT INTO post (post_id, post_label, gss, nuts1)
 SELECT DISTINCT ON (post_id)
     NULLIF(post_id,''),
     NULLIF(post_label,''),
-    NULLIF(organisation_name,''),
     NULLIF(gss,''),
     NULLIF(nuts1,'')
 FROM staging
@@ -148,11 +147,12 @@ WHERE NULLIF(post_id,'') IS NOT NULL
 ORDER BY post_id
 ON CONFLICT (post_id) DO NOTHING;
 
-INSERT INTO ballot (ballot_paper_id, election_id, post_id, seats_contested, cancelled_poll, by_election, by_election_reason, party_lists_in_use, candidates_locked, total_electorate, turnout_reported, turnout_percentage, spoilt_ballots, results_source)
+INSERT INTO ballot (ballot_paper_id, election_id, post_id, organisation_name, seats_contested, cancelled_poll, by_election, by_election_reason, party_lists_in_use, candidates_locked, total_electorate, turnout_reported, turnout_percentage, spoilt_ballots, results_source)
 SELECT DISTINCT ON (ballot_paper_id)
     NULLIF(ballot_paper_id,''),
     NULLIF(election_id,''),
     NULLIF(post_id,''),
+    NULLIF(organisation_name,''),
     NULLIF(seats_contested,'')::integer,
     NULLIF(cancelled_poll,'')::boolean,
     NULLIF(by_election,'')::boolean,

@@ -3,7 +3,7 @@ Person {person_id: INTEGER, person_name: STRING, honorific_prefix: STRING, honor
 The relationships are the following:
 (:Ballot)-[:AT_ELECTION]->(:Election)
 (:Ballot)-[:FOR_POST]->(:Post)
-(:Post)-[:IN_ORGANISATION]->(:Organisation)
+(:Ballot)-[:ELECTS_TO]->(:Organisation)
 (:Person)-[:STOOD]->(:Candidacy)
 (:Candidacy)-[:IN_BALLOT]->(:Ballot)
 (:Candidacy)-[:FOR_PARTY]->(:Party)

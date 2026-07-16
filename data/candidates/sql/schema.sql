@@ -18,7 +18,6 @@ CREATE TABLE organisation (
 CREATE TABLE post (
     post_id TEXT PRIMARY KEY,
     post_label TEXT,
-    organisation_name TEXT REFERENCES organisation(organisation_name),
     gss TEXT,                       -- ONS geography code for the area
     nuts1 TEXT                      -- statistical region
 );
@@ -33,6 +32,10 @@ CREATE TABLE ballot (
     ballot_paper_id TEXT PRIMARY KEY,
     election_id TEXT REFERENCES election(election_id),
     post_id TEXT REFERENCES post(post_id),
+    -- The organisation elected to is a property of the contest (the ballot),
+    -- not the post: a Welsh seat elected to "Welsh assembly" pre-2020 and
+    -- "Senedd Cymru" from 2021, and the ballot's election fixes which.
+    organisation_name TEXT REFERENCES organisation(organisation_name),
     seats_contested INTEGER,
     cancelled_poll BOOLEAN,
     by_election BOOLEAN,

@@ -128,10 +128,8 @@ try { $ballot has spoilt_ballots == $spoilt_ballots; };
 try { $ballot has results_source == $results_source; };
 
 put at_election (ballot: $ballot, election: $election);
-
 put for_post (ballot: $ballot, post: $post);
-
-put in_organisation (post: $post, organisation: $organisation);
+put elects_to (ballot: $ballot, organisation: $organisation);
 
 put
 $candidacy isa candidacy, links (candidate: $person, ballot: $ballot, party: $party);

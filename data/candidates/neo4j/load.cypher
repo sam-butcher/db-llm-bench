@@ -67,7 +67,7 @@ CALL {
       ballot.results_source = CASE row.results_source WHEN '' THEN null ELSE row.results_source END
   MERGE (ballot)-[:AT_ELECTION]->(election)
   MERGE (ballot)-[:FOR_POST]->(post)
-  MERGE (post)-[:IN_ORGANISATION]->(org)
+  MERGE (ballot)-[:ELECTS_TO]->(org)
   MERGE (person)-[:STOOD]->(cand:Candidacy)-[:IN_BALLOT]->(ballot)
   MERGE (cand)-[:FOR_PARTY]->(party)
     SET cand.party_description_text = CASE row.party_description_text WHEN '' THEN null ELSE row.party_description_text END,

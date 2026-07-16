@@ -1,0 +1,148 @@
+given
+    $person_id: integer,
+    $person_name: string?,
+    $election_id: string,
+    $ballot_paper_id: string,
+    $election_date: date?,
+    $election_current: boolean?,
+    $party_name: string?,
+    $party_id: string,
+    $post_label: string?,
+    $cancelled_poll: boolean?,
+    $seats_contested: integer,
+    $honorific_prefix: string?,
+    $honorific_suffix: string?,
+    $by_election: boolean?,
+    $by_election_reason: string?,
+    $party_description_text: string?,
+    $sopn_last_name: string?,
+    $sopn_first_names: string?,
+    $legacy_party_id: string?,
+    $party_list_position: integer?,
+    $party_lists_in_use: boolean?,
+    $gss: string?,
+    $post_id: string,
+    $candidates_locked: boolean?,
+    $nuts1: string?,
+    $organisation_name: string,
+    $previous_party_affiliations: string?,
+    $votes_cast: integer?,
+    $elected: boolean?,
+    $tied_vote_winner: boolean?,
+    $rank: integer?,
+    $turnout_reported: integer?,
+    $turnout_percentage: double?,
+    $spoilt_ballots: integer?,
+    $total_electorate: integer?,
+    $results_source: string?,
+    $email: string?,
+    $facebook_page_url: string?,
+    $facebook_personal_url: string?,
+    $homepage_url: string?,
+    $blog_url: string?,
+    $linkedin_url: string?,
+    $party_ppc_page_url: string?,
+    $twitter_username: string?,
+    $mastodon_username: string?,
+    $wikipedia_url: string?,
+    $wikidata_id: string?,
+    $youtube_profile: string?,
+    $instagram_url: string?,
+    $blue_sky_url: string?,
+    $threads_url: string?,
+    $tiktok_url: string?,
+    $other_url: string?,
+    $mnis_id: string?,
+    $twfy_id: string?,
+    $gender: string?,
+    $birth_date: date?,
+    $death_date: date?,
+    $favourite_biscuit: string?,
+    $statement_to_voters: string?,
+    $statement_last_updated: datetime?,
+    $person_last_updated: datetime?,
+    $image: string?;
+put
+
+$person isa person, has person_id == $person_id;
+try { $person has person_name == $person_name; };
+try { $person has honorific_prefix == $honorific_prefix; };
+try { $person has honorific_suffix == $honorific_suffix; };
+try { $person has gender == $gender; };
+try { $person has birth_date == $birth_date; };
+try { $person has death_date == $death_date; };
+try { $person has favourite_biscuit == $favourite_biscuit; };
+try { $person has email == $email; };
+try { $person has facebook_page_url == $facebook_page_url; };
+try { $person has facebook_personal_url == $facebook_personal_url; };
+try { $person has homepage_url == $homepage_url; };
+try { $person has blog_url == $blog_url; };
+try { $person has linkedin_url == $linkedin_url; };
+try { $person has party_ppc_page_url == $party_ppc_page_url; };
+try { $person has twitter_username == $twitter_username; };
+try { $person has mastodon_username == $mastodon_username; };
+try { $person has wikipedia_url == $wikipedia_url; };
+try { $person has wikidata_id == $wikidata_id; };
+try { $person has youtube_profile == $youtube_profile; };
+try { $person has instagram_url == $instagram_url; };
+try { $person has blue_sky_url == $blue_sky_url; };
+try { $person has threads_url == $threads_url; };
+try { $person has tiktok_url == $tiktok_url; };
+try { $person has other_url == $other_url; };
+try { $person has mnis_id == $mnis_id; };
+try { $person has twfy_id == $twfy_id; };
+try { $person has image == $image; };
+try { $person has person_last_updated == $person_last_updated; };
+
+put
+$party isa party, has party_id == $party_id;
+try { $party has party_name == $party_name; };
+try { $party has legacy_party_id == $legacy_party_id; };
+
+put
+$organisation isa organisation, has organisation_name == $organisation_name;
+
+put
+$post isa post, has post_id == $post_id;
+try { $post has post_label == $post_label; };
+try { $post has gss == $gss; };
+try { $post has nuts1 == $nuts1; };
+
+put
+$election isa election, has election_id == $election_id;
+try { $election has election_date == $election_date; };
+try { $election has election_current == $election_current; };
+
+put
+$ballot isa ballot, has ballot_paper_id == $ballot_paper_id;
+try { $ballot has seats_contested == $seats_contested; };
+try { $ballot has cancelled_poll == $cancelled_poll; };
+try { $ballot has by_election == $by_election; };
+try { $ballot has by_election_reason == $by_election_reason; };
+try { $ballot has party_lists_in_use == $party_lists_in_use; };
+try { $ballot has candidates_locked == $candidates_locked; };
+try { $ballot has total_electorate == $total_electorate; };
+try { $ballot has turnout_reported == $turnout_reported; };
+try { $ballot has turnout_percentage == $turnout_percentage; };
+try { $ballot has spoilt_ballots == $spoilt_ballots; };
+try { $ballot has results_source == $results_source; };
+
+put at_election (ballot: $ballot, election: $election);
+
+put for_post (ballot: $ballot, post: $post);
+
+put in_organisation (post: $post, organisation: $organisation);
+
+put
+$cand isa candidacy, links (candidate: $person, ballot: $ballot, party: $party);
+try { $cand has party_description_text == $party_description_text; };
+try { $cand has party_list_position == $party_list_position; };
+try { $cand has previous_party_affiliations == $previous_party_affiliations; };
+try { $cand has sopn_first_names == $sopn_first_names; };
+try { $cand has sopn_last_name == $sopn_last_name; };
+try { $cand has votes_cast == $votes_cast; };
+try { $cand has elected == $elected; };
+try { $cand has tied_vote_winner == $tied_vote_winner; };
+try { $cand has rank == $rank; };
+try { $cand has statement_to_voters == $statement_to_voters; };
+try { $cand has statement_last_updated == $statement_last_updated; };

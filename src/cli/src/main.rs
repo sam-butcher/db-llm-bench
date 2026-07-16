@@ -359,6 +359,7 @@ async fn run_benchmarks(
         for model in models {
             for &example_count in example_counts {
                 for skills in skills_variants(&prepared.assets.skills) {
+                    eprintln!("Running for {} against {} with skills {}", prepared.db.query_language(), model.model_id(), &skills.clone().unwrap_or(vec!("none".to_string())).first().unwrap_or(&"none".to_string()));
                     let runner = BenchmarkRunner {
                         db: prepared.db.as_ref(),
                         model: model.as_ref(),

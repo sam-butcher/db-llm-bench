@@ -1,7 +1,5 @@
 Node properties are the following:
 Person {person_id: INTEGER, person_name: STRING, honorific_prefix: STRING, honorific_suffix: STRING, gender: STRING, birth_date: DATE, death_date: DATE, favourite_biscuit: STRING, email: STRING, facebook_page_url: STRING, facebook_personal_url: STRING, homepage_url: STRING, blog_url: STRING, linkedin_url: STRING, party_ppc_page_url: STRING, twitter_username: STRING, mastodon_username: STRING, wikipedia_url: STRING, wikidata_id: STRING, youtube_profile: STRING, instagram_url: STRING, blue_sky_url: STRING, threads_url: STRING, tiktok_url: STRING, other_url: STRING, mnis_id: STRING, twfy_id: STRING, image: STRING, person_last_updated: DATETIME},Party {party_id: STRING, party_name: STRING, legacy_party_id: STRING},Organisation {organisation_name: STRING},Post {post_id: STRING, post_label: STRING, gss: STRING, nuts1: STRING},Election {election_id: STRING, election_date: DATE, election_current: BOOLEAN},Ballot {ballot_paper_id: STRING, seats_contested: INTEGER, cancelled_poll: BOOLEAN, by_election: BOOLEAN, by_election_reason: STRING, party_lists_in_use: BOOLEAN, candidates_locked: BOOLEAN, total_electorate: INTEGER, turnout_reported: INTEGER, turnout_percentage: FLOAT, spoilt_ballots: INTEGER, results_source: STRING},Candidacy {party_description_text: STRING, party_list_position: INTEGER, previous_party_affiliations: STRING, sopn_first_names: STRING, sopn_last_name: STRING, votes_cast: INTEGER, elected: BOOLEAN, tied_vote_winner: BOOLEAN, rank: INTEGER, statement_to_voters: STRING, statement_last_updated: DATETIME}
-Relationship properties are the following:
-(none — every attribute lives on a node)
 The relationships are the following:
 (:Ballot)-[:AT_ELECTION]->(:Election)
 (:Ballot)-[:FOR_POST]->(:Post)
@@ -9,4 +7,3 @@ The relationships are the following:
 (:Person)-[:STOOD]->(:Candidacy)
 (:Candidacy)-[:IN_BALLOT]->(:Ballot)
 (:Candidacy)-[:FOR_PARTY]->(:Party)
-A Candidacy node reifies one person standing in one ballot for one party — an n-ary fact a property graph cannot express as a single edge. Its properties hold the result (votes_cast, elected, rank) and nomination details.

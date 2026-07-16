@@ -3,3 +3,4 @@
 *.iml
 /results*.json
 /src/local.yml
+**/.DS_STORE

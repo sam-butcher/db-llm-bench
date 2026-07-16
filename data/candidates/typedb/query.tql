@@ -134,15 +134,15 @@ put for_post (ballot: $ballot, post: $post);
 put in_organisation (post: $post, organisation: $organisation);
 
 put
-$cand isa candidacy, links (candidate: $person, ballot: $ballot, party: $party);
-try { $cand has party_description_text == $party_description_text; };
-try { $cand has party_list_position == $party_list_position; };
-try { $cand has previous_party_affiliations == $previous_party_affiliations; };
-try { $cand has sopn_first_names == $sopn_first_names; };
-try { $cand has sopn_last_name == $sopn_last_name; };
-try { $cand has votes_cast == $votes_cast; };
-try { $cand has elected == $elected; };
-try { $cand has tied_vote_winner == $tied_vote_winner; };
-try { $cand has rank == $rank; };
-try { $cand has statement_to_voters == $statement_to_voters; };
-try { $cand has statement_last_updated == $statement_last_updated; };
+$candidacy isa candidacy, links (candidate: $person, ballot: $ballot, party: $party);
+try { $candidacy has party_description_text == $party_description_text; };
+try { $candidacy has party_list_position == $party_list_position; };
+try { $candidacy has previous_party_affiliations == $previous_party_affiliations; };
+try { $candidacy has sopn_first_names == $sopn_first_names; };
+try { $candidacy has sopn_last_name == $sopn_last_name; };
+try { $candidacy has votes_cast == $votes_cast; };
+try { $candidacy has elected == $elected; };
+try { $candidacy has tied_vote_winner == $tied_vote_winner; };
+try { $candidacy has rank == $rank; };
+try { $candidacy has statement_to_voters == $statement_to_voters; };
+try { $candidacy has statement_last_updated == $statement_last_updated; };

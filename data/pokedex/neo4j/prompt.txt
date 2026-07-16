@@ -12,7 +12,7 @@ Schema:
 {{examples}}
 
 Respond with exactly one fenced code block containing only the query. If the
-question cannot be answered against the schema, respond with the literal
+question cannot be answered against the schema do not generate a query, respond with the literal
 token UNANSWERABLE alone on its own line instead.
 
 Question: {{question}}

@@ -1,4 +1,4 @@
-# The three benchmark DBs, each seeded with the car dataset from ../data.
+# The three benchmark DBs, each seeded with the car dataset from ../data/sample.
 # Credentials match the defaults the DB packages expect (see src/config.yml).
 services:
   typedb:
@@ -21,7 +21,7 @@ services:
       typedb:
         condition: service_healthy
     volumes:
-      - ../data/typedb:/seed:ro
+      - ../data/sample/typedb:/seed:ro
     command:
       [
         "--address=typedb:1729",
@@ -40,8 +40,8 @@ services:
       - "5432:5432"
     volumes:
       # initdb runs these on first boot of an empty data volume.
-      - ../data/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ../data/sql/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+      - ../data/sample/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../data/sample/sql/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
       - ./postgres/roles.sql:/docker-entrypoint-initdb.d/03-roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d bench"]
@@ -72,7 +72,7 @@ services:
       neo4j:
         condition: service_healthy
     volumes:
-      - ../data/neo4j/data.cypher:/seed/data.cypher:ro
+      - ../data/sample/neo4j/data.cypher:/seed/data.cypher:ro
     entrypoint:
       [
         "cypher-shell",

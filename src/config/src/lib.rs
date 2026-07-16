@@ -60,8 +60,12 @@ pub struct Config {
 
 #[derive(Debug, Deserialize)]
 pub struct DbConfig {
-    /// Prompt folder: template plus optional example-N.txt files.
+    /// Prompt folder: holds the `prompt.txt` template. Shared across datasets,
+    /// so the dataset-specific examples live in [`DbConfig::examples`] instead.
     pub prompts: PathBuf,
+    /// Optional folder of example-N.txt files; omitted when a dataset has no
+    /// examples, which confines that dataset to an example count of 0.
+    pub examples: Option<PathBuf>,
     pub url: String,
     /// Database name within the server, for DBs that namespace by database
     /// (e.g. TypeDB, Neo4j).

@@ -1,4 +1,0 @@
-Question: What types does Bulbasaur have?
-```
-match $p isa pokemon, has name "Bulbasaur"; typing (bearer: $p, category: $t); $t has name $n; select $n;
-```

@@ -180,19 +180,31 @@ struct DbAssets {
     skills: Option<Vec<String>>,
 }
 
-/// The prompt folder holds `prompt.txt` plus `example-1.txt`, `example-2.txt`,
-/// ... (contiguous from 1).
+/// The prompt folder holds `prompt.txt`; the examples folder, when configured,
+/// holds `example-1.txt`, `example-2.txt`, ... (contiguous from 1).
 fn load_db_assets(cfg: &DbConfig) -> anyhow::Result<DbAssets> {
     let template_path = cfg.prompts.join("prompt.txt");
     let prompt_template = fs::read_to_string(&template_path)
         .with_context(|| format!("reading prompt template {}", template_path.display()))?;
     let schema = fs::read_to_string(&cfg.schema)
         .with_context(|| format!("reading schema {}", cfg.schema.display()))?;
+    let examples = match cfg.examples.as_deref() {
+        Some(dir) => load_examples(dir)?,
+        None => Vec::new(),
+    };
+    let skills = cfg.skills.as_deref().map(load_skills).transpose()?;
+    Ok(DbAssets {
+        prompt_template,
+        schema,
+        examples,
+        skills,
+    })
+}
+
+fn load_examples(dir: &Path) -> anyhow::Result<Vec<String>> {
     let mut examples = Vec::new();
     loop {
-        let path = cfg
-            .prompts
-            .join(format!("example-{}.txt", examples.len() + 1));
+        let path = dir.join(format!("example-{}.txt", examples.len() + 1));
         if !path.exists() {
             break;
         }
@@ -201,13 +213,7 @@ fn load_db_assets(cfg: &DbConfig) -> anyhow::Result<DbAssets> {
                 .with_context(|| format!("reading example {}", path.display()))?,
         );
     }
-    let skills = cfg.skills.as_deref().map(load_skills).transpose()?;
-    Ok(DbAssets {
-        prompt_template,
-        schema,
-        examples,
-        skills,
-    })
+    Ok(examples)
 }
 
 /// Guarantees at least one skill: a configured-but-empty folder would
@@ -259,6 +265,7 @@ async fn prepare_dbs<'a>(
         validate_db_inputs(
             db_id,
             &db_cfg.prompts,
+            db_cfg.examples.as_deref(),
             &assets,
             db.query_language(),
             questions,
@@ -282,17 +289,24 @@ async fn prepare_dbs<'a>(
 fn validate_db_inputs(
     db_id: &str,
     prompts: &Path,
+    examples_dir: Option<&Path>,
     assets: &DbAssets,
     language: &str,
     questions: &QuestionFile,
     max_examples: usize,
 ) -> anyhow::Result<()> {
-    anyhow::ensure!(
-        max_examples <= assets.examples.len(),
-        "example count {max_examples} exceeds the {} example files in {}",
-        assets.examples.len(),
-        prompts.display()
-    );
+    match examples_dir {
+        Some(dir) => anyhow::ensure!(
+            max_examples <= assets.examples.len(),
+            "example count {max_examples} exceeds the {} example files in {}",
+            assets.examples.len(),
+            dir.display()
+        ),
+        None => anyhow::ensure!(
+            max_examples == 0,
+            "example count {max_examples} needs examples, but DB {db_id} configures no examples folder"
+        ),
+    }
     let mut required_slots = vec!["{{question}}", "{{schema}}"];
     if max_examples > 0 {
         required_slots.push("{{examples}}");
@@ -359,7 +373,16 @@ async fn run_benchmarks(
         for model in models {
             for &example_count in example_counts {
                 for skills in skills_variants(&prepared.assets.skills) {
-                    eprintln!("Running for {} against {} with skills {}", prepared.db.query_language(), model.model_id(), &skills.clone().unwrap_or(vec!("none".to_string())).first().unwrap_or(&"none".to_string()));
+                    eprintln!(
+                        "Running for {} against {} with skills {}",
+                        prepared.db.query_language(),
+                        model.model_id(),
+                        &skills
+                            .clone()
+                            .unwrap_or(vec!("none".to_string()))
+                            .first()
+                            .unwrap_or(&"none".to_string())
+                    );
                     let runner = BenchmarkRunner {
                         db: prepared.db.as_ref(),
                         model: model.as_ref(),
@@ -480,36 +503,88 @@ mod tests {
         }
     }
 
+    /// A dataset with no examples folder is confined to an example count of
+    /// 0; anything higher would silently run with no examples at all.
+    #[test]
+    fn a_missing_examples_folder_permits_only_zero_examples() {
+        let prompts = Path::new("prompts");
+        let none = assets(FULL_TEMPLATE, 0, None);
+        assert!(validate_db_inputs("sql", prompts, None, &none, "sql", &questions(), 0).is_ok());
+        let err =
+            validate_db_inputs("sql", prompts, None, &none, "sql", &questions(), 3).unwrap_err();
+        assert!(err.to_string().contains("configures no examples folder"));
+    }
+
     #[test]
     fn valid_inputs_pass() {
         let prompts = Path::new("prompts");
+        let examples = Path::new("examples");
         let full = assets(FULL_TEMPLATE, 3, None);
-        assert!(validate_db_inputs("sql", prompts, &full, "sql", &questions(), 3).is_ok());
+        assert!(
+            validate_db_inputs(
+                "sql",
+                prompts,
+                Some(examples),
+                &full,
+                "sql",
+                &questions(),
+                3
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn insufficient_examples_are_rejected() {
         let prompts = Path::new("prompts");
+        let examples = Path::new("examples");
         let two = assets(FULL_TEMPLATE, 2, None);
-        let err = validate_db_inputs("sql", prompts, &two, "sql", &questions(), 3).unwrap_err();
+        let err = validate_db_inputs("sql", prompts, Some(examples), &two, "sql", &questions(), 3)
+            .unwrap_err();
         assert!(err.to_string().contains("example count 3 exceeds"));
     }
 
     #[test]
     fn missing_template_slots_are_rejected() {
         let prompts = Path::new("prompts");
+        let examples = Path::new("examples");
         let no_question = assets("{{schema}}", 0, None);
-        let err =
-            validate_db_inputs("sql", prompts, &no_question, "sql", &questions(), 0).unwrap_err();
+        let err = validate_db_inputs(
+            "sql",
+            prompts,
+            Some(examples),
+            &no_question,
+            "sql",
+            &questions(),
+            0,
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("{{question}}"));
 
         // The examples slot is only required once examples are in play.
         let no_examples_slot = assets("{{schema}} {{question}}", 3, None);
         assert!(
-            validate_db_inputs("sql", prompts, &no_examples_slot, "sql", &questions(), 0).is_ok()
+            validate_db_inputs(
+                "sql",
+                prompts,
+                Some(examples),
+                &no_examples_slot,
+                "sql",
+                &questions(),
+                0
+            )
+            .is_ok()
         );
-        let err = validate_db_inputs("sql", prompts, &no_examples_slot, "sql", &questions(), 3)
-            .unwrap_err();
+        let err = validate_db_inputs(
+            "sql",
+            prompts,
+            Some(examples),
+            &no_examples_slot,
+            "sql",
+            &questions(),
+            3,
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("{{examples}}"));
 
         // The skills slot is only required when skills were loaded
@@ -519,8 +594,16 @@ mod tests {
             0,
             Some(vec!["skill".to_string()]),
         );
-        let err = validate_db_inputs("sql", prompts, &no_skills_slot, "sql", &questions(), 0)
-            .unwrap_err();
+        let err = validate_db_inputs(
+            "sql",
+            prompts,
+            Some(examples),
+            &no_skills_slot,
+            "sql",
+            &questions(),
+            0,
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("{{skills}}"));
     }
 
@@ -535,15 +618,25 @@ mod tests {
     #[test]
     fn every_question_needs_a_query_in_the_dbs_language() {
         let prompts = Path::new("prompts");
+        let examples = Path::new("examples");
         let full = assets(FULL_TEMPLATE, 3, None);
-        let err =
-            validate_db_inputs("neo4j", prompts, &full, "cypher", &questions(), 3).unwrap_err();
+        let err = validate_db_inputs(
+            "neo4j",
+            prompts,
+            Some(examples),
+            &full,
+            "cypher",
+            &questions(),
+            3,
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("no ground-truth cypher query"));
     }
 
     #[test]
     fn unanswerable_questions_need_no_ground_truth_query() {
         let prompts = Path::new("prompts");
+        let examples = Path::new("examples");
         let full = assets(FULL_TEMPLATE, 3, None);
         let questions = QuestionFile {
             questions: vec![Question {
@@ -555,6 +648,17 @@ mod tests {
                 queries: BTreeMap::new(),
             }],
         };
-        assert!(validate_db_inputs("neo4j", prompts, &full, "cypher", &questions, 3).is_ok());
+        assert!(
+            validate_db_inputs(
+                "neo4j",
+                prompts,
+                Some(examples),
+                &full,
+                "cypher",
+                &questions,
+                3
+            )
+            .is_ok()
+        );
     }
 }

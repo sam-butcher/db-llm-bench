@@ -1,24 +1,27 @@
 dbs:
   - typedb:
-      prompts: data/typedb
+      prompts: data/prompts/typedb
+      examples: data/sample/typedb
       url: http://localhost:1729
       database: bench
       auth:
         username: admin
         password: password
         tls: false
-      schema: data/typedb/schema.tql
+      schema: data/sample/typedb/schema.tql
   - sql:
-     prompts: data/sql
+     prompts: data/prompts/sql
+     examples: data/sample/sql
      url: postgres://bench_ro:bench_ro@localhost/bench
-     schema: data/sql/schema.sql
+     schema: data/sample/sql/schema.sql
   - neo4j:
-     prompts: data/neo4j
+     prompts: data/prompts/neo4j
+     examples: data/sample/neo4j
      url: bolt://localhost:7687
      auth:
        username: neo4j
        password: password
-     schema: data/neo4j/schema.txt
+     schema: data/sample/neo4j/schema.txt
 models:
   # Uncomment to benchmark Claude (reads ANTHROPIC_API_KEY from the environment):
 #  - claude:
@@ -39,7 +42,7 @@ models:
 #     model: qwen2.5-coder:32b
 #     base_url: http://localhost:11434/v1
 #     label: qwen-coder-32b-local
-questionsPath: data/questions.json
+questionsPath: data/sample/questions.json
 exampleCounts:
   - 0
   - 1

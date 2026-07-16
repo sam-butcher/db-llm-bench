@@ -1,6 +1,0 @@
-Question: How many Pokémon are there?
-```
-match
-$p isa pokemon;
-reduce $count = count($p);
-```

@@ -1,4 +1,0 @@
-Question: What types does Bulbasaur have?
-```
-SELECT t.name FROM pokemon p JOIN pokemon_poketype pt ON pt.pokemon_id = p.id JOIN poketype t ON pt.poketype_id = t.id WHERE p.name = 'Bulbasaur';
-```

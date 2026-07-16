@@ -10,7 +10,11 @@ Inputs (taken in through config file - see config.yml for a suggested format):
 - List of DBs to hit, each of which contains:
   - ID of DB (e.g. sql/neo4j/typedb)
   - Path to the prompt folder for that DB (contained in a text file)
-    - The template file is `prompt.txt`; examples are `example-1.txt`, `example-2.txt`, ... (contiguous from 1)
+    - The template file is `prompt.txt`. Templates are dataset-independent, so this folder is shared
+      across datasets (`data/prompts/<db>`)
+    - Path to the examples folder for that DB, optional; examples are dataset-specific, so they live
+      with the dataset (`data/<dataset>/<db>`) as `example-1.txt`, `example-2.txt`, ... (contiguous
+      from 1). A dataset with no examples folder can only run at an example count of 0
     - Prompt is expected to be a template
     - Contains template slot for the question
     - Contains template slot for the schema
@@ -65,7 +69,7 @@ Inputs (taken in through config file - see config.yml for a suggested format):
   - We may augment each question with its expected return type (e.g. numeric vs object), so the framework knows how to compare results for that question
 - Example counts
   - List of numbers indicating what level of examples we should test with
-  - We expect the prompt folder to optionally contain a list of example queries (as separate files, e.g. example-1.txt, example-2.txt)
+  - We expect the examples folder to optionally contain a list of example queries (as separate files, e.g. example-1.txt, example-2.txt)
   - We'd re-run the tests for each example count, inserting that many of the examples into the prompt template
 - maxRetryCounts
   - List of numbers indicating what level of max retry counts we should test with

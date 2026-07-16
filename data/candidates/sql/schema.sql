@@ -7,7 +7,7 @@
 
 CREATE TABLE party (
     party_id TEXT PRIMARY KEY,
-    party_name TEXT NOT NULL,
+    party_name TEXT,
     legacy_party_id TEXT
 );
 
@@ -17,7 +17,7 @@ CREATE TABLE organisation (
 
 CREATE TABLE post (
     post_id TEXT PRIMARY KEY,
-    post_label TEXT NOT NULL,
+    post_label TEXT,
     organisation_name TEXT REFERENCES organisation(organisation_name),
     gss TEXT,                       -- ONS geography code for the area
     nuts1 TEXT                      -- statistical region
@@ -25,7 +25,7 @@ CREATE TABLE post (
 
 CREATE TABLE election (
     election_id TEXT PRIMARY KEY,
-    election_date DATE NOT NULL,
+    election_date DATE,
     election_current BOOLEAN
 );
 
@@ -48,7 +48,7 @@ CREATE TABLE ballot (
 
 CREATE TABLE person (
     person_id INTEGER PRIMARY KEY,
-    person_name TEXT NOT NULL,
+    person_name TEXT,
     honorific_prefix TEXT,
     honorific_suffix TEXT,
     gender TEXT,

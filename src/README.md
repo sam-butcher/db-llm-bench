@@ -9,9 +9,8 @@ Prior steps:
 Inputs (taken in through config file - see config.yml for a suggested format):
 - List of DBs to hit, each of which contains:
   - ID of DB (e.g. sql/neo4j/typedb)
-  - Path to the prompt folder for that DB (contained in a text file)
-    - The template file is `prompt.txt`. Templates are dataset-independent, so this folder is shared
-      across datasets (`data/prompts/<db>`)
+  - Path to the prompt template file for that DB
+    - Templates are dataset-independent, so they are shared across datasets (`data/prompts/<db>.txt`)
     - Path to the examples folder for that DB, optional; examples are dataset-specific, so they live
       with the dataset (`data/<dataset>/<db>`) as `example-1.txt`, `example-2.txt`, ... (contiguous
       from 1). A dataset with no examples folder can only run at an example count of 0

@@ -1,6 +1,6 @@
 dbs:
   - typedb:
-      prompts: data/prompts/typedb
+      prompts: data/prompts/typedb.txt
       examples: data/sample/typedb
       url: http://localhost:1729
       database: bench
@@ -10,12 +10,12 @@ dbs:
         tls: false
       schema: data/sample/typedb/schema.tql
   - sql:
-     prompts: data/prompts/sql
+     prompts: data/prompts/sql.txt
      examples: data/sample/sql
      url: postgres://bench_ro:bench_ro@localhost/bench
      schema: data/sample/sql/schema.sql
   - neo4j:
-     prompts: data/prompts/neo4j
+     prompts: data/prompts/neo4j.txt
      examples: data/sample/neo4j
      url: bolt://localhost:7687
      auth:

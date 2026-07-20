@@ -180,12 +180,11 @@ struct DbAssets {
     skills: Option<Vec<String>>,
 }
 
-/// The prompt folder holds `prompt.txt`; the examples folder, when configured,
-/// holds `example-1.txt`, `example-2.txt`, ... (contiguous from 1).
+/// The examples folder, when configured, holds `example-1.txt`,
+/// `example-2.txt`, ... (contiguous from 1).
 fn load_db_assets(cfg: &DbConfig) -> anyhow::Result<DbAssets> {
-    let template_path = cfg.prompts.join("prompt.txt");
-    let prompt_template = fs::read_to_string(&template_path)
-        .with_context(|| format!("reading prompt template {}", template_path.display()))?;
+    let prompt_template = fs::read_to_string(&cfg.prompts)
+        .with_context(|| format!("reading prompt template {}", cfg.prompts.display()))?;
     let schema = fs::read_to_string(&cfg.schema)
         .with_context(|| format!("reading schema {}", cfg.schema.display()))?;
     let examples = match cfg.examples.as_deref() {
@@ -288,7 +287,7 @@ async fn prepare_dbs<'a>(
 /// the combination (or output record) that needs it is reached.
 fn validate_db_inputs(
     db_id: &str,
-    prompts: &Path,
+    template_path: &Path,
     examples_dir: Option<&Path>,
     assets: &DbAssets,
     language: &str,
@@ -318,7 +317,7 @@ fn validate_db_inputs(
         anyhow::ensure!(
             assets.prompt_template.contains(slot),
             "prompt template {} is missing its {slot} slot",
-            prompts.join("prompt.txt").display()
+            template_path.display()
         );
     }
     for question in &questions.questions {
@@ -507,23 +506,23 @@ mod tests {
     /// 0; anything higher would silently run with no examples at all.
     #[test]
     fn a_missing_examples_folder_permits_only_zero_examples() {
-        let prompts = Path::new("prompts");
+        let template = Path::new("prompt.txt");
         let none = assets(FULL_TEMPLATE, 0, None);
-        assert!(validate_db_inputs("sql", prompts, None, &none, "sql", &questions(), 0).is_ok());
+        assert!(validate_db_inputs("sql", template, None, &none, "sql", &questions(), 0).is_ok());
         let err =
-            validate_db_inputs("sql", prompts, None, &none, "sql", &questions(), 3).unwrap_err();
+            validate_db_inputs("sql", template, None, &none, "sql", &questions(), 3).unwrap_err();
         assert!(err.to_string().contains("configures no examples folder"));
     }
 
     #[test]
     fn valid_inputs_pass() {
-        let prompts = Path::new("prompts");
+        let template = Path::new("prompt.txt");
         let examples = Path::new("examples");
         let full = assets(FULL_TEMPLATE, 3, None);
         assert!(
             validate_db_inputs(
                 "sql",
-                prompts,
+                template,
                 Some(examples),
                 &full,
                 "sql",
@@ -536,22 +535,30 @@ mod tests {
 
     #[test]
     fn insufficient_examples_are_rejected() {
-        let prompts = Path::new("prompts");
+        let template = Path::new("prompt.txt");
         let examples = Path::new("examples");
         let two = assets(FULL_TEMPLATE, 2, None);
-        let err = validate_db_inputs("sql", prompts, Some(examples), &two, "sql", &questions(), 3)
-            .unwrap_err();
+        let err = validate_db_inputs(
+            "sql",
+            template,
+            Some(examples),
+            &two,
+            "sql",
+            &questions(),
+            3,
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("example count 3 exceeds"));
     }
 
     #[test]
     fn missing_template_slots_are_rejected() {
-        let prompts = Path::new("prompts");
+        let template = Path::new("prompt.txt");
         let examples = Path::new("examples");
         let no_question = assets("{{schema}}", 0, None);
         let err = validate_db_inputs(
             "sql",
-            prompts,
+            template,
             Some(examples),
             &no_question,
             "sql",
@@ -566,7 +573,7 @@ mod tests {
         assert!(
             validate_db_inputs(
                 "sql",
-                prompts,
+                template,
                 Some(examples),
                 &no_examples_slot,
                 "sql",
@@ -577,7 +584,7 @@ mod tests {
         );
         let err = validate_db_inputs(
             "sql",
-            prompts,
+            template,
             Some(examples),
             &no_examples_slot,
             "sql",
@@ -596,7 +603,7 @@ mod tests {
         );
         let err = validate_db_inputs(
             "sql",
-            prompts,
+            template,
             Some(examples),
             &no_skills_slot,
             "sql",
@@ -617,12 +624,12 @@ mod tests {
 
     #[test]
     fn every_question_needs_a_query_in_the_dbs_language() {
-        let prompts = Path::new("prompts");
+        let template = Path::new("prompt.txt");
         let examples = Path::new("examples");
         let full = assets(FULL_TEMPLATE, 3, None);
         let err = validate_db_inputs(
             "neo4j",
-            prompts,
+            template,
             Some(examples),
             &full,
             "cypher",
@@ -635,7 +642,7 @@ mod tests {
 
     #[test]
     fn unanswerable_questions_need_no_ground_truth_query() {
-        let prompts = Path::new("prompts");
+        let template = Path::new("prompt.txt");
         let examples = Path::new("examples");
         let full = assets(FULL_TEMPLATE, 3, None);
         let questions = QuestionFile {
@@ -651,7 +658,7 @@ mod tests {
         assert!(
             validate_db_inputs(
                 "neo4j",
-                prompts,
+                template,
                 Some(examples),
                 &full,
                 "cypher",

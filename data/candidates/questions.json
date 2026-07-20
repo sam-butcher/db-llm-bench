@@ -1,0 +1,258 @@
+{
+  "questions": [
+    {
+      "question": "How many people are in the dataset?",
+      "difficulty": "easy",
+      "expected": 119686,
+      "queries": {
+        "typeql": "match $p isa person; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM person;",
+        "cypher": "MATCH (p:Person) RETURN count(p)",
+        "dummy": "119686"
+      }
+    },
+    {
+      "question": "How many parties are there?",
+      "difficulty": "easy",
+      "expected": 668,
+      "queries": {
+        "typeql": "match $p isa party; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM party;",
+        "cypher": "MATCH (p:Party) RETURN count(p)",
+        "dummy": "668"
+      }
+    },
+    {
+      "question": "How many distinct elections are recorded?",
+      "difficulty": "easy",
+      "expected": 3927,
+      "queries": {
+        "typeql": "match $e isa election; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM election;",
+        "cypher": "MATCH (e:Election) RETURN count(e)",
+        "dummy": "3927"
+      }
+    },
+    {
+      "question": "How many distinct posts are there?",
+      "difficulty": "easy",
+      "expected": 17772,
+      "queries": {
+        "typeql": "match $p isa post; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM post;",
+        "cypher": "MATCH (p:Post) RETURN count(p)",
+        "dummy": "17772"
+      }
+    },
+    {
+      "question": "How many candidacies are there in total?",
+      "difficulty": "easy",
+      "expected": 217872,
+      "queries": {
+        "typeql": "match $c isa candidacy; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM candidacy;",
+        "cypher": "MATCH (c:Candidacy) RETURN count(c)",
+        "dummy": "217872"
+      }
+    },
+    {
+      "question": "How many people recorded a favourite biscuit?",
+      "difficulty": "medium",
+      "expected": 4805,
+      "queries": {
+        "typeql": "match $p isa person, has favourite_biscuit $b; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM person WHERE favourite_biscuit IS NOT NULL;",
+        "cypher": "MATCH (p:Person) WHERE p.favourite_biscuit IS NOT NULL RETURN count(p)",
+        "dummy": "4805"
+      }
+    },
+    {
+      "question": "How many candidacies resulted in the candidate being elected?",
+      "difficulty": "medium",
+      "expected": 57824,
+      "queries": {
+        "typeql": "match $c isa candidacy, has elected true; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM candidacy WHERE elected = true;",
+        "cypher": "MATCH (c:Candidacy) WHERE c.elected = true RETURN count(c)",
+        "dummy": "57824"
+      }
+    },
+    {
+      "question": "How many ballots were by-elections?",
+      "difficulty": "medium",
+      "expected": 2555,
+      "queries": {
+        "typeql": "match $b isa ballot, has by_election true; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM ballot WHERE by_election = true;",
+        "cypher": "MATCH (b:Ballot) WHERE b.by_election = true RETURN count(b)",
+        "dummy": "2555"
+      }
+    },
+    {
+      "question": "What is the total number of votes cast across all candidacies?",
+      "difficulty": "medium",
+      "expected": 360181591,
+      "queries": {
+        "typeql": "match $c isa candidacy, has votes_cast $v; reduce $sum = sum($v);",
+        "sql": "SELECT SUM(votes_cast) FROM candidacy;",
+        "cypher": "MATCH (c:Candidacy) RETURN sum(c.votes_cast)",
+        "dummy": "360181591"
+      }
+    },
+    {
+      "question": "What is the total number of spoilt ballots across all ballots?",
+      "difficulty": "medium",
+      "expected": 981020,
+      "queries": {
+        "typeql": "match $b isa ballot, has spoilt_ballots $s; reduce $sum = sum($s);",
+        "sql": "SELECT SUM(spoilt_ballots) FROM ballot;",
+        "cypher": "MATCH (b:Ballot) RETURN sum(b.spoilt_ballots)",
+        "dummy": "981020"
+      }
+    },
+    {
+      "question": "What is the highest number of votes cast for a single candidacy?",
+      "difficulty": "medium",
+      "expected": 1088225,
+      "queries": {
+        "typeql": "match $c isa candidacy, has votes_cast $v; reduce $max = max($v);",
+        "sql": "SELECT MAX(votes_cast) FROM candidacy;",
+        "cypher": "MATCH (c:Candidacy) RETURN max(c.votes_cast)",
+        "dummy": "1088225"
+      }
+    },
+    {
+      "question": "Has any candidacy been won on a tied vote?",
+      "difficulty": "medium",
+      "expected": true,
+      "queries": {
+        "typeql": "with fun tied_vote_exists() -> boolean:\n  match $_ isa candidacy, has tied_vote_winner true;\n  return check;\nmatch\nlet $exists = tied_vote_exists();",
+        "sql": "SELECT EXISTS (SELECT 1 FROM candidacy WHERE tied_vote_winner = true);",
+        "cypher": "RETURN EXISTS { MATCH (c:Candidacy) WHERE c.tied_vote_winner = true }",
+        "dummy": "true"
+      }
+    },
+    {
+      "question": "Which party has the most candidacies?",
+      "difficulty": "hard",
+      "expected": "Conservative and Unionist Party",
+      "queries": {
+        "typeql": "match $pa isa party, has party_name $name; candidacy (party: $pa); reduce $c = count groupby $pa, $name; sort $c desc; limit 1; select $name;",
+        "sql": "SELECT p.party_name FROM candidacy c JOIN party p ON c.party_id = p.party_id GROUP BY p.party_id, p.party_name ORDER BY COUNT(*) DESC LIMIT 1;",
+        "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(p:Party) WITH p, count(c) AS n RETURN p.party_name ORDER BY n DESC LIMIT 1",
+        "dummy": "\"Conservative and Unionist Party\""
+      }
+    },
+    {
+      "question": "Which party won the most seats, counting only candidacies where the candidate was elected?",
+      "difficulty": "hard",
+      "expected": "Conservative and Unionist Party",
+      "queries": {
+        "typeql": "match $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa), has elected true; reduce $n = count groupby $pa, $name; sort $n desc; limit 1; select $name;",
+        "sql": "SELECT p.party_name FROM candidacy c JOIN party p ON c.party_id = p.party_id WHERE c.elected = true GROUP BY p.party_id, p.party_name ORDER BY COUNT(*) DESC LIMIT 1;",
+        "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(p:Party) WHERE c.elected = true WITH p, count(c) AS n RETURN p.party_name ORDER BY n DESC LIMIT 1",
+        "dummy": "\"Conservative and Unionist Party\""
+      }
+    },
+    {
+      "question": "Which post had the highest total electorate in any single ballot?",
+      "difficulty": "hard",
+      "expected": "London Assembly",
+      "queries": {
+        "typeql": "match $b isa ballot, has total_electorate $te; for_post (ballot: $b, post: $po); $po has post_label $label; sort $te desc; limit 1; select $label;",
+        "sql": "SELECT po.post_label FROM ballot b JOIN post po ON b.post_id = po.post_id WHERE b.total_electorate IS NOT NULL ORDER BY b.total_electorate DESC LIMIT 1;",
+        "cypher": "MATCH (b:Ballot)-[:FOR_POST]->(po:Post) WHERE b.total_electorate IS NOT NULL RETURN po.post_label ORDER BY b.total_electorate DESC LIMIT 1",
+        "dummy": "\"London Assembly\""
+      }
+    },
+    {
+      "question": "What are the top three parties by number of candidacies, most first?",
+      "difficulty": "hard",
+      "ordered": true,
+      "expected": [
+        "Conservative and Unionist Party",
+        "Labour Party",
+        "Liberal Democrats"
+      ],
+      "queries": {
+        "typeql": "match $pa isa party, has party_name $name; candidacy (party: $pa); reduce $c = count groupby $pa, $name; sort $c desc; limit 3; select $name;",
+        "sql": "SELECT p.party_name FROM candidacy c JOIN party p ON c.party_id = p.party_id GROUP BY p.party_id, p.party_name ORDER BY COUNT(*) DESC LIMIT 3;",
+        "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(p:Party) WITH p, count(c) AS n RETURN p.party_name ORDER BY n DESC LIMIT 3",
+        "dummy": "[\"Conservative and Unionist Party\", \"Labour Party\", \"Liberal Democrats\"]"
+      }
+    },
+    {
+      "question": "For the party with the most candidacies, what is its name and how many candidacies did it field?",
+      "difficulty": "hard",
+      "expected": {
+        "party": "Conservative and Unionist Party",
+        "candidacies": 51521
+      },
+      "queries": {
+        "typeql": "match $pa isa party, has party_name $name; candidacy (party: $pa); reduce $candidacies = count groupby $pa, $name; sort $candidacies desc; limit 1; fetch {\n  \"party\": $name,\n  \"candidacies\": $candidacies\n};",
+        "sql": "SELECT p.party_name AS party, COUNT(*) AS candidacies FROM candidacy c JOIN party p ON c.party_id = p.party_id GROUP BY p.party_id, p.party_name ORDER BY candidacies DESC LIMIT 1;",
+        "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(p:Party) WITH p, count(c) AS candidacies RETURN p.party_name AS party, candidacies ORDER BY candidacies DESC LIMIT 1",
+        "dummy": "{\"party\": \"Conservative and Unionist Party\", \"candidacies\": 51521}"
+      }
+    },
+    {
+      "question": "What is the greatest number of distinct people to stand as candidates in a single election?",
+      "difficulty": "hard",
+      "expected": 4515,
+      "queries": {
+        "typeql": "match $e isa election; $p isa person; $c isa candidacy, links (candidate: $p, ballot: $b); at_election (ballot: $b, election: $e); reduce $x = count groupby $e, $p; reduce $n = count groupby $e; reduce $max = max($n);",
+        "sql": "SELECT MAX(cnt) FROM (SELECT b.election_id, COUNT(DISTINCT c.person_id) AS cnt FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id GROUP BY b.election_id) t;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:Election) WITH e, count(DISTINCT p) AS cnt RETURN max(cnt)",
+        "dummy": "4515"
+      }
+    },
+    {
+      "question": "How many people were elected in more than one ballot?",
+      "difficulty": "hard",
+      "expected": 15317,
+      "queries": {
+        "typeql": "match $p isa person; $c isa candidacy, links (candidate: $p), has elected true; reduce $n = count groupby $p; match $n > 1; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT person_id FROM candidacy WHERE elected = true GROUP BY person_id HAVING COUNT(*) > 1) t;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy) WHERE c.elected = true WITH p, count(c) AS wins WHERE wins > 1 RETURN count(p)",
+        "dummy": "15317"
+      }
+    },
+    {
+      "question": "How many parties never had a candidate elected?",
+      "difficulty": "hard",
+      "expected": 447,
+      "queries": {
+        "typeql": "match $pa isa party; not { $_ isa candidacy, links (party: $pa), has elected true; }; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM party p WHERE NOT EXISTS (SELECT 1 FROM candidacy c WHERE c.party_id = p.party_id AND c.elected = true);",
+        "cypher": "MATCH (p:Party) WHERE NOT EXISTS { MATCH (c:Candidacy)-[:FOR_PARTY]->(p) WHERE c.elected = true } RETURN count(p)",
+        "dummy": "447"
+      }
+    },
+    {
+      "question": "What is the largest number of candidates standing in a single ballot?",
+      "difficulty": "hard",
+      "expected": 171,
+      "queries": {
+        "typeql": "match $b isa ballot; candidacy (ballot: $b); reduce $n = count groupby $b; reduce $max = max($n);",
+        "sql": "SELECT MAX(cnt) FROM (SELECT ballot_paper_id, COUNT(*) AS cnt FROM candidacy GROUP BY ballot_paper_id) t;",
+        "cypher": "MATCH (c:Candidacy)-[:IN_BALLOT]->(b:Ballot) WITH b, count(c) AS cnt RETURN max(cnt)",
+        "dummy": "171"
+      }
+    },
+    {
+      "question": "How tall is each candidate?",
+      "difficulty": "medium",
+      "unanswerable": true
+    },
+    {
+      "question": "How much did each candidate spend on their campaign?",
+      "difficulty": "medium",
+      "unanswerable": true
+    },
+    {
+      "question": "What is the phone number of each candidate?",
+      "difficulty": "easy",
+      "unanswerable": true
+    }
+  ]
+}

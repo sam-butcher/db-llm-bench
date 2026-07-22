@@ -137,7 +137,7 @@
       "difficulty": "hard",
       "expected": "Conservative and Unionist Party",
       "queries": {
-        "typeql": "match $pa isa party, has party_name $name; candidacy (party: $pa); reduce $c = count groupby $pa, $name; sort $c desc; limit 1; select $name;",
+        "typeql": "match $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa); reduce $n = count($c) groupby $pa, $name; sort $n desc; limit 1; select $name;",
         "sql": "SELECT p.party_name FROM candidacy c JOIN party p ON c.party_id = p.party_id GROUP BY p.party_id, p.party_name ORDER BY COUNT(*) DESC LIMIT 1;",
         "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(p:Party) WITH p, count(c) AS n RETURN p.party_name ORDER BY n DESC LIMIT 1",
         "dummy": "\"Conservative and Unionist Party\""
@@ -175,7 +175,7 @@
         "Liberal Democrats"
       ],
       "queries": {
-        "typeql": "match $pa isa party, has party_name $name; candidacy (party: $pa); reduce $c = count groupby $pa, $name; sort $c desc; limit 3; select $name;",
+        "typeql": "match $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa); reduce $n = count($c) groupby $pa, $name; sort $n desc; limit 3; select $name;",
         "sql": "SELECT p.party_name FROM candidacy c JOIN party p ON c.party_id = p.party_id GROUP BY p.party_id, p.party_name ORDER BY COUNT(*) DESC LIMIT 3;",
         "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(p:Party) WITH p, count(c) AS n RETURN p.party_name ORDER BY n DESC LIMIT 3",
         "dummy": "[\"Conservative and Unionist Party\", \"Labour Party\", \"Liberal Democrats\"]"
@@ -189,7 +189,7 @@
         "candidacies": 51521
       },
       "queries": {
-        "typeql": "match $pa isa party, has party_name $name; candidacy (party: $pa); reduce $candidacies = count groupby $pa, $name; sort $candidacies desc; limit 1; fetch {\n  \"party\": $name,\n  \"candidacies\": $candidacies\n};",
+        "typeql": "match $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa); reduce $candidacies = count($c) groupby $pa, $name; sort $candidacies desc; limit 1; fetch {\n  \"party\": $name,\n  \"candidacies\": $candidacies\n};",
         "sql": "SELECT p.party_name AS party, COUNT(*) AS candidacies FROM candidacy c JOIN party p ON c.party_id = p.party_id GROUP BY p.party_id, p.party_name ORDER BY candidacies DESC LIMIT 1;",
         "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(p:Party) WITH p, count(c) AS candidacies RETURN p.party_name AS party, candidacies ORDER BY candidacies DESC LIMIT 1",
         "dummy": "{\"party\": \"Conservative and Unionist Party\", \"candidacies\": 51521}"
@@ -233,7 +233,7 @@
       "difficulty": "hard",
       "expected": 171,
       "queries": {
-        "typeql": "match $b isa ballot; candidacy (ballot: $b); reduce $n = count groupby $b; reduce $max = max($n);",
+        "typeql": "match $b isa ballot; $c isa candidacy, links (ballot: $b); reduce $n = count($c) groupby $b; reduce $max = max($n);",
         "sql": "SELECT MAX(cnt) FROM (SELECT ballot_paper_id, COUNT(*) AS cnt FROM candidacy GROUP BY ballot_paper_id) t;",
         "cypher": "MATCH (c:Candidacy)-[:IN_BALLOT]->(b:Ballot) WITH b, count(c) AS cnt RETURN max(cnt)",
         "dummy": "171"

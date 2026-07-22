@@ -1,0 +1,50 @@
+# Candidates dataset benchmarked against the local Ollama qwen model.
+#
+# Prereqs:
+#   1. Seed the candidates stack (drops + reloads all three DBs):
+#        cd databases/candidates && docker compose up -d --build
+#   2. Ollama up with the model pulled:
+#        ollama serve &   ollama pull qwen2.5-coder:7b
+#
+# Run:  cargo run -p bench-cli -- src/candidates.yml results-candidates.json
+#
+# The candidates dataset ships no few-shot examples, so exampleCounts is [0].
+dbs:
+  - typedb:
+      prompts: data/prompts/typedb.txt
+      url: http://localhost:1729
+      database: candidates
+      auth:
+        username: admin
+        password: password
+        tls: false
+      schema: data/candidates/typedb/schema.tql
+      examples: data/sample/typedb
+      skills: /Users/samuelbutcher/.claude/skills/typeql
+  - sql:
+      prompts: data/prompts/sql.txt
+      url: postgres://bench_ro:bench_ro@localhost/candidates
+      schema: data/candidates/sql/schema.sql
+      examples: data/sample/sql
+  - neo4j:
+      prompts: data/prompts/neo4j.txt
+      url: bolt://localhost:7687
+      auth:
+        username: neo4j
+        password: password
+      schema: data/candidates/neo4j/schema.txt
+      examples: data/sample/neo4j
+models:
+  - openai-compatible:
+      model: qwen2.5-coder:7b
+      base_url: http://localhost:11434/v1
+      label: qwen-coder-7b-local
+questionsPath: data/candidates/questions.json
+exampleCounts:
+  - 0
+  - 1
+  - 3
+maxRetryCounts:
+  - 0
+  - 2
+  - 4

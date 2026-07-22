@@ -10,8 +10,10 @@
 #
 # Config via env vars (defaults shown):
 #   ADDRESS=localhost:1729 DB_USER=admin DB_PASS=password DB=candidates
-#   BATCH_ROWS=1000 PARALLEL=8
+#   BATCH_ROWS=1000 PARALLEL=1
 #   RAW=<repo>/data/candidates/data.csv
+#   WORK=<here>/work            writable dir for the cleaned CSV + projections
+#   CLEANED_CSV=<unset>         if set, use this pre-cleaned CSV and skip cleaning
 # (DB_USER/DB_PASS, not USER/PASS: USER is a standard shell variable and would
 # shadow the default, authenticating as the login user.)
 set -euo pipefail
@@ -34,12 +36,16 @@ PARALLEL="${PARALLEL:-1}"
 RAW="${RAW:-$CAND/data.csv}"
 
 SCHEMA="$CAND/typedb/schema.tql"
-WORK="$HERE/work"
-CLEANED="$WORK/data.cleaned.csv"
+WORK="${WORK:-$HERE/work}"
+CLEANED="${CLEANED_CSV:-$WORK/data.cleaned.csv}"
 mkdir -p "$WORK"
 
-echo "== cleaning (typedb dialect) =="
-python3 "$CAND/clean.py" "$RAW" "$CLEANED" --dialect typedb
+if [ -n "${CLEANED_CSV:-}" ]; then
+    echo "== using pre-cleaned CSV: $CLEANED =="
+else
+    echo "== cleaning (typedb dialect) =="
+    python3 "$CAND/clean.py" "$RAW" "$CLEANED" --dialect typedb
+fi
 
 echo "== projecting per-pass CSVs =="
 python3 "$HERE/project.py" "$CLEANED" "$WORK"

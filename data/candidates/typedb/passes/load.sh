@@ -9,9 +9,11 @@
 # (7 ballot links, 8 candidacy).
 #
 # Config via env vars (defaults shown):
-#   ADDRESS=localhost:1729 USER=admin PASS=password DB=candidates
+#   ADDRESS=localhost:1729 DB_USER=admin DB_PASS=password DB=candidates
 #   BATCH_ROWS=1000 PARALLEL=8
-#   RAW=<repo>/data/candidates/data.csv   (skips clean+project if WORK already populated)
+#   RAW=<repo>/data/candidates/data.csv
+# (DB_USER/DB_PASS, not USER/PASS: USER is a standard shell variable and would
+# shadow the default, authenticating as the login user.)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,11 +21,16 @@ CAND="$(cd "$HERE/../.." && pwd)"          # data/candidates
 ROOT="$(cd "$CAND/../.." && pwd)"          # repo root
 
 ADDRESS="${ADDRESS:-localhost:1729}"
-USER="${USER:-admin}"
-PASS="${PASS:-password}"
+DB_USER="${DB_USER:-admin}"
+DB_PASS="${DB_PASS:-password}"
 DB="${DB:-candidates}"
 BATCH_ROWS="${BATCH_ROWS:-1000}"
-PARALLEL="${PARALLEL:-8}"
+# Sequential batches: TypeDB attributes are global value objects, so concurrent
+# batches that insert shared values (gender "Male", honorific "Mr", a shared
+# election on a relation) conflict on the attribute/instance lock and the losing
+# batch is rejected. Dedup buys large batches, not parallel commits. Large
+# batches alone are already ~1000x fewer transactions than --batch-rows 1.
+PARALLEL="${PARALLEL:-1}"
 RAW="${RAW:-$CAND/data.csv}"
 
 SCHEMA="$CAND/typedb/schema.tql"
@@ -46,8 +53,8 @@ run_pass() {                                # run_pass <query.tql> <data.csv> [e
         --header true \
         --database "$DB" \
         --address "$ADDRESS" \
-        --username "$USER" \
-        --password "$PASS" \
+        --username "$DB_USER" \
+        --password "$DB_PASS" \
         --tls-disabled true \
         --batch-rows "$BATCH_ROWS" \
         --parallel-batches "$PARALLEL" \

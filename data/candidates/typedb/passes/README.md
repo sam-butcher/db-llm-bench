@@ -9,9 +9,18 @@ full ~218k-row load takes about an hour.
 
 This directory loads the same data in several passes, each over a CSV that has
 been **deduplicated on the relevant key first**, so no key ever recurs within a
-batch. That removes the collision entirely, so the passes run with large,
-parallel batches. `project.py` derives the projections; `load.sh` runs the
-passes in order.
+batch. That removes the collision entirely, so the passes run with large batches
+(`--batch-rows 1000`) instead of one row at a time — ~1000x fewer transactions,
+so the full load drops from about an hour to a few minutes. `project.py` derives
+the projections; `load.sh` runs the passes in order.
+
+The win is large batches, **not** parallel ones. TypeDB attributes are global
+value objects, so batches that commit concurrently (`--parallel-batches > 1`)
+and insert shared values — `gender "Male"`, `honorific "Mr"`, or a shared
+election referenced by two ballot-relation rows — conflict on the attribute or
+instance lock, and the losing batch is rejected with an isolation conflict
+(`[STC2]`). So the passes run strictly sequentially (`--parallel-batches 1`);
+each batch is still 1000 rows.
 
 ## Why it's split this way
 
@@ -52,15 +61,22 @@ column-to-variable binding is unambiguous.
 
 ## Running
 
+Bring up a TypeDB server (e.g. `databases/candidates/docker-compose.yml`), then:
+
 ```bash
 data/candidates/typedb/passes/load.sh
 ```
 
-Config via env vars (defaults): `ADDRESS=localhost:1729`, `USER=admin`,
-`PASS=password`, `DB=candidates`, `BATCH_ROWS=1000`, `PARALLEL=8`,
-`RAW=data/candidates/data.csv`. Pass 1 creates the database and installs
-`../schema.tql`; the rest load into it. Derived CSVs are written to `work/`
-(git-ignored).
+Config via env vars (defaults): `ADDRESS=localhost:1729`, `DB_USER=admin`,
+`DB_PASS=password`, `DB=candidates`, `BATCH_ROWS=1000`, `PARALLEL=1`,
+`RAW=data/candidates/data.csv`. (`DB_USER`/`DB_PASS`, not `USER`/`PASS`: `USER`
+is a standard shell variable and would shadow the default.) Pass 1 creates the
+database and installs `../schema.tql`; the rest load into it. Derived CSVs are
+written to `work/` (git-ignored).
+
+Verified end-to-end against the full dataset: all eight passes commit with zero
+rejects, and the resulting counts match Postgres and Neo4j exactly (person
+119,686; candidacy 217,872; ballot 39,271; each ballot relation 39,271).
 
 `../query.tql` remains the simple single-pass fallback (run it at
 `--batch-rows 1`).

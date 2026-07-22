@@ -4,3 +4,6 @@
 /results*.json
 /src/local.yml
 **/.DS_STORE
+
+# TypeDB multi-pass load: derived projections and cleaned CSVs
+/data/candidates/typedb/passes/work/

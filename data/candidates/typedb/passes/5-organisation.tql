@@ -1,0 +1,4 @@
+given
+    $organisation_name: string;
+insert
+$organisation isa organisation, has organisation_name == $organisation_name;

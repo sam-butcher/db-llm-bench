@@ -1,0 +1,8 @@
+given
+    $election_id: string,
+    $election_date: date?,
+    $election_current: boolean?;
+insert
+$election isa election, has election_id == $election_id;
+try { $election has election_date == $election_date; };
+try { $election has election_current == $election_current; };

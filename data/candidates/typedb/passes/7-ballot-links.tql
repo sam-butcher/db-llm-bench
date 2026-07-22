@@ -1,0 +1,17 @@
+# Ballot relations, from the ballot-deduplicated projection: one row per ballot,
+# so each relation is inserted exactly once. The election, post and organisation
+# were created by passes 3-5, so the match always resolves.
+given
+    $ballot_paper_id: string,
+    $election_id: string,
+    $post_id: string,
+    $organisation_name: string;
+match
+$ballot isa ballot, has ballot_paper_id == $ballot_paper_id;
+$election isa election, has election_id == $election_id;
+$post isa post, has post_id == $post_id;
+$organisation isa organisation, has organisation_name == $organisation_name;
+insert
+at_election (ballot: $ballot, election: $election);
+for_post (ballot: $ballot, post: $post);
+elects_to (ballot: $ballot, organisation: $organisation);

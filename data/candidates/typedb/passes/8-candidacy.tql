@@ -1,0 +1,35 @@
+# Candidacy is one-per-base-row, so this pass runs over every row (no dedup) and
+# a plain insert cannot duplicate. Person, ballot and party already exist from
+# the earlier passes.
+given
+    $person_id: integer,
+    $ballot_paper_id: string,
+    $party_id: string,
+    $party_description_text: string?,
+    $party_list_position: integer?,
+    $previous_party_affiliations: string?,
+    $sopn_first_names: string?,
+    $sopn_last_name: string?,
+    $votes_cast: integer?,
+    $elected: boolean?,
+    $tied_vote_winner: boolean?,
+    $rank: integer?,
+    $statement_to_voters: string?,
+    $statement_last_updated: datetime?;
+match
+$person isa person, has person_id == $person_id;
+$ballot isa ballot, has ballot_paper_id == $ballot_paper_id;
+$party isa party, has party_id == $party_id;
+insert
+$candidacy isa candidacy, links (candidate: $person, ballot: $ballot, party: $party);
+try { $candidacy has party_description_text == $party_description_text; };
+try { $candidacy has party_list_position == $party_list_position; };
+try { $candidacy has previous_party_affiliations == $previous_party_affiliations; };
+try { $candidacy has sopn_first_names == $sopn_first_names; };
+try { $candidacy has sopn_last_name == $sopn_last_name; };
+try { $candidacy has votes_cast == $votes_cast; };
+try { $candidacy has elected == $elected; };
+try { $candidacy has tied_vote_winner == $tied_vote_winner; };
+try { $candidacy has rank == $rank; };
+try { $candidacy has statement_to_voters == $statement_to_voters; };
+try { $candidacy has statement_last_updated == $statement_last_updated; };

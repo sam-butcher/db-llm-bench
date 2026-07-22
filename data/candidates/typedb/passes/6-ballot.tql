@@ -1,0 +1,26 @@
+given
+    $ballot_paper_id: string,
+    $seats_contested: integer,
+    $cancelled_poll: boolean?,
+    $by_election: boolean?,
+    $by_election_reason: string?,
+    $party_lists_in_use: boolean?,
+    $candidates_locked: boolean?,
+    $total_electorate: integer?,
+    $turnout_reported: integer?,
+    $turnout_percentage: double?,
+    $spoilt_ballots: integer?,
+    $results_source: string?;
+insert
+$ballot isa ballot, has ballot_paper_id == $ballot_paper_id;
+try { $ballot has seats_contested == $seats_contested; };
+try { $ballot has cancelled_poll == $cancelled_poll; };
+try { $ballot has by_election == $by_election; };
+try { $ballot has by_election_reason == $by_election_reason; };
+try { $ballot has party_lists_in_use == $party_lists_in_use; };
+try { $ballot has candidates_locked == $candidates_locked; };
+try { $ballot has total_electorate == $total_electorate; };
+try { $ballot has turnout_reported == $turnout_reported; };
+try { $ballot has turnout_percentage == $turnout_percentage; };
+try { $ballot has spoilt_ballots == $spoilt_ballots; };
+try { $ballot has results_source == $results_source; };

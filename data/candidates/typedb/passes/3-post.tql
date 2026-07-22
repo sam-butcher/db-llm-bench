@@ -1,0 +1,10 @@
+given
+    $post_id: string,
+    $post_label: string?,
+    $gss: string?,
+    $nuts1: string?;
+insert
+$post isa post, has post_id == $post_id;
+try { $post has post_label == $post_label; };
+try { $post has gss == $gss; };
+try { $post has nuts1 == $nuts1; };

@@ -182,7 +182,7 @@
       }
     },
     {
-      "question": "For the party with the most candidacies, what is its name and how many candidacies did it field?",
+      "question": "For the party with the most candidacies, what is its name and how many candidacies did it field? Count different parties with the same name as separately.",
       "difficulty": "hard",
       "expected": {
         "party": "Conservative and Unionist Party",

@@ -79,6 +79,16 @@ def clean_int(v):
     bump(f"int:dropped:{v!r}")
     return ""
 
+def strip_quotes(v):
+    # An export artifact double-quotes some text fields, so after CSV parsing
+    # they arrive wrapped in literal quotes (e.g. nuts1 as `"Scotland"`). Remove
+    # one matching leading+trailing pair. Values quoted only on one side, or
+    # with the pair inside (e.g. `Christian Party "..."`), are left untouched.
+    if v and len(v) >= 2 and v[0] == '"' and v[-1] == '"':
+        bump("quotes:stripped")
+        return v[1:-1]
+    return v
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     src = args[0] if args else "data/candidates/data.csv"
@@ -89,6 +99,7 @@ def main():
         w.writeheader()
         n = 0
         for row in r:
+            for c in row: row[c] = strip_quotes(row[c])
             for c in BOOL_COLS: row[c] = clean_bool(row[c])
             for c in DATE_COLS: row[c] = clean_date(row[c])
             for c in DATETIME_COLS: row[c] = clean_datetime(row[c])

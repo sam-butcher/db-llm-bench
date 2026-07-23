@@ -133,7 +133,7 @@
       }
     },
     {
-      "question": "Which party has the most candidacies?",
+      "question": "Which party has the most candidacies? Only provide the party name.",
       "difficulty": "hard",
       "expected": "Conservative and Unionist Party",
       "queries": {
@@ -144,7 +144,7 @@
       }
     },
     {
-      "question": "Which party won the most seats, counting only candidacies where the candidate was elected?",
+      "question": "Which party won the most seats, counting only candidacies where the candidate was elected? Only provide the party name.",
       "difficulty": "hard",
       "expected": "Conservative and Unionist Party",
       "queries": {
@@ -155,7 +155,7 @@
       }
     },
     {
-      "question": "Which post had the highest total electorate in any single ballot?",
+      "question": "Which post had the highest total electorate in any single ballot? Only provide the post name.",
       "difficulty": "hard",
       "expected": "London Assembly",
       "queries": {
@@ -166,7 +166,7 @@
       }
     },
     {
-      "question": "What are the top three parties by number of candidacies, most first?",
+      "question": "What are the top three parties by number of candidacies, most first? Only provide the party names, in order.",
       "difficulty": "hard",
       "ordered": true,
       "expected": [
@@ -196,7 +196,7 @@
       }
     },
     {
-      "question": "What is the greatest number of distinct people to stand as candidates in a single election?",
+      "question": "What is the greatest number of distinct people to stand as candidates in a single election? Only provide the number.",
       "difficulty": "hard",
       "expected": 4515,
       "queries": {
@@ -229,7 +229,7 @@
       }
     },
     {
-      "question": "What is the largest number of candidates standing in a single ballot?",
+      "question": "What is the largest number of candidates standing in a single ballot? Only provide the number.",
       "difficulty": "hard",
       "expected": 171,
       "queries": {
@@ -240,7 +240,7 @@
       }
     },
     {
-      "question": "Which party won the most seats in the 2024 general election?",
+      "question": "Which party won the most seats in the 2024 general election? Only provide the party name.",
       "difficulty": "hard",
       "expected": "Labour Party",
       "queries": {
@@ -262,7 +262,7 @@
       }
     },
     {
-      "question": "What is the greatest number of distinct elections that any single post has been contested in?",
+      "question": "What is the greatest number of distinct elections that any single post has been contested in? Only provide the number.",
       "difficulty": "hard",
       "expected": 11,
       "queries": {
@@ -273,7 +273,7 @@
       }
     },
     {
-      "question": "Which organisation, other than the House of Commons of the United Kingdom, has returned the most elected representatives?",
+      "question": "Which organisation, other than the House of Commons of the United Kingdom, has returned the most elected representatives? Only provide the organisation name.",
       "difficulty": "hard",
       "expected": "Scottish Parliament",
       "queries": {
@@ -295,7 +295,7 @@
       }
     },
     {
-      "question": "Which election had the most distinct parties standing?",
+      "question": "Which election had the most distinct parties standing? Only provide the election id.",
       "difficulty": "hard",
       "expected": "parl.2015-05-07",
       "queries": {
@@ -317,7 +317,7 @@
       }
     },
     {
-      "question": "Which party has won the most seats in Scotland?",
+      "question": "Which party has won the most seats in Scotland? Only provide the party name.",
       "difficulty": "hard",
       "expected": "Scottish National Party (SNP)",
       "queries": {
@@ -328,7 +328,7 @@
       }
     },
     {
-      "question": "In which region have the most candidacies been contested?",
+      "question": "In which region have the most candidacies been contested? Only provide the region name.",
       "difficulty": "hard",
       "expected": "South East (England)",
       "queries": {

@@ -221,8 +221,12 @@ Expected domain separations:
 - Output marshalling
 
 Assumptions & non-goals (for now):
-- The framework assumes the provided questions, correct queries, and expected results are valid - no
-  upfront ground-truth validation
+- The benchmark run itself assumes the provided questions, correct queries, and expected results are
+  valid. To check that separately, the `verify` binary runs each question's ground-truth query against
+  the live DBs and compares to `expected` using the same coercion + `matches_question` rule the
+  benchmark scores with, printing any mismatch:
+  `cargo run -p bench-cli --bin verify -- <config.yml> [questions.json]`
+  (questions default to the config's `questionsPath`; the config's DBs must be up)
 - The contents of the example queries are a separate concern to the framework itself
 - No rate limiting, parallelism, or crash resumability yet - we'll be doing our best to keep the
   combinatorial space small

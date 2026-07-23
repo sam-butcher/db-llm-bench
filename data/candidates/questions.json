@@ -306,6 +306,50 @@
       }
     },
     {
+      "question": "How many distinct people have stood for election in Scotland?",
+      "difficulty": "hard",
+      "expected": 5969,
+      "queries": {
+        "typeql": "match $po isa post, has nuts1 \"Scotland\"; $p isa person; $c isa candidacy, links (candidate: $p, ballot: $b); for_post (ballot: $b, post: $po); reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "SELECT COUNT(DISTINCT ca.person_id) FROM candidacy ca JOIN ballot b ON ca.ballot_paper_id = b.ballot_paper_id JOIN post po ON b.post_id = po.post_id WHERE po.nuts1 = 'Scotland';",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:FOR_POST]->(po:Post {nuts1: 'Scotland'}) RETURN count(DISTINCT p)",
+        "dummy": "5969"
+      }
+    },
+    {
+      "question": "Which party has won the most seats in Scotland?",
+      "difficulty": "hard",
+      "expected": "Scottish National Party (SNP)",
+      "queries": {
+        "typeql": "match $po isa post, has nuts1 \"Scotland\"; $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa, ballot: $b), has elected true; for_post (ballot: $b, post: $po); reduce $n = count($c) groupby $pa, $name; sort $n desc; limit 1; select $name;",
+        "sql": "SELECT p.party_name FROM candidacy ca JOIN ballot b ON ca.ballot_paper_id = b.ballot_paper_id JOIN post po ON b.post_id = po.post_id JOIN party p ON ca.party_id = p.party_id WHERE ca.elected = true AND po.nuts1 = 'Scotland' GROUP BY p.party_id, p.party_name ORDER BY COUNT(*) DESC LIMIT 1;",
+        "cypher": "MATCH (c:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:FOR_POST]->(po:Post {nuts1: 'Scotland'}), (c)-[:FOR_PARTY]->(p:Party) WHERE c.elected = true WITH p, count(c) AS n RETURN p.party_name ORDER BY n DESC LIMIT 1",
+        "dummy": "\"Scottish National Party (SNP)\""
+      }
+    },
+    {
+      "question": "In which region have the most candidacies been contested?",
+      "difficulty": "hard",
+      "expected": "South East (England)",
+      "queries": {
+        "typeql": "match $po isa post, has nuts1 $region; $c isa candidacy, links (ballot: $b); for_post (ballot: $b, post: $po); reduce $n = count($c) groupby $region; sort $n desc; limit 1; select $region;",
+        "sql": "SELECT po.nuts1 FROM candidacy ca JOIN ballot b ON ca.ballot_paper_id = b.ballot_paper_id JOIN post po ON b.post_id = po.post_id WHERE po.nuts1 IS NOT NULL GROUP BY po.nuts1 ORDER BY COUNT(*) DESC LIMIT 1;",
+        "cypher": "MATCH (:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:FOR_POST]->(po:Post) WHERE po.nuts1 IS NOT NULL WITH po.nuts1 AS region, count(*) AS n RETURN region ORDER BY n DESC LIMIT 1",
+        "dummy": "\"South East (England)\""
+      }
+    },
+    {
+      "question": "How many distinct parties have fielded a candidate in Wales?",
+      "difficulty": "hard",
+      "expected": 71,
+      "queries": {
+        "typeql": "match $po isa post, has nuts1 \"Wales\"; $pa isa party; $c isa candidacy, links (party: $pa, ballot: $b); for_post (ballot: $b, post: $po); reduce $x = count groupby $pa; reduce $count = count;",
+        "sql": "SELECT COUNT(DISTINCT ca.party_id) FROM candidacy ca JOIN ballot b ON ca.ballot_paper_id = b.ballot_paper_id JOIN post po ON b.post_id = po.post_id WHERE po.nuts1 = 'Wales';",
+        "cypher": "MATCH (:Post {nuts1: 'Wales'})<-[:FOR_POST]-(:Ballot)<-[:IN_BALLOT]-(c:Candidacy)-[:FOR_PARTY]->(pa:Party) RETURN count(DISTINCT pa)",
+        "dummy": "71"
+      }
+    },
+    {
       "question": "How tall is each candidate?",
       "difficulty": "medium",
       "unanswerable": true

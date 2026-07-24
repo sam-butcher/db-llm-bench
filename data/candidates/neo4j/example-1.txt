@@ -1,0 +1,4 @@
+Question: How many seats have been contested in total?
+```
+MATCH (b:Ballot) RETURN sum(b.seats_contested)
+```

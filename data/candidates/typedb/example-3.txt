@@ -1,0 +1,6 @@
+Question: Which people were born before 1940?
+```
+match $p isa person, has person_name $n, has birth_date $d;
+$d < 1940-01-01;
+select $n;
+```

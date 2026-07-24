@@ -1,0 +1,4 @@
+Question: Are there any people with a Wikipedia page?
+```
+RETURN EXISTS { MATCH (p:Person) WHERE p.wikipedia_url IS NOT NULL }
+```

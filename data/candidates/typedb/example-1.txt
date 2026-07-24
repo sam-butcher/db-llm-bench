@@ -1,0 +1,5 @@
+Question: How many seats have been contested in total?
+```
+match $b isa ballot, has seats_contested $s;
+reduce $sum = sum($s);
+```

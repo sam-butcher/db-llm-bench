@@ -6,9 +6,15 @@ description: Write and debug TypeQL queries for TypeDB 3.8+. Use when working wi
 
 This skill provides comprehensive guidance for writing TypeQL queries against TypeDB databases.
 
+Always enclose TypeQL code snippets with a code block. 'typeql' should be used as the language identifier.
+
+Use `typeql-check` tool to validate TypeQL code blocks if available in `$PATH`.
+
 > **Note (3.8+):** Trailing commas are now allowed in all comma-separated contexts (variable lists, statements, reductions) for easier query composition.
 >
 > **Note (3.8+):** Unicode identifiers are now supported. Type names, attribute names, and variable names can use any Unicode XID_START character followed by XID_CONTINUE characters (e.g., `名前`, `prénom`, `город`).
+>
+> **Note (3.12+):** New this release — the `given` stage for multi-row input (see Quick Reference), the `@doc` / `@meta` schema annotations with their `get_doc(...)` / `get_meta(...)` retrieval built-ins (see Annotations Reference and Built-in Functions), and schema functions definable on abstract types (see Functions).
 
 ## Quick Reference
 
@@ -24,6 +30,7 @@ This skill provides comprehensive guidance for writing TypeQL queries against Ty
 
 ```text
 [with ...]                   -- Inline function preamble
+[given ...]                  -- Bind input rows for multi-row execution (3.12+)
 [define|undefine|redefine]   -- Schema operations
 [match]                      -- Pattern matching
 [insert|put|update|delete]   -- Data mutations
@@ -33,6 +40,27 @@ This skill provides comprehensive guidance for writing TypeQL queries against Ty
 [fetch]                      -- JSON output
 ;                            -- EVERY query MUST end with a semicolon
 ```
+
+### Given (Multi-Row Input) (3.12+)
+
+`given` binds typed variables to input rows supplied alongside the query, then runs the rest of the
+pipeline once per row. This avoids the per-row network and query-compilation overhead of issuing many
+separate queries, and — because the rows are separate from the query string — it is safe from TypeQL
+injection. If a query has a `given` stage, matching rows must be provided (and vice versa).
+
+```typeql
+# Bind one $n per input row, then run the pipeline per row
+given $n: string;
+insert $p isa person, has name == $n;   # value attributes use == in insert
+
+# Given concept rows: run the match against each given $p
+given $p: person;
+match $p has name $n;
+```
+
+Declare each input variable with `given <var>: <type>;` (use `<type>?` for a nullable column, e.g.
+`given $x: integer, $y: integer?;`). Variables bound by `given` cannot be reassigned in later stages.
+Driver APIs supply the actual rows — see the driver README for constructing given inputs.
 
 ---
 
@@ -163,8 +191,12 @@ define
 | `@independent` | `owns tag @independent`         | Attribute exists independently of owner |
 | `@distinct`    | `owns item @distinct`           | Each value can only be owned once       |
 | `@subkey(...)` | `owns code @subkey(region)`     | Composite key with another attribute    |
+| `@doc(...)`    | `person @doc("a client")`       | Human-readable description (3.12+)       |
+| `@meta(...)`   | `person @meta("icon","p.png")`  | Key-value metadata, any number (3.12+)   |
 
 Note:  `@key` and `@unique` can only be put on `owns`, not directly on an attribute value definition.
+
+Note (3.12+): `@doc("text")` and `@meta("key","value")` attach to any type, to `owns`/`plays`/`relates`/`sub` capabilities, and to functions (placed after the signature, before the `:`). Neither is inherited. Read them back with the `get_doc(...)` / `get_meta(...)` built-ins (see Built-in Functions).
 
 ---
 
@@ -236,7 +268,7 @@ match
   $p isa person, has email "alice@example.com";
   $c isa company, has name "Acme Inc";
 insert
-  $_ isa employment (employer: $c, employee: $p),
+  $_ isa employment, links (employer: $c, employee: $p),
     has start_date 2024-01-15;
 ```
 
@@ -300,13 +332,13 @@ delete
 match
   $p isa person, has email "alice@example.com";
   $c isa company, has name "Acme Inc";
-  $e isa employment (employer: $c, employee: $p) ;
+  $e isa employment, links (employer: $c, employee: $p);
 delete
   $e;
 
 # Delete role player from relation (keeps relation)
 match
-  $rel isa membership (member: $old_member, group: $g) ;
+  $rel isa membership, links (member: $old_member, group: $g);
   $old_member has email "alice@example.com";
 delete
   links ($old_member) of $rel;
@@ -333,14 +365,14 @@ match
 fetch {
   "name": $n,
   "email": $e
-}
+};
 
 # Fetch all attributes of entity
 match
   $p isa person, has email "alice@example.com";
 fetch {
   "person": { $p.* }
-}
+};
 
 # Fetch with attribute projection
 match
@@ -348,7 +380,7 @@ match
 fetch {
   "name": $p.name,
   "email": $p.email
-}
+};
 
 # Fetch multi-valued attributes as list
 match
@@ -356,9 +388,11 @@ match
 fetch {
   "name": $p.name,
   "all_nicknames": [ $p.nickname ]
-}
+};
 
 # Nested fetch for related data
+# NOTE: the inner `fetch` inside `[ ... ]` is the terminal stage of a sub-pipeline,
+# so it also needs a trailing `;` (just like the outer fetch).
 match
   $c isa company, has name "Acme Inc";
 fetch {
@@ -368,21 +402,23 @@ fetch {
       employment (employer: $c, employee: $p);
     fetch {
       "name": $p.name
-    }
+    };
   ]
-}
+};
 
 # Fetch with inline function
+# NOTE: the sub-query in parens is a function block — it ends with `return`,
+# not `reduce`. Use `return count;` (or `return first $x;` etc.) for scalar results.
 match
   $c isa company;
 fetch {
   "company": $c.name,
   "employee_count": (
     match
-      (employer: $c, employee: $e) isa employment;
-    reduce $count = count;
+      employment (employer: $c, employee: $e);
+    return count;
   )
-}
+};
 ```
 
 ### Filtering Patterns
@@ -426,7 +462,7 @@ match
   $p2 isa person;
   friendship (friend: $p1, friend: $p2);
   not { $p1 is $p2; };  # Exclude self-friendship
-fetch { "person": $p1.name }
+fetch { "person": $p1.name };
 ```
 
 ### Conjunction (Grouping with AND)
@@ -451,7 +487,7 @@ match
   } or {
     $p has name "Bob";
   };
-fetch { "email": $e }
+fetch { "email": $e };
 ```
 
 ### Negation (NOT)
@@ -464,7 +500,7 @@ match
     $c isa company, has name "Acme Inc";
     employment (employer: $c, employee: $p);
   };
-fetch { "unemployed": $p.name }
+fetch { "unemployed": $p.name };
 ```
 
 ### Optional Patterns (TRY)
@@ -479,14 +515,14 @@ match
 fetch {
   "name": $n,
   "email": $e  # May be null if no email
-}
+};
 ```
 
 ---
 
 ## 5. Stream Operators
 
-Order must be: `sort`, `offset`, `limit`
+These operators can be reordered or repeated within a pipeline.
 
 ```typeql
 # Sort results
@@ -594,7 +630,7 @@ let $remainder = $qty % 3;               # Modulo
 fetch {
   "product": $p.name,
   "total": $total
-}
+};
 ```
 
 ### Assignment and Literals
@@ -606,7 +642,7 @@ let $vat_rate = 0.2;                     # Assign literal
 let $price_with_vat = $price * (1 + $vat_rate);
 fetch {
   "price_with_vat": $price_with_vat
-}
+};
 ```
 
 ### Built-in Functions
@@ -622,30 +658,46 @@ let $absolute = abs($price - 100);       # Absolute value
 let $name_len = len($name);              # String length (note: len, not length)
 let $higher = max($price, 10.0);         # Maximum of two values
 let $lower = min($price, 100.0);         # Minimum of two values
-fetch { "stats": { $rounded, $ceiling, $floored } }
+fetch {
+  "rounded": $rounded,
+  "ceiling": $ceiling,
+  "floored": $floored
+};
 
 # String concatenation
 match
   $u isa user, has first_name $fn, has last_name $ln;
 let $full = concat($fn, " ", $ln);
-fetch { "full_name": $full }
+fetch { "full_name": $full };
 
 # Get IID of a concept (3.8+)
 match
   $p isa person, has email "alice@example.com";
 fetch {
   "iid": iid($p)                         # Get internal identifier
-}
+};
 
 # Get type label (3.8+) - NOTE: label() works on TYPE variables, not instances!
-# Must bind the exact type first using isa! and a type variable
+# Use isa! to bind the exact type of an instance to a type variable.
 match
   $p isa! $t, has email "alice@example.com";
-  $t sub person;                         # Bind $t to exact type of $p
 fetch {
   "iid": iid($p),
   "type": label($t)                      # label() on TYPE variable $t
-}
+};
+
+# Read @doc / @meta schema annotations (3.12+)
+# NOTE: these take TYPE variables - use isa! to bind an instance's exact type.
+match
+  $p isa! $t, has email "alice@example.com";
+fetch {
+  "type": label($t),
+  "doc":  get_doc($t),                   # description set via @doc("...")
+  "icon": get_meta("icon", $t)           # value set via @meta("icon", "...")
+};
+# Capability variants: get_owns_doc / get_plays_doc / get_relates_doc / get_sub_doc,
+# and get_owns_meta / get_plays_meta / get_relates_meta / get_sub_meta
+# (each *_meta takes the key first; *_all_meta variants stream all key-value pairs).
 ```
 
 ---
@@ -658,7 +710,7 @@ fetch {
 match
   $p isa person, has name $name;
 let $tags = ["active", "verified", "premium"];  # List literal
-fetch { "name": $name, "tags": $tags }
+fetch { "name": $name, "tags": $tags };
 ```
 
 ### List Indexing
@@ -668,7 +720,7 @@ match
   $p isa person, has score $scores;  # Multi-valued attribute
 let $first = $scores[0];             # First element (0-indexed)
 let $second = $scores[1];            # Second element
-fetch { "first_score": $first }
+fetch { "first_score": $first };
 ```
 
 ### List Slicing
@@ -678,7 +730,7 @@ match
   $p isa person, has score $scores;
 let $top_three = $scores[0..3];      # Elements 0, 1, 2
 let $rest = $scores[3..10];          # Elements 3 through 9
-fetch { "top_scores": $top_three }
+fetch { "top_scores": $top_three };
 ```
 
 ---
@@ -712,7 +764,7 @@ insert
 match
   $p isa person, has home_address $addr;
   $addr isa address { city: "Boston" };
-fetch { "person": $p.name }
+fetch { "person": $p.name };
 ```
 
 ### Struct Destructuring
@@ -725,7 +777,7 @@ let { city: $city, zip: $zip } = $addr;
 fetch {
   "person": $p.name,
   "city": $city
-}
+};
 ```
 
 ---
@@ -733,6 +785,11 @@ fetch {
 ## 10. Functions
 
 Define reusable query logic in schema.
+
+> **Note (3.12+):** Schema functions may be defined on abstract types (type-checked through the
+> abstract type even when no concrete type satisfies the pattern), letting you split function
+> definitions across modular schema files. Calling such a function from a query or preamble still
+> requires the pattern to be concretely satisfiable, otherwise you get a type-inference error.
 
 ### Function Definition
 
@@ -792,23 +849,23 @@ fun user_exists($email: string) -> boolean:
 # Call function in match with 'let ... in'
 match
   let $emails in get_active_users();
-fetch { "active_emails": $emails }
+fetch { "active_emails": $emails };
 
 # Call function with parameter
 match
   let $projects in get_user_projects("alice@example.com");
-fetch { "projects": $projects }
+fetch { "projects": $projects };
 
 # Call function returning single value
 match
   let $count in count_users();
-fetch { "total_users": $count }
+fetch { "total_users": $count };
 
 # Use function in expression
 match
   $u isa user;
   let $exists in user_exists($u.email);
-fetch { "user": $u.name, "verified": $exists }
+fetch { "user": $u.name, "verified": $exists };
 ```
 
 ### Inline Functions with WITH
@@ -823,7 +880,7 @@ with
 
 match
   let $user in active_in_dept("Engineering");
-fetch { "engineer": $user.name }
+fetch { "engineer": $user.name };
 ```
 
 ---
@@ -834,7 +891,7 @@ fetch { "engineer": $user.name }
 # Match by IID (for direct lookups)
 match
   $entity iid 0x1f0005000000000000012f;
-fetch { "data": { $entity.* } }
+fetch { "data": { $entity.* } };
 
 # Get IID using iid() function (3.8+)
 match
@@ -842,17 +899,16 @@ match
 fetch {
   "person": $p.name,
   "iid": iid($p)
-}
+};
 
 # Get IID and exact type label together (3.8+)
 # NOTE: label() requires a TYPE variable, use isa! to bind it
 match
   $p isa! $t, has email "alice@example.com";
-  $t sub person;
 fetch {
   "iid": iid($p),
   "type": label($t)
-}
+};
 ```
 
 ---
@@ -864,7 +920,7 @@ TypeDB 3.0 and on no longer uses rules, and uses only functions instead.
 
 ## 13. Common Patterns
 
-Note: each clause is not itself terminated with a trailing semicolon, only each statement within a clause is.
+Note: clauses like `match`, `insert`, `update`, and `delete` are not themselves terminated with a trailing semicolon — each statement within them already ends in `;`. The `fetch` clause is the exception: the closing `}` of the fetch object **must** be followed by a terminating `;`.
 
 ### Upsert (Insert if not exists)
 
@@ -884,26 +940,26 @@ insert
 # Query abstract supertype to get all subtypes
 match
   $artifact isa artifact, has name $n;  # Gets all subtypes
-fetch { "name": $n }
+fetch { "name": $n };
 
 # Query exact type only (not subtypes)
 match
   $artifact isa! artifact, has name $n;  # Only direct instances
-fetch { "name": $n }
+fetch { "name": $n };
 ```
 
 ### Graph Traversal
 
 ```typeql
-# Find all connected nodes (1-hop)
+# Find all connected nodes (1-hop via any relation, role types omitted)
 match
   $center isa entity, has id == "target-id";
-  $rel links ($center), links ($neighbor);
+  $_ links ($center, $neighbor);
   not { $neighbor is $center; };
 fetch {
   "center": $center.id,
   "neighbor": $neighbor.id
-}
+};
 ```
 
 ### Existence Check
@@ -912,7 +968,7 @@ fetch {
 # Check if pattern exists
 match
   $u isa user, has email "alice@example.com";
-  not { (member: $u) isa team_membership; };
+  not { team_membership (member: $u); };
 # Returns results only if user exists but has no team
 ```
 
@@ -922,20 +978,26 @@ match
 
 ### TypeDB 3 relation syntax
 
-Relations in TypeDB 3.x use the follow syntax only:
+Use **only** these two forms. Other shapes that parse — e.g. `(<players>) isa <rel-type>` (reversed) or `$r isa <rel-type> (<players>)` (compact-typed) — are deprecated or ambiguous; do not generate them. A bare anonymous relation with no anchor — `(<players>);` — is **not** valid: it needs either a relation type or a relation variable (see polymorphic note below).
 
-Anonyous relation syntax:
-**always use this if you don't need a relation instance variable**
-```
-<rel-type> (<role-type>: <player var>, <role-type-2>, <player var 2>, ...);
+**1. Anonymous (no relation variable):**
+
+```typeql
+<rel-type> (<role-type>: <player var>, <role-type-2>: <player var 2>, ...);
 ```
 
-Variabilized relation syntax (with a variable for the relation instance):
-**only use this if you need a variable for the relation instance**
-```
+Use this when you don't need to refer to the relation instance.
+
+**2. Typed relation variable with `links`:**
+
+```typeql
 $rel-var isa <rel-type>,
-  links (<role-type>: <player var>, <role-type-2>, <player var 2>, ...);
+  links (<role-type>: <player var>, <role-type-2>: <player var 2>, ...);
 ```
+
+Use this when you need a variable for the relation instance — e.g. to delete it, attach `has` to it, or reference it elsewhere in the query.
+
+Role types can be omitted to match any role (`friendship ($a, $b);`). For **fully-polymorphic matching** (matching any relation type), use an anonymous relation variable with `links`: `$_ links ($a, $b);`.
 
 ### Reserved keywords
 
@@ -1100,7 +1162,7 @@ PT1H30M45S  = 1 hour, 30 minutes, 45 seconds
 # Before running delete:
 match
   $u isa user, has status "inactive";
-fetch { "will_delete": $u.email }
+fetch { "will_delete": $u.email };
 
 # Then execute:
 match
@@ -1114,17 +1176,17 @@ delete $u;
 # In read transaction - list entity types
 match
   $type sub entity;
-fetch { "entity_types": $type }
+fetch { "entity_types": $type };
 
 # List relation types
 match
   $rel sub relation;
-fetch { "relation_types": $rel }
+fetch { "relation_types": $rel };
 
 # List attribute types
 match
   $attr sub attribute;
-fetch { "attribute_types": $attr }
+fetch { "attribute_types": $attr };
 ```
 
 ### Verify Cardinality

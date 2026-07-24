@@ -9,7 +9,7 @@ licenses. Retrieved 2026-07 from HEAD of each repo.
 
 | DB | Skill | Source | License |
 | --- | --- | --- | --- |
-| `typedb` | TypeQL (TypeDB 3.8+) | [os-threat/typeql_skills](https://github.com/os-threat/typeql_skills) `skills/typedb/skill.md` | MIT |
+| `typedb` | TypeQL (TypeDB 3.8+) | [typedb/typedb-skills](https://github.com/typedb/typedb-skills) `typeql.md` (official) | first-party (no explicit license file) |
 | `neo4j` | Cypher 25 | [neo4j-contrib/neo4j-skills](https://github.com/neo4j-contrib/neo4j-skills) `neo4j-cypher-skill/SKILL.md` | MIT |
 | `sql` | PostgreSQL best practices | [wimolivier/postgresql-best-practices](https://github.com/wimolivier/postgresql-best-practices) `SKILL.md` | MIT |
 

@@ -8,8 +8,8 @@ model is present.
 
 Retry levels are cumulative-budget views derived from a single execution
 (see _common.py), so grouping by them here is valid — each row is "accuracy
-within that retry budget". Unanswerable questions are excluded (they measure
-UNANSWERABLE detection, a different skill).
+within that retry budget". The `unanswerable` difficulty column reports
+UNANSWERABLE-detection accuracy, not query accuracy.
 
 Usage: analysis/accuracy_by_variation.py [results.json]
 """
@@ -22,9 +22,9 @@ import _common as C
 
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else "results-candidates.json"
-    records = [r for r in C.load_records(path) if not r["unanswerable"]]
+    records = C.load_records(path)
     if not records:
-        sys.exit(f"no answerable records in {path}")
+        sys.exit(f"no records in {path}")
 
     multi_model = len({r["model"] for r in records}) > 1
     diffs = C.diff_order(records)

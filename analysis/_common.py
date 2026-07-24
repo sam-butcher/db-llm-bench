@@ -6,9 +6,9 @@ returned the expected result.
 
 Two facts about the record model matter for correctness:
 
-- Unanswerable questions carry a difficulty but measure a different skill
-  (emitting the UNANSWERABLE token), so they are excluded from the difficulty
-  tables and reported on their own.
+- `unanswerable` is its own difficulty tier. Those questions measure a different
+  skill (emitting the UNANSWERABLE token rather than a correct query), so read
+  the `unanswerable` column as detection accuracy, not query accuracy.
 - The runner executes each run ONCE at the highest configured retry level and
   *derives* a record for every lower level by truncating the attempt trace.
   Records at different `maxRetries` are therefore overlapping views of the same
@@ -19,19 +19,27 @@ Two facts about the record model matter for correctness:
 
 import json
 
-DIFF_ORDER = ["easy", "medium", "hard"]
+DIFF_ORDER = ["easy", "medium", "hard", "unanswerable"]
 
 
 def load_records(path):
-    """Flatten the results JSON into one dict per (question, db, run)."""
+    """Flatten the results JSON into one dict per (question, db, run).
+
+    Unanswerable questions are bucketed under the "unanswerable" difficulty tier
+    from their `unanswerable` flag, not the stored difficulty string — so result
+    files written before "unanswerable" was a difficulty label tabulate the same
+    way as newer ones.
+    """
     data = json.load(open(path))
     records = []
     for q in data["questions"]:
-        base = {"difficulty": q["difficulty"], "unanswerable": q.get("unanswerable", False)}
+        unanswerable = q.get("unanswerable", False)
+        difficulty = "unanswerable" if unanswerable else q["difficulty"]
         for db, info in q["dbs"].items():
             for r in info["results"]:
                 records.append({
-                    **base,
+                    "difficulty": difficulty,
+                    "unanswerable": unanswerable,
                     "db": db,
                     "model": r["model"],
                     "skills": r["skills"],

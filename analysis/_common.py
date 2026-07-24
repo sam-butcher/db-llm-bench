@@ -48,6 +48,7 @@ def load_records(path):
                     "skills": r["skills"],
                     "examples": r["examples"],
                     "maxRetries": r["maxRetries"],
+                    "retriesUsed": r.get("retriesUsed", 0),
                     "repetition": r["repetition"],
                     "accurate": r["accurate"],
                     # For per-run inspection (incorrect_queries.py); other scripts ignore these.

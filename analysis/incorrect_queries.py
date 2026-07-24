@@ -97,9 +97,11 @@ def main():
             actual = "error — " + r["error"].splitlines()[0]
         else:
             actual = fmt_answer(r["actual"])
+        used = ", ".join(str(u) for u in sorted({rec["retriesUsed"] for rec in recs}))
         print("=" * 90)
         print(f"Q: {r['question']}")
         print(f"   config:   {config_str(r, multi_model)}{reps}")
+        print(f"   retries:  {used} of {max_retry} used")
         print(f"   expected: {expected}")
         print(f"   actual:   {actual}")
         print("   expected query:")

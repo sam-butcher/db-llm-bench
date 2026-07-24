@@ -57,6 +57,8 @@ def load_records(path):
                     "correct_query": info.get("correct"),
                     "expected": q.get("expected"),
                     "error": last_error,
+                    # One entry per attempt (the retry trace): the query tried and its error.
+                    "attempts": [{"query": a.get("query"), "error": a.get("error")} for a in attempts],
                 })
     return records
 

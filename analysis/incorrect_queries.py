@@ -4,8 +4,10 @@
 For each run whose generated query did NOT match the expected answer (at the
 highest retry level — the final outcome after all retries), prints the question,
 the run's config (db, skills, example count, model), the expected ground-truth
-query and the generated query, and the expected vs actual answer. Repetitions
-that produced the identical query are collapsed into one entry.
+query, and the expected vs actual answer. When the run used retries, every
+attempt's query (and its error) is listed in order; otherwise just the single
+generated query. Repetitions that produced the identical attempt trace are
+collapsed into one entry.
 
 Rendered as labeled blocks rather than a single-line table because the queries
 are multi-line and would be unreadable truncated into columns.
@@ -78,10 +80,11 @@ def main():
     wrong = [r for r in records if r["maxRetries"] == max_retry and not r["accurate"] and keep(r, filters)]
     multi_model = len({r["model"] for r in records}) > 1
 
-    # Collapse repetitions that produced the identical generated query.
+    # Collapse repetitions that produced the identical attempt trace.
     groups = {}
     for r in wrong:
-        key = (r["model"], r["db"], r["skills"], r["examples"], r["question"], r["generated"], str(r["actual"]))
+        trace = tuple(a["query"] for a in r["attempts"])
+        key = (r["model"], r["db"], r["skills"], r["examples"], r["question"], trace, str(r["actual"]))
         groups.setdefault(key, []).append(r)
 
     filt = (" matching " + ", ".join(f"{k}={v}" for k, v in filters.items())) if filters else ""
@@ -106,8 +109,17 @@ def main():
         print(f"   actual:   {actual}")
         print("   expected query:")
         print(block(r["correct_query"]))
-        print("   generated query:")
-        print(block(r["generated"]))
+        attempts = r["attempts"]
+        if len(attempts) <= 1:
+            print("   generated query:")
+            print(block(r["generated"]))
+        else:
+            for i, a in enumerate(attempts, 1):
+                label = f"attempt {i} (final)" if i == len(attempts) else f"attempt {i}"
+                print(f"   generated query, {label}:")
+                print(block(a["query"]))
+                if a["error"]:
+                    print("        error: " + a["error"].splitlines()[0])
     print()
 
 

@@ -37,9 +37,12 @@ def load_records(path):
         difficulty = "unanswerable" if unanswerable else q["difficulty"]
         for db, info in q["dbs"].items():
             for r in info["results"]:
+                attempts = r.get("attempts") or []
+                last_error = attempts[-1].get("error") if attempts and attempts[-1] else None
                 records.append({
                     "difficulty": difficulty,
                     "unanswerable": unanswerable,
+                    "question": q["question"],
                     "db": db,
                     "model": r["model"],
                     "skills": r["skills"],
@@ -47,6 +50,12 @@ def load_records(path):
                     "maxRetries": r["maxRetries"],
                     "repetition": r["repetition"],
                     "accurate": r["accurate"],
+                    # For per-run inspection (incorrect_queries.py); other scripts ignore these.
+                    "generated": r.get("generated"),
+                    "actual": r.get("result"),
+                    "correct_query": info.get("correct"),
+                    "expected": q.get("expected"),
+                    "error": last_error,
                 })
     return records
 

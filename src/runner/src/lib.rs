@@ -71,6 +71,9 @@ pub fn extract_query(response: &str) -> Extraction {
     if let Some(block) = blocks.pop() {
         let query = block.trim();
         if !query.is_empty() {
+            if query == UNANSWERABLE_TOKEN {
+                return Extraction::Unanswerable;
+            }
             return Extraction::Query(query.to_string());
         }
     }

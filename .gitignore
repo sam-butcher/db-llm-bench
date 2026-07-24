@@ -1,6 +1,7 @@
 .idea
 /target
 *.iml
+__pycache__/
 /results*.json
 /src/local.yml
 **/.DS_STORE

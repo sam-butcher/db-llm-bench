@@ -57,7 +57,7 @@
     },
     {
       "question": "How many people recorded a favourite biscuit?",
-      "difficulty": "medium",
+      "difficulty": "easy",
       "expected": 4805,
       "queries": {
         "typeql": "match $p isa person, has favourite_biscuit $b; reduce $count = count;",
@@ -68,7 +68,7 @@
     },
     {
       "question": "How many candidacies resulted in the candidate being elected?",
-      "difficulty": "medium",
+      "difficulty": "easy",
       "expected": 57824,
       "queries": {
         "typeql": "match $c isa candidacy, has elected true; reduce $count = count;",
@@ -79,7 +79,7 @@
     },
     {
       "question": "How many ballots were by-elections?",
-      "difficulty": "medium",
+      "difficulty": "easy",
       "expected": 2555,
       "queries": {
         "typeql": "match $b isa ballot, has by_election true; reduce $count = count;",
@@ -90,7 +90,7 @@
     },
     {
       "question": "What is the total number of votes cast across all candidacies?",
-      "difficulty": "medium",
+      "difficulty": "easy",
       "expected": 360181591,
       "queries": {
         "typeql": "match $c isa candidacy, has votes_cast $v; reduce $sum = sum($v);",
@@ -101,7 +101,7 @@
     },
     {
       "question": "What is the total number of spoilt ballots across all ballots?",
-      "difficulty": "medium",
+      "difficulty": "easy",
       "expected": 981020,
       "queries": {
         "typeql": "match $b isa ballot, has spoilt_ballots $s; reduce $sum = sum($s);",
@@ -112,7 +112,7 @@
     },
     {
       "question": "What is the highest number of votes cast for a single candidacy?",
-      "difficulty": "medium",
+      "difficulty": "easy",
       "expected": 1088225,
       "queries": {
         "typeql": "match $c isa candidacy, has votes_cast $v; reduce $max = max($v);",
@@ -134,7 +134,7 @@
     },
     {
       "question": "Which party has the most candidacies? Only provide the party name.",
-      "difficulty": "hard",
+      "difficulty": "medium",
       "expected": "Conservative and Unionist Party",
       "queries": {
         "typeql": "match $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa); reduce $n = count($c) groupby $pa, $name; sort $n desc; limit 1; select $name;",
@@ -145,7 +145,7 @@
     },
     {
       "question": "Which party won the most seats, counting only candidacies where the candidate was elected? Only provide the party name.",
-      "difficulty": "hard",
+      "difficulty": "medium",
       "expected": "Conservative and Unionist Party",
       "queries": {
         "typeql": "match $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa), has elected true; reduce $n = count groupby $pa, $name; sort $n desc; limit 1; select $name;",
@@ -156,7 +156,7 @@
     },
     {
       "question": "Which post had the highest total electorate in any single ballot? Only provide the post name.",
-      "difficulty": "hard",
+      "difficulty": "medium",
       "expected": "London Assembly",
       "queries": {
         "typeql": "match $b isa ballot, has total_electorate $te; for_post (ballot: $b, post: $po); $po has post_label $label; sort $te desc; limit 1; select $label;",
@@ -167,7 +167,7 @@
     },
     {
       "question": "What are the top three parties by number of candidacies, most first? Only provide the party names, in order.",
-      "difficulty": "hard",
+      "difficulty": "medium",
       "ordered": true,
       "expected": [
         "Conservative and Unionist Party",
@@ -183,7 +183,7 @@
     },
     {
       "question": "For the party with the most candidacies, what is its name and how many candidacies did it field? Count different parties with the same name as separately.",
-      "difficulty": "hard",
+      "difficulty": "medium",
       "expected": {
         "party": "Conservative and Unionist Party",
         "candidacies": 51521

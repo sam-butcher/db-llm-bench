@@ -350,18 +350,95 @@
       }
     },
     {
-      "question": "How tall is each candidate?",
+      "question": "How many organisations are in the dataset?",
+      "difficulty": "easy",
+      "expected": 486,
+      "queries": {
+        "typeql": "match $o isa organisation; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM organisation;",
+        "cypher": "MATCH (o:Organisation) RETURN count(o)",
+        "dummy": "486"
+      }
+    },
+    {
+      "question": "How many ballots are there in total?",
+      "difficulty": "easy",
+      "expected": 39271,
+      "queries": {
+        "typeql": "match $b isa ballot; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM ballot;",
+        "cypher": "MATCH (b:Ballot) RETURN count(b)",
+        "dummy": "39271"
+      }
+    },
+    {
+      "question": "How many candidacies were for the Labour Party?",
       "difficulty": "medium",
+      "expected": 43936,
+      "queries": {
+        "typeql": "match $pa isa party, has party_name \"Labour Party\"; $c isa candidacy, links (party: $pa); reduce $count = count($c);",
+        "sql": "SELECT COUNT(*) FROM candidacy c JOIN party p ON c.party_id = p.party_id WHERE p.party_name = 'Labour Party';",
+        "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(:Party {party_name: 'Labour Party'}) RETURN count(c)",
+        "dummy": "43936"
+      }
+    },
+    {
+      "question": "How many ballots were held for the 2024 general election?",
+      "difficulty": "medium",
+      "expected": 650,
+      "queries": {
+        "typeql": "match $e isa election, has election_id \"parl.2024-07-04\"; $b isa ballot; at_election (ballot: $b, election: $e); reduce $count = count($b);",
+        "sql": "SELECT COUNT(*) FROM ballot WHERE election_id = 'parl.2024-07-04';",
+        "cypher": "MATCH (b:Ballot)-[:AT_ELECTION]->(:Election {election_id: 'parl.2024-07-04'}) RETURN count(b)",
+        "dummy": "650"
+      }
+    },
+    {
+      "question": "Which organisation has held the most ballots? Only provide the organisation name.",
+      "difficulty": "medium",
+      "expected": "House of Commons of the United Kingdom",
+      "queries": {
+        "typeql": "match $o isa organisation, has organisation_name $name; $b isa ballot; elects_to (ballot: $b, organisation: $o); reduce $n = count($b) groupby $o, $name; sort $n desc; limit 1; select $name;",
+        "sql": "SELECT organisation_name FROM ballot WHERE organisation_name IS NOT NULL GROUP BY organisation_name ORDER BY COUNT(*) DESC LIMIT 1;",
+        "cypher": "MATCH (b:Ballot)-[:ELECTS_TO]->(o:Organisation) WITH o, count(b) AS n RETURN o.organisation_name ORDER BY n DESC LIMIT 1",
+        "dummy": "\"House of Commons of the United Kingdom\""
+      }
+    },
+    {
+      "question": "How many distinct people have been elected?",
+      "difficulty": "medium",
+      "expected": 35451,
+      "queries": {
+        "typeql": "match $p isa person; $c isa candidacy, links (candidate: $p), has elected true; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "SELECT COUNT(DISTINCT person_id) FROM candidacy WHERE elected = true;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy) WHERE c.elected = true RETURN count(DISTINCT p)",
+        "dummy": "35451"
+      }
+    },
+    {
+      "question": "Is there any candidate who was elected without any recorded votes?",
+      "difficulty": "medium",
+      "expected": true,
+      "queries": {
+        "typeql": "with fun elected_no_votes() -> boolean:\n  match $c isa candidacy, has elected true; not { $c has votes_cast $v; };\n  return check;\nmatch\nlet $exists = elected_no_votes();",
+        "sql": "SELECT EXISTS (SELECT 1 FROM candidacy WHERE elected = true AND votes_cast IS NULL);",
+        "cypher": "RETURN EXISTS { MATCH (c:Candidacy) WHERE c.elected = true AND c.votes_cast IS NULL }",
+        "dummy": "true"
+      }
+    },
+    {
+      "question": "How tall is each candidate?",
+      "difficulty": "unanswerable",
       "unanswerable": true
     },
     {
       "question": "How much did each candidate spend on their campaign?",
-      "difficulty": "medium",
+      "difficulty": "unanswerable",
       "unanswerable": true
     },
     {
       "question": "What is the phone number of each candidate?",
-      "difficulty": "easy",
+      "difficulty": "unanswerable",
       "unanswerable": true
     }
   ]

@@ -383,7 +383,7 @@
       }
     },
     {
-      "question": "How many people stood as candidates in both the 2019 and the 2024 general elections?",
+      "question": "How many people stood as candidates in both the 2019 and the 2024 general elections (IDs parl.2019-12-12 and parl.2024-07-04)?",
       "difficulty": "hard",
       "expected": 1219,
       "queries": {
@@ -394,7 +394,7 @@
       }
     },
     {
-      "question": "In how many constituencies did the winning party change between the 2015 and the 2019 general elections?",
+      "question": "In how many constituencies did the winning party change between the 2015 and the 2019 general elections (IDs parl.2015-05-07 and parl.2019-12-12)?",
       "difficulty": "hard",
       "expected": 105,
       "queries": {

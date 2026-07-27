@@ -438,7 +438,7 @@
       }
     },
     {
-      "question": "How many people have stood for the Scottish National Party in a Scottish constituency?",
+      "question": "How many people have stood for the 'Scottish National Party (SNP)' in a Scottish constituency?",
       "difficulty": "hard",
       "expected": 1157,
       "queries": {

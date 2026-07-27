@@ -269,7 +269,7 @@ impl BenchmarkRunner<'_> {
         for (question_index, question) in questions.iter().enumerate() {
             let mut records = Vec::with_capacity(REPETITIONS as usize);
             for repetition in 1..=REPETITIONS {
-                eprintln!("Running question {question_index}");
+                eprintln!("Running question {} of {} repetition {repetition} of {}", question_index + 1, questions.len(), REPETITIONS);
                 match self.run_once(question, repetition).await {
                     Ok(record) => records.push(record),
                     Err(error) => {
@@ -475,7 +475,8 @@ impl BenchmarkRunner<'_> {
                 Err(e) if e.is_model_fault() => {
                     return Ok((Err(Fault::Retryable(e.to_string())), latency_ms));
                 }
-                Err(_) if infra_failures < INFRA_RETRIES => {
+                Err(e) if infra_failures < INFRA_RETRIES => {
+                    eprintln!("Received infra failure {}: {}", infra_failures, e);
                     tokio::time::sleep(INFRA_BACKOFF * 2u32.pow(infra_failures)).await;
                     infra_failures += 1;
                 }

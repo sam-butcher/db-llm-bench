@@ -20,13 +20,13 @@ dbs:
         tls: false
       schema: data/candidates/typedb/schema.tql
       examples: data/candidates/typedb
-      skills: data/skills/typedb
+#      skills: data/skills/typedb
   - sql:
       prompts: data/prompts/sql.txt
       url: postgres://bench_ro:bench_ro@localhost/candidates
       schema: data/candidates/sql/schema.sql
       examples: data/candidates/sql
-      skills: data/skills/sql
+#      skills: data/skills/sql
   - neo4j:
       prompts: data/prompts/neo4j.txt
       url: bolt://localhost:7687
@@ -35,7 +35,7 @@ dbs:
         password: password
       schema: data/candidates/neo4j/schema.txt
       examples: data/candidates/neo4j
-      skills: data/skills/neo4j
+#      skills: data/skills/neo4j
 models:
   - claude:
       model: claude-opus-5
@@ -45,7 +45,7 @@ models:
 #      label: qwen3.6-27b-mlx
 questionsPath: data/candidates/questions.json
 exampleCounts:
-  - 3
+  - 1
+#  - 3
 maxRetryCounts:
   - 4
-skillsBaseline: false

@@ -155,7 +155,7 @@
       }
     },
     {
-      "question": "Which party has the most candidacies? Only provide the party name.",
+      "question": "Which party has the most candidacies?",
       "difficulty": "medium",
       "expected": "Conservative and Unionist Party",
       "queries": {
@@ -166,7 +166,7 @@
       }
     },
     {
-      "question": "Which party won the most seats, counting only candidacies where the candidate was elected? Only provide the party name.",
+      "question": "Which party won the most seats, counting only candidacies where the candidate was elected?",
       "difficulty": "medium",
       "expected": "Conservative and Unionist Party",
       "queries": {
@@ -177,7 +177,7 @@
       }
     },
     {
-      "question": "Which post had the highest total electorate in any single ballot? Only provide the post name.",
+      "question": "Which post had the highest total electorate in any single ballot?",
       "difficulty": "medium",
       "expected": "London Assembly",
       "queries": {
@@ -188,7 +188,7 @@
       }
     },
     {
-      "question": "What are the top three parties by number of candidacies, most first? Only provide the party names, in order.",
+      "question": "What are the top three parties by number of candidacies, most first?",
       "difficulty": "medium",
       "ordered": true,
       "expected": [
@@ -240,7 +240,7 @@
       }
     },
     {
-      "question": "Which organisation has held the most ballots? Only provide the organisation name.",
+      "question": "Which organisation has held the most ballots?",
       "difficulty": "medium",
       "expected": "House of Commons of the United Kingdom",
       "queries": {
@@ -284,7 +284,7 @@
       }
     },
     {
-      "question": "What is the greatest number of distinct people to stand as candidates in a single election? Only provide the number.",
+      "question": "What is the greatest number of distinct people to stand as candidates in a single election?",
       "difficulty": "hard",
       "expected": 4515,
       "queries": {
@@ -317,7 +317,7 @@
       }
     },
     {
-      "question": "What is the largest number of candidates standing in a single ballot? Only provide the number.",
+      "question": "What is the largest number of candidates standing in a single ballot?",
       "difficulty": "hard",
       "expected": 171,
       "queries": {
@@ -328,7 +328,7 @@
       }
     },
     {
-      "question": "Which party won the most seats in the 2024 general election? Only provide the party name.",
+      "question": "Which party won the most seats in the 2024 general election?",
       "difficulty": "hard",
       "expected": "Labour Party",
       "queries": {
@@ -350,7 +350,7 @@
       }
     },
     {
-      "question": "What is the greatest number of distinct elections that any single post has been contested in? Only provide the number.",
+      "question": "What is the greatest number of distinct elections that any single post has been contested in?",
       "difficulty": "hard",
       "expected": 11,
       "queries": {
@@ -361,7 +361,7 @@
       }
     },
     {
-      "question": "Which organisation, other than the House of Commons of the United Kingdom, has returned the most elected representatives? Only provide the organisation name.",
+      "question": "Which organisation, other than the House of Commons of the United Kingdom, has returned the most elected representatives?",
       "difficulty": "hard",
       "expected": "Scottish Parliament",
       "queries": {
@@ -383,7 +383,7 @@
       }
     },
     {
-      "question": "Which election had the most distinct parties standing? Only provide the election id.",
+      "question": "Which election had the most distinct parties standing?",
       "difficulty": "hard",
       "expected": "parl.2015-05-07",
       "queries": {
@@ -405,7 +405,7 @@
       }
     },
     {
-      "question": "Which party has won the most seats in Scotland? Only provide the party name.",
+      "question": "Which party has won the most seats in Scotland?",
       "difficulty": "hard",
       "expected": "Scottish National Party (SNP)",
       "queries": {
@@ -416,7 +416,7 @@
       }
     },
     {
-      "question": "In which region have the most candidacies been contested? Only provide the region name.",
+      "question": "In which region have the most candidacies been contested?",
       "difficulty": "hard",
       "expected": "South East (England)",
       "queries": {

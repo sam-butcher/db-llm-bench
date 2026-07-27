@@ -11,7 +11,7 @@
 # Config via env vars (defaults shown):
 #   ADDRESS=localhost:1729 DB_USER=admin DB_PASS=password DB=candidates
 #   BATCH_ROWS=1000 PARALLEL=1
-#   RAW=<repo>/data/candidates/data.csv
+#   RAW=<repo>/data/candidates/data.csv.gz  (plain .csv also accepted)
 #   WORK=<here>/work            writable dir for the cleaned CSV + projections
 #   CLEANED_CSV=<unset>         if set, use this pre-cleaned CSV and skip cleaning
 # (DB_USER/DB_PASS, not USER/PASS: USER is a standard shell variable and would
@@ -33,7 +33,7 @@ BATCH_ROWS="${BATCH_ROWS:-1000}"
 # batch is rejected. Dedup buys large batches, not parallel commits. Large
 # batches alone are already ~1000x fewer transactions than --batch-rows 1.
 PARALLEL="${PARALLEL:-1}"
-RAW="${RAW:-$CAND/data.csv}"
+RAW="${RAW:-$CAND/data.csv.gz}"
 
 SCHEMA="$CAND/typedb/schema.tql"
 WORK="${WORK:-$HERE/work}"

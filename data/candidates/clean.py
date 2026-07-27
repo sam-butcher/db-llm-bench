@@ -5,8 +5,10 @@ since e.g. TypeDB wants `T`-separated, offset-free datetimes while Postgres
 accepts the raw timestamptz. Default dialect: typedb.
 
 Usage: clean.py [IN_CSV] [OUT_CSV] [--dialect typedb]
+
+IN_CSV may be gzip-compressed (`.gz`); the committed source is `data.csv.gz`.
 """
-import csv, re, sys
+import csv, gzip, re, sys
 
 BOOL_COLS = ["election_current", "cancelled_poll", "by_election",
              "party_lists_in_use", "candidates_locked", "elected", "tied_vote_winner"]
@@ -89,11 +91,17 @@ def strip_quotes(v):
         return v[1:-1]
     return v
 
+def open_source(path):
+    # The committed source is gzip-compressed; a plain .csv still works.
+    if path.endswith(".gz"):
+        return gzip.open(path, "rt", newline="")
+    return open(path, newline="")
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    src = args[0] if args else "data/candidates/data.csv"
+    src = args[0] if args else "data/candidates/data.csv.gz"
     dst = args[1] if len(args) > 1 else "data/candidates/data.cleaned.csv"
-    with open(src, newline="") as fi, open(dst, "w", newline="") as fo:
+    with open_source(src) as fi, open(dst, "w", newline="") as fo:
         r = csv.DictReader(fi)
         w = csv.DictWriter(fo, fieldnames=r.fieldnames)
         w.writeheader()

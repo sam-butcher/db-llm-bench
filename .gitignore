@@ -6,5 +6,9 @@ __pycache__/
 /src/local.yml
 **/.DS_STORE
 
+# The candidates source is committed gzip-compressed (data.csv.gz); the
+# uncompressed form is too large for GitHub, so keep it out of the repo.
+/data/candidates/data.csv
+
 # TypeDB multi-pass load: derived projections and cleaned CSVs
 /data/candidates/typedb/passes/work/

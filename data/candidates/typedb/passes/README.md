@@ -69,7 +69,7 @@ data/candidates/typedb/passes/load.sh
 
 Config via env vars (defaults): `ADDRESS=localhost:1729`, `DB_USER=admin`,
 `DB_PASS=password`, `DB=candidates`, `BATCH_ROWS=1000`, `PARALLEL=1`,
-`RAW=data/candidates/data.csv`. (`DB_USER`/`DB_PASS`, not `USER`/`PASS`: `USER`
+`RAW=data/candidates/data.csv.gz`. (`DB_USER`/`DB_PASS`, not `USER`/`PASS`: `USER`
 is a standard shell variable and would shadow the default.) Pass 1 creates the
 database and installs `../schema.tql`; the rest load into it. Derived CSVs are
 written to `work/` (git-ignored).

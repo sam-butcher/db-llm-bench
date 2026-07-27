@@ -30,7 +30,7 @@ services:
       - sh
       - -c
       - >
-        python3 /candidates/clean.py /candidates/data.csv /out/data.cleaned.csv &&
+        python3 /candidates/clean.py /candidates/data.csv.gz /out/data.cleaned.csv &&
         cp /out/data.cleaned.csv /out-neo4j/data.cleaned.csv &&
         chmod 0644 /out/data.cleaned.csv /out-neo4j/data.cleaned.csv
 

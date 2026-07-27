@@ -383,7 +383,7 @@
       }
     },
     {
-      "question": "Which election had the most distinct parties standing?",
+      "question": "What's the ID of the election that had the most distinct parties standing?",
       "difficulty": "hard",
       "expected": "parl.2015-05-07",
       "queries": {

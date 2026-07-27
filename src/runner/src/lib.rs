@@ -21,7 +21,7 @@ const TRANSIENT_BACKOFF: Duration = Duration::from_secs(1);
 
 /// Harness-level retries for DB infrastructure errors (dropped connections,
 /// restarts) — the DB-side mirror of the transient provider policy.
-pub const INFRA_RETRIES: u32 = 3;
+pub const INFRA_RETRIES: u32 = 5;
 const INFRA_BACKOFF: Duration = Duration::from_millis(500);
 
 /// Defensive ceilings only: packages own the real timeouts. These convert a
@@ -188,33 +188,59 @@ struct AttemptOutcome {
     outcome: Result<Success, Fault>,
 }
 
-/// The question text, plus a standardized field-naming instruction when
-/// the expected value is object-shaped — every model and DB gets the
-/// identical sentence, so field naming is scored uniformly with `expected`
-/// as the single source of truth.
+/// The question text, plus a standardized instruction describing the required
+/// return shape — every model and DB gets the identical sentence, derived from
+/// `expected`, so return type is scored uniformly with `expected` as the single
+/// source of truth (like field naming for objects). Unanswerable questions have
+/// no `expected`, so they get the bare question.
 fn question_text(question: &Question) -> String {
-    match question.expected.as_ref().and_then(expected_fields) {
-        Some(fields) => format!(
-            "{}\nName the output fields exactly: {}.",
+    match question.expected.as_ref() {
+        Some(expected) => format!(
+            "{}\n{}",
             question.question,
-            fields.join(", ")
+            return_shape_instruction(expected)
         ),
         None => question.question.clone(),
     }
 }
 
-/// The field names implied by the expected value: an object's keys, or the
-/// keys of the row objects in a list (rows share one shape).
-fn expected_fields(expected: &Value) -> Option<Vec<String>> {
-    let object = match expected {
-        Value::Object(object) => Some(object),
-        Value::List(rows) => rows.iter().find_map(|row| match row {
+/// The return-shape instruction implied by the expected value's type. Objects
+/// (and row objects in a list) additionally get the exact field names, which
+/// the model must reproduce for the result to match.
+fn return_shape_instruction(expected: &Value) -> String {
+    let field_names = |keys: std::collections::btree_map::Keys<'_, String, Value>| {
+        keys.cloned().collect::<Vec<_>>().join(", ")
+    };
+    match expected {
+        Value::Bool(_) => "Return a single boolean value, true or false.".to_string(),
+        Value::Int(_) => "Return a single integer.".to_string(),
+        Value::Float(_) => "Return a single number.".to_string(),
+        Value::String(_) => "Return a single text value.".to_string(),
+        Value::Null => "Return a single value.".to_string(),
+        Value::Object(object) => format!(
+            "Return a single row. Name the output fields exactly: {}.",
+            field_names(object.keys())
+        ),
+        Value::List(rows) => match rows.iter().find_map(|row| match row {
             Value::Object(object) => Some(object),
             _ => None,
-        }),
-        _ => None,
-    }?;
-    Some(object.keys().cloned().collect())
+        }) {
+            Some(object) => format!(
+                "Return one row per result. Name the output fields exactly: {}.",
+                field_names(object.keys())
+            ),
+            None => {
+                let kind = match rows.first() {
+                    Some(Value::Int(_)) => "integer ",
+                    Some(Value::Float(_)) => "numeric ",
+                    Some(Value::Bool(_)) => "boolean ",
+                    Some(Value::String(_)) => "text ",
+                    _ => "",
+                };
+                format!("Return a list of {kind}values.")
+            }
+        },
+    }
 }
 
 /// Feedback for a retryable fault: honest about whether a query ran and
@@ -521,30 +547,46 @@ mod run_tests {
     }
 
     #[test]
-    fn object_expectations_append_the_naming_instruction() {
+    fn question_text_appends_a_return_shape_instruction() {
+        let q = "How many cars are there?";
+        // Scalars: type + single-value cardinality.
+        assert_eq!(
+            question_text(&question(Value::Int(3))),
+            format!("{q}\nReturn a single integer.")
+        );
+        assert_eq!(
+            question_text(&question(Value::String("Tesla".into()))),
+            format!("{q}\nReturn a single text value.")
+        );
+        assert_eq!(
+            question_text(&question(Value::Bool(true))),
+            format!("{q}\nReturn a single boolean value, true or false.")
+        );
+        // A list of scalars: element type + list cardinality.
+        assert_eq!(
+            question_text(&question(Value::List(vec![Value::String("Ford".into())]))),
+            format!("{q}\nReturn a list of text values.")
+        );
+        // Objects keep the exact field-naming instruction (load-bearing for
+        // matching), now with single-row cardinality.
         let object = Value::Object(BTreeMap::from([
             ("model".to_string(), Value::String("Model 3".into())),
             ("brand".to_string(), Value::String("Tesla".into())),
         ]));
-        // Object keys drive the instruction (alphabetical, per BTreeMap).
         assert_eq!(
             question_text(&question(object.clone())),
-            "How many cars are there?\nName the output fields exactly: brand, model."
+            format!("{q}\nReturn a single row. Name the output fields exactly: brand, model.")
         );
-        // A list of row objects derives from the rows' shared shape.
+        // A list of row objects: one row per result, same field naming.
         assert_eq!(
             question_text(&question(Value::List(vec![object]))),
-            "How many cars are there?\nName the output fields exactly: brand, model."
+            format!(
+                "{q}\nReturn one row per result. Name the output fields exactly: brand, model."
+            )
         );
-        // Scalar and scalar-list expectations get no instruction.
-        assert_eq!(
-            question_text(&question(Value::Int(3))),
-            "How many cars are there?"
-        );
-        assert_eq!(
-            question_text(&question(Value::List(vec![Value::Int(3)]))),
-            "How many cars are there?"
-        );
+        // Unanswerable (no expected) gets the bare question, no instruction.
+        let unanswerable = unanswerable_question();
+        assert_eq!(question_text(&unanswerable), unanswerable.question);
     }
 
     fn runner<'a>(db: &'a DummyDb, provider: &'a DummyProvider) -> BenchmarkRunner<'a> {

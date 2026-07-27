@@ -59,13 +59,15 @@ Inputs (taken in through config file - see config.yml for a suggested format):
   - a question may set `"ordered": true` when the order of a top-level list result is part of
     correctness (i.e. the question demands an ordering); the default is unordered, comparing rows as a
     bag. Nested lists always compare ordered, as tuples
-  - when `expected` is an object (or a list of row objects), its keys define the answer's field names:
-    the runner appends a standardized naming instruction to the prompt ("Name the output fields
-    exactly: ...") so field naming is a uniform, explicit part of the task, with `expected` as the
-    single source of truth. The Neo4j package strips plain property-access prefixes (`c.brand` ->
-    `brand`) so unaliased Cypher isn't unfairly penalised; TypeDB may answer via row variables or
-    `fetch` documents — both produce keyed objects
-  - We may augment each question with its expected return type (e.g. numeric vs object), so the framework knows how to compare results for that question
+  - the runner appends a standardized return-shape instruction to every answerable question's prompt,
+    derived from `expected`'s type, so return type is a uniform, explicit part of the task with
+    `expected` as the single source of truth (rather than each question spelling it out). A scalar
+    gives "Return a single integer/number/text value/boolean"; a list of scalars gives "Return a list
+    of <type> values"; an object (or list of row objects) gives "Return a single row / one row per
+    result. Name the output fields exactly: ..." — the field names come from the object's keys, which
+    the model must reproduce for the result to match. The Neo4j package strips plain property-access
+    prefixes (`c.brand` -> `brand`) so unaliased Cypher isn't unfairly penalised; TypeDB may answer
+    via row variables or `fetch` documents — both produce keyed objects
 - Example counts
   - List of numbers indicating what level of examples we should test with
   - We expect the examples folder to optionally contain a list of example queries (as separate files, e.g. example-1.txt, example-2.txt)

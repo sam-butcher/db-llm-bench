@@ -51,6 +51,9 @@ def load_records(path):
                     "retriesUsed": r.get("retriesUsed", 0),
                     "repetition": r["repetition"],
                     "accurate": r["accurate"],
+                    # Record-level token totals (already summed over this record's
+                    # attempts by the runner). Used by token_usage.py.
+                    "tokens": r.get("tokens") or {"input": 0, "output": 0},
                     # For per-run inspection (incorrect_queries.py); other scripts ignore these.
                     "generated": r.get("generated"),
                     "actual": r.get("result"),

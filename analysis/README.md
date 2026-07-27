@@ -9,11 +9,13 @@ and defaults to `results-candidates.json`.
 | `accuracy_by_db.py` | Accuracy per DB × difficulty, collapsing all run variations (highest retry level; averaged over example count, skills, repetitions). |
 | `accuracy_by_variation.py` | Accuracy per (model, db, skills, examples, retries) × difficulty — one row per variation, so you can see the effect of skill injection, few-shot count, and retry budget. |
 | `incorrect_queries.py` | Every failing run: the question, its config, the expected and generated queries, and the expected vs actual answer. For debugging *what* the model got wrong. Accepts `key=value` filters (`db=`, `difficulty=`, `model=`, `examples=`, `skills=on\|off`). |
+| `token_usage.py` | Total model tokens used (input/output), broken down by model and DB, plus run and call counts. |
 
 ```sh
 analysis/accuracy_by_db.py results-candidates.json
 analysis/accuracy_by_variation.py results-candidates.json
 analysis/incorrect_queries.py results-candidates.json db=sql difficulty=hard
+analysis/token_usage.py results-candidates.json
 ```
 
 Notes (see `_common.py`):
@@ -24,5 +26,6 @@ Notes (see `_common.py`):
   different skill from query generation.
 - **Retry levels** are derived: the runner executes each run once at the highest
   configured retry level and truncates the attempt trace for the lower ones. So
-  averaging across levels double-counts — `accuracy_by_db` collapses to the
-  highest level, `accuracy_by_variation` groups by it.
+  summing/averaging across levels double-counts — `accuracy_by_db` and
+  `token_usage` count at the highest level only; `accuracy_by_variation` groups
+  by it; `incorrect_queries` reports the highest-level (final) outcome.

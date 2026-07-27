@@ -72,11 +72,13 @@ fn seed_db_slots(
     }
 }
 
-/// Skills on/off is a test dimension; DBs without a skills folder only run
-/// with skills off.
-fn skills_variants(skills: &Option<Vec<String>>) -> Vec<Option<Vec<String>>> {
+/// Skills on/off is a test dimension. A DB with a skills folder runs both
+/// off and on when `baseline` is set (the default), or on-only when it isn't.
+/// DBs without a skills folder only ever run with skills off.
+fn skills_variants(skills: &Option<Vec<String>>, baseline: bool) -> Vec<Option<Vec<String>>> {
     match skills {
-        Some(skills) => vec![None, Some(skills.clone())],
+        Some(skills) if baseline => vec![None, Some(skills.clone())],
+        Some(skills) => vec![Some(skills.clone())],
         None => vec![None],
     }
 }
@@ -307,6 +309,16 @@ fn validate_models(models: &Vec<Box<dyn ModelProvider>>) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The run's test dimensions, derived from the config.
+struct RunPlan<'a> {
+    example_counts: &'a [u32],
+    /// Retry levels to derive records at; the run executes at their max.
+    retry_levels: &'a [u32],
+    max_retries: u32,
+    /// Whether skilled DBs also run a skills-off baseline (see [`skills_variants`]).
+    skills_baseline: bool,
+}
+
 /// Run every DB x model x example-count x skills combination, folding
 /// records into `outputs`. All inputs were validated by `prepare_dbs` and
 /// `build_models`, so only runtime failures remain; on an unrecoverable
@@ -316,15 +328,13 @@ async fn run_benchmarks(
     questions: &QuestionFile,
     dbs: &[PreparedDb<'_>],
     models: &[Box<dyn ModelProvider>],
-    example_counts: &[u32],
-    retry_levels: &[u32],
-    max_retries: u32,
+    plan: &RunPlan<'_>,
     outputs: &mut [QuestionOutput],
 ) -> Option<String> {
     for prepared in dbs {
         for model in models {
-            for &example_count in example_counts {
-                for skills in skills_variants(&prepared.assets.skills) {
+            for &example_count in plan.example_counts {
+                for skills in skills_variants(&prepared.assets.skills, plan.skills_baseline) {
                     eprintln!(
                         "Running for {} against {} with skills {}",
                         prepared.db.query_language(),
@@ -342,16 +352,18 @@ async fn run_benchmarks(
                         schema: prepared.assets.schema.clone(),
                         examples: prepared.assets.examples[..example_count as usize].to_vec(),
                         skills,
-                        max_retries,
+                        max_retries: plan.max_retries,
                     };
                     match runner.run(&questions.questions).await {
-                        Ok(runs) => append_run_records(outputs, prepared.id, retry_levels, runs),
+                        Ok(runs) => {
+                            append_run_records(outputs, prepared.id, plan.retry_levels, runs)
+                        }
                         Err(failure) => {
                             let message = format!("aborted on DB {}: {failure}", prepared.id);
                             append_run_records(
                                 outputs,
                                 prepared.id,
-                                retry_levels,
+                                plan.retry_levels,
                                 failure.completed,
                             );
                             return Some(message);
@@ -400,16 +412,13 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let abort = run_benchmarks(
-        &questions,
-        &dbs,
-        &models,
-        &config.example_counts,
-        &retry_levels,
+    let plan = RunPlan {
+        example_counts: &config.example_counts,
+        retry_levels: &retry_levels,
         max_retries,
-        &mut outputs,
-    )
-    .await;
+        skills_baseline: config.skills_baseline,
+    };
+    let abort = run_benchmarks(&questions, &dbs, &models, &plan, &mut outputs).await;
 
     let output = BenchmarkOutput { questions: outputs };
     bench_output::write_output(&output_path, &output)
@@ -453,6 +462,17 @@ mod tests {
                 queries: BTreeMap::from([("sql".to_string(), "SELECT 1".to_string())]),
             }],
         }
+    }
+
+    #[test]
+    fn skills_variants_honour_the_baseline_flag() {
+        let skill = Some(vec!["skill".to_string()]);
+        // A skilled DB: off+on with baseline, on-only without.
+        assert_eq!(skills_variants(&skill, true), vec![None, skill.clone()]);
+        assert_eq!(skills_variants(&skill, false), vec![skill.clone()]);
+        // A skill-less DB always runs its single skills-off variant, regardless.
+        assert_eq!(skills_variants(&None, true), vec![None]);
+        assert_eq!(skills_variants(&None, false), vec![None]);
     }
 
     /// A dataset with no examples folder is confined to an example count of

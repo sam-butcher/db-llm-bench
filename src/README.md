@@ -78,6 +78,10 @@ Inputs (taken in through config file - see config.yml for a suggested format):
     don't count as retries - the harness retries those itself with backoff, without involving the model
   - On retry, the LLM receives the prior conversation plus the error message
   - Runs only execute at the highest configured retry count; results for the lower counts are derived from the attempt trace rather than re-run
+- skillsBaseline (optional, default true)
+  - When a DB configures a skill it is normally run both with and without the skill, for an on/off comparison
+  - Set `skillsBaseline: false` to skip the skills-off baseline, running skilled DBs with the skill only
+  - DBs with no skill are unaffected - skills-off is their only mode either way
 
 Before any benchmarking begins, the full configuration is validated up-front, so a bad combination
 fails immediately rather than partway through a run: every provider and DB client is built, each DB

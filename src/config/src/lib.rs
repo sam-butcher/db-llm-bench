@@ -56,6 +56,16 @@ pub struct Config {
     /// Runs only execute at the highest count; lower levels are derived from
     /// the attempt trace.
     pub max_retry_counts: Vec<u32>,
+    /// Whether a DB that configures a skill also runs a skills-off baseline
+    /// (for on/off comparison). Defaults to true; set false to run skilled DBs
+    /// with the skill only. DBs without a skill are unaffected — skills-off is
+    /// their only mode either way.
+    #[serde(default = "default_true")]
+    pub skills_baseline: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize)]
@@ -253,11 +263,32 @@ maxRetryCounts: [0, 2]
         assert_eq!(dbs[0].1.url, "unused");
         assert_eq!(dbs[0].1.auth, Some(serde_json::json!({"user": "admin"})));
         assert!(dbs[0].1.skills.is_none());
+        assert!(config.skills_baseline, "defaults to true when omitted");
 
         let models: Vec<_> = config.model_entries().collect();
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].0, "dummy");
         assert_eq!(models[0].1, &serde_json::json!({"responses": ["select 1"]}));
+    }
+
+    #[test]
+    fn skills_baseline_can_be_disabled() {
+        let yaml = "\
+dbs:
+  - dummy:
+      prompts: p
+      url: u
+      schema: s
+models:
+  - dummy:
+      responses: [\"x\"]
+questionsPath: q.json
+exampleCounts: [0]
+maxRetryCounts: [0]
+skillsBaseline: false
+";
+        let config: Config = yaml.parse().unwrap();
+        assert!(!config.skills_baseline);
     }
 
     #[test]

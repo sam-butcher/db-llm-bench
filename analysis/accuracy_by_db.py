@@ -3,7 +3,7 @@
 
 Uses the highest configured retry level (the final outcome after all retries)
 and averages over example counts, skills, and repetitions, so each DB gets one
-row of accuracy per difficulty tier (easy / medium / hard / unanswerable) plus
+row of accuracy per difficulty tier (easy / medium / hard / expert / unanswerable) plus
 overall. The `unanswerable` column is UNANSWERABLE-detection accuracy, not query
 accuracy. For the per-variation breakdown, use accuracy_by_variation.py.
 

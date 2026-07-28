@@ -438,6 +438,176 @@
       }
     },
     {
+      "question": "At the 2024 general election (election ID parl.2024-07-04), in how many ballots did the elected candidate receive less than 40% of all the votes cast in that ballot?",
+      "difficulty": "expert",
+      "expected": 266,
+      "queries": {
+        "typeql": "match $e isa election, has election_id \"parl.2024-07-04\"; $b isa ballot; at_election (ballot: $b, election: $e); $w isa candidacy, links (ballot: $b), has elected true, has votes_cast $wv; $c isa candidacy, links (ballot: $b), has votes_cast $v; reduce $total = sum($v) groupby $b, $wv; match let $share = $wv * 100; let $bar = $total * 40; $share < $bar; reduce $count = count;",
+        "sql": "WITH tot AS (SELECT c.ballot_paper_id, SUM(c.votes_cast) AS total FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id = 'parl.2024-07-04' GROUP BY c.ballot_paper_id) SELECT COUNT(*) FROM tot JOIN candidacy w ON w.ballot_paper_id = tot.ballot_paper_id WHERE w.elected = true AND w.votes_cast * 100 < tot.total * 40;",
+        "cypher": "MATCH (:Election {election_id: 'parl.2024-07-04'})<-[:AT_ELECTION]-(b:Ballot)<-[:IN_BALLOT]-(c:Candidacy) WITH b, sum(c.votes_cast) AS total MATCH (b)<-[:IN_BALLOT]-(w:Candidacy) WHERE w.elected = true AND w.votes_cast * 100 < total * 40 RETURN count(*)",
+        "dummy": "266"
+      }
+    },
+    {
+      "question": "At the 2024 general election (election ID parl.2024-07-04), what is the smallest margin of victory in any ballot, where the margin is the elected candidate's votes minus the highest votes cast for any other candidate in the same ballot?",
+      "difficulty": "expert",
+      "expected": 15,
+      "queries": {
+        "typeql": "match $e isa election, has election_id \"parl.2024-07-04\"; $b isa ballot; at_election (ballot: $b, election: $e); $w isa candidacy, links (ballot: $b), has elected true, has votes_cast $wv; $c isa candidacy, links (ballot: $b), has votes_cast $v; not { $c is $w; }; reduce $runner = max($v) groupby $b, $wv; match let $margin = $wv - $runner; reduce $min = min($margin);",
+        "sql": "WITH w AS (SELECT c.ballot_paper_id, c.votes_cast AS v FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id = 'parl.2024-07-04' AND c.elected = true), r AS (SELECT c.ballot_paper_id, MAX(c.votes_cast) AS v FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id = 'parl.2024-07-04' AND c.elected IS NOT TRUE GROUP BY c.ballot_paper_id) SELECT MIN(w.v - r.v) FROM w JOIN r ON w.ballot_paper_id = r.ballot_paper_id;",
+        "cypher": "MATCH (:Election {election_id: 'parl.2024-07-04'})<-[:AT_ELECTION]-(b:Ballot)<-[:IN_BALLOT]-(w:Candidacy) WHERE w.elected = true MATCH (b)<-[:IN_BALLOT]-(c:Candidacy) WHERE c <> w WITH b, w.votes_cast AS wv, max(c.votes_cast) AS runner RETURN min(wv - runner)",
+        "dummy": "15"
+      }
+    },
+    {
+      "question": "How many people were elected at the 2015 general election (parl.2015-05-07), stood again for the same post at the 2019 general election (parl.2019-12-12), and were not elected that time?",
+      "difficulty": "expert",
+      "expected": 46,
+      "queries": {
+        "typeql": "match $p isa person; $po isa post; $c1 isa candidacy, links (candidate: $p, ballot: $b1), has elected true; for_post (ballot: $b1, post: $po); at_election (ballot: $b1, election: $e1); $e1 has election_id \"parl.2015-05-07\"; $c2 isa candidacy, links (candidate: $p, ballot: $b2), has elected false; for_post (ballot: $b2, post: $po); at_election (ballot: $b2, election: $e2); $e2 has election_id \"parl.2019-12-12\"; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "SELECT COUNT(DISTINCT w.person_id) FROM (SELECT c.person_id, b.post_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id = 'parl.2015-05-07' AND c.elected = true) w JOIN (SELECT c.person_id, b.post_id, c.elected FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id = 'parl.2019-12-12') s ON s.person_id = w.person_id AND s.post_id = w.post_id WHERE s.elected = false;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c1:Candidacy)-[:IN_BALLOT]->(b1:Ballot)-[:AT_ELECTION]->(:Election {election_id: 'parl.2015-05-07'}), (b1)-[:FOR_POST]->(po:Post) WHERE c1.elected = true MATCH (p)-[:STOOD]->(c2:Candidacy)-[:IN_BALLOT]->(b2:Ballot)-[:AT_ELECTION]->(:Election {election_id: 'parl.2019-12-12'}), (b2)-[:FOR_POST]->(po) WHERE c2.elected = false RETURN count(DISTINCT p)",
+        "dummy": "46"
+      }
+    },
+    {
+      "question": "Counting only posts for which at least five different ballots have produced an elected candidate, how many of those posts have had every elected candidate come from the same party?",
+      "difficulty": "expert",
+      "expected": 515,
+      "queries": {
+        "typeql": "match $po isa post; $c isa candidacy, links (ballot: $b, party: $pa), has elected true; for_post (ballot: $b, post: $po); not { $c2 isa candidacy, links (ballot: $b2, party: $pa2), has elected true; for_post (ballot: $b2, post: $po); not { $pa2 is $pa; }; }; reduce $x = count groupby $po, $b; reduce $n = count groupby $po; match $n >= 5; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT b.post_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE c.elected = true GROUP BY b.post_id HAVING COUNT(DISTINCT b.ballot_paper_id) >= 5 AND COUNT(DISTINCT c.party_id) = 1) t;",
+        "cypher": "MATCH (po:Post)<-[:FOR_POST]-(b:Ballot)<-[:IN_BALLOT]-(c:Candidacy)-[:FOR_PARTY]->(pa:Party) WHERE c.elected = true WITH po, count(DISTINCT b) AS ballots, count(DISTINCT pa) AS parties WHERE ballots >= 5 AND parties = 1 RETURN count(po)",
+        "dummy": "515"
+      }
+    },
+    {
+      "question": "For each region (the nuts1 value of a post), which party has won the most elected candidacies in that region? Return one row per region, ignoring posts with no region recorded.",
+      "difficulty": "expert",
+      "expected": [
+        {
+          "region": "East Midlands (England)",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "region": "East of England",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "region": "London",
+          "party": "Labour Party"
+        },
+        {
+          "region": "North East (England)",
+          "party": "Labour Party"
+        },
+        {
+          "region": "North West (England)",
+          "party": "Labour Party"
+        },
+        {
+          "region": "Northern Ireland",
+          "party": "Democratic Unionist Party - D.U.P."
+        },
+        {
+          "region": "Scotland",
+          "party": "Scottish National Party (SNP)"
+        },
+        {
+          "region": "South East (England)",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "region": "South West (England)",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "region": "Wales",
+          "party": "Labour Party"
+        },
+        {
+          "region": "West Midlands (England)",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "region": "Yorkshire and The Humber",
+          "party": "Labour Party"
+        }
+      ],
+      "queries": {
+        "typeql": "with fun top_party($r: nuts1) -> party_name: match $po isa post, has nuts1 $r; $c isa candidacy, links (ballot: $b, party: $pa), has elected true; for_post (ballot: $b, post: $po); $pa has party_name $pn; reduce $n = count groupby $pn; sort $n desc; limit 1; return first $pn; match $po isa post, has nuts1 $region; reduce $x = count groupby $region; match let $party in top_party($region); fetch { \"region\": $region, \"party\": $party };",
+        "sql": "WITH s AS (SELECT po.nuts1 AS region, pa.party_name AS party, COUNT(*) AS n FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id JOIN post po ON b.post_id = po.post_id JOIN party pa ON c.party_id = pa.party_id WHERE c.elected = true GROUP BY po.nuts1, pa.party_name) SELECT region, party FROM s WHERE (region, n) IN (SELECT region, MAX(n) FROM s GROUP BY region);",
+        "cypher": "MATCH (po:Post)<-[:FOR_POST]-(b:Ballot)<-[:IN_BALLOT]-(c:Candidacy)-[:FOR_PARTY]->(pa:Party) WHERE c.elected = true AND po.nuts1 IS NOT NULL WITH po.nuts1 AS region, pa.party_name AS party, count(c) AS n ORDER BY n DESC WITH region, collect(party)[0] AS party RETURN region, party",
+        "dummy": "[{\"region\": \"East Midlands (England)\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"East of England\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"London\", \"party\": \"Labour Party\"}, {\"region\": \"North East (England)\", \"party\": \"Labour Party\"}, {\"region\": \"North West (England)\", \"party\": \"Labour Party\"}, {\"region\": \"Northern Ireland\", \"party\": \"Democratic Unionist Party - D.U.P.\"}, {\"region\": \"Scotland\", \"party\": \"Scottish National Party (SNP)\"}, {\"region\": \"South East (England)\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"South West (England)\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"Wales\", \"party\": \"Labour Party\"}, {\"region\": \"West Midlands (England)\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"Yorkshire and The Humber\", \"party\": \"Labour Party\"}]"
+      }
+    },
+    {
+      "question": "How many people were elected in at least one candidacy at the earliest election date on which they ever stood?",
+      "difficulty": "expert",
+      "expected": 28496,
+      "queries": {
+        "typeql": "match $p isa person; $c isa candidacy, links (candidate: $p, ballot: $b); at_election (ballot: $b, election: $e); $e has election_date $d; reduce $first = min($d) groupby $p; match $c2 isa candidacy, links (candidate: $p, ballot: $b2), has elected true; at_election (ballot: $b2, election: $e2); $e2 has election_date == $first; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "WITH pe AS (SELECT c.person_id, e.election_date, c.elected FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id JOIN election e ON b.election_id = e.election_id), f AS (SELECT person_id, MIN(election_date) AS d FROM pe GROUP BY person_id) SELECT COUNT(DISTINCT pe.person_id) FROM pe JOIN f ON pe.person_id = f.person_id AND pe.election_date = f.d WHERE pe.elected = true;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:Election) WITH p, min(e.election_date) AS first MATCH (p)-[:STOOD]->(c:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e2:Election) WHERE c.elected = true AND e2.election_date = first RETURN count(DISTINCT p)",
+        "dummy": "28496"
+      }
+    },
+    {
+      "question": "Of the posts contested at both the 2015 (parl.2015-05-07) and the 2019 (parl.2019-12-12) general elections, in how many did exactly the same set of parties field candidates at both elections?",
+      "difficulty": "expert",
+      "expected": 8,
+      "queries": {
+        "typeql": "match $po isa post; $b15 isa ballot; for_post (ballot: $b15, post: $po); at_election (ballot: $b15, election: $e15); $e15 has election_id \"parl.2015-05-07\"; $b19 isa ballot; for_post (ballot: $b19, post: $po); at_election (ballot: $b19, election: $e19); $e19 has election_id \"parl.2019-12-12\"; not { $c1 isa candidacy, links (ballot: $b15, party: $pa1); not { $c2 isa candidacy, links (ballot: $b19, party: $pa1); }; }; not { $c3 isa candidacy, links (ballot: $b19, party: $pa2); not { $c4 isa candidacy, links (ballot: $b15, party: $pa2); }; }; reduce $x = count groupby $po; reduce $count = count;",
+        "sql": "WITH p15 AS (SELECT DISTINCT b.post_id, c.party_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id = 'parl.2015-05-07'), p19 AS (SELECT DISTINCT b.post_id, c.party_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id = 'parl.2019-12-12'), shared AS (SELECT post_id FROM p15 INTERSECT SELECT post_id FROM p19) SELECT COUNT(*) FROM shared s WHERE NOT EXISTS (SELECT party_id FROM p15 WHERE p15.post_id = s.post_id EXCEPT SELECT party_id FROM p19 WHERE p19.post_id = s.post_id) AND NOT EXISTS (SELECT party_id FROM p19 WHERE p19.post_id = s.post_id EXCEPT SELECT party_id FROM p15 WHERE p15.post_id = s.post_id);",
+        "cypher": "MATCH (po:Post)<-[:FOR_POST]-(b:Ballot)-[:AT_ELECTION]->(e:Election) WHERE e.election_id IN ['parl.2015-05-07', 'parl.2019-12-12'] MATCH (b)<-[:IN_BALLOT]-(:Candidacy)-[:FOR_PARTY]->(pa:Party) WITH po, e.election_id AS eid, collect(DISTINCT pa.party_id) AS parties WITH po, collect(parties) AS sets WHERE size(sets) = 2 AND size(sets[0]) = size(sets[1]) AND all(x IN sets[0] WHERE x IN sets[1]) RETURN count(po)",
+        "dummy": "8"
+      }
+    },
+    {
+      "question": "How many people stood for one party at a parliamentary election (an election whose ID begins 'parl.') and then for a different party at the next parliamentary election in which they stood?",
+      "difficulty": "expert",
+      "expected": 439,
+      "queries": {
+        "typeql": "match $p isa person; $c1 isa candidacy, links (candidate: $p, ballot: $b1, party: $pa1); at_election (ballot: $b1, election: $e1); $e1 has election_id $id1, has election_date $d1; $id1 like \"^parl[.]\"; $c2 isa candidacy, links (candidate: $p, ballot: $b2, party: $pa2); at_election (ballot: $b2, election: $e2); $e2 has election_id $id2, has election_date $d2; $id2 like \"^parl[.]\"; $d1 < $d2; not { $pa1 is $pa2; }; not { $c3 isa candidacy, links (candidate: $p, ballot: $b3); at_election (ballot: $b3, election: $e3); $e3 has election_id $id3, has election_date $d3; $id3 like \"^parl[.]\"; $d3 > $d1; $d3 < $d2; }; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "WITH pc AS (SELECT DISTINCT c.person_id, e.election_date, c.party_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id JOIN election e ON b.election_id = e.election_id WHERE e.election_id LIKE 'parl.%'), ord AS (SELECT person_id, party_id, LAG(party_id) OVER (PARTITION BY person_id ORDER BY election_date) AS prev FROM pc) SELECT COUNT(DISTINCT person_id) FROM ord WHERE prev IS NOT NULL AND prev <> party_id;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy)-[:FOR_PARTY]->(pa:Party), (c)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:Election) WHERE e.election_id STARTS WITH 'parl.' WITH DISTINCT p, e.election_date AS d, pa.party_id AS party WITH p, d, party ORDER BY d WITH p, collect(party) AS ps WHERE any(i IN range(0, size(ps) - 2) WHERE ps[i] <> ps[i + 1]) RETURN count(p)",
+        "dummy": "439"
+      }
+    },
+    {
+      "question": "In how many ballots contesting more than one seat did a single party win every seat contested?",
+      "difficulty": "expert",
+      "expected": 8012,
+      "queries": {
+        "typeql": "match $b isa ballot, has seats_contested $s; $s > 1; $c isa candidacy, links (ballot: $b, party: $pa), has elected true; reduce $won = count groupby $b, $pa, $s; match $won == $s; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT c.ballot_paper_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE c.elected = true AND b.seats_contested > 1 GROUP BY c.ballot_paper_id, c.party_id, b.seats_contested HAVING COUNT(*) = b.seats_contested) t;",
+        "cypher": "MATCH (b:Ballot)<-[:IN_BALLOT]-(c:Candidacy)-[:FOR_PARTY]->(pa:Party) WHERE b.seats_contested > 1 AND c.elected = true WITH b, pa, count(c) AS won WHERE won = b.seats_contested RETURN count(*)",
+        "dummy": "8012"
+      }
+    },
+    {
+      "question": "How many parties fielded at least one candidate at every one of the five parliamentary general elections parl.2010-05-06, parl.2015-05-07, parl.2017-06-08, parl.2019-12-12 and parl.2024-07-04?",
+      "difficulty": "expert",
+      "expected": 29,
+      "queries": {
+        "typeql": "match $pa isa party; $c isa candidacy, links (party: $pa, ballot: $b); at_election (ballot: $b, election: $e); $e has election_id $id; { $id == \"parl.2010-05-06\"; } or { $id == \"parl.2015-05-07\"; } or { $id == \"parl.2017-06-08\"; } or { $id == \"parl.2019-12-12\"; } or { $id == \"parl.2024-07-04\"; }; reduce $x = count groupby $pa, $id; reduce $n = count groupby $pa; match $n == 5; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT c.party_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id IN ('parl.2010-05-06', 'parl.2015-05-07', 'parl.2017-06-08', 'parl.2019-12-12', 'parl.2024-07-04') GROUP BY c.party_id HAVING COUNT(DISTINCT b.election_id) = 5) t;",
+        "cypher": "MATCH (pa:Party)<-[:FOR_PARTY]-(:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:Election) WHERE e.election_id IN ['parl.2010-05-06', 'parl.2015-05-07', 'parl.2017-06-08', 'parl.2019-12-12', 'parl.2024-07-04'] WITH pa, count(DISTINCT e) AS n WHERE n = 5 RETURN count(pa)",
+        "dummy": "29"
+      }
+    },
+    {
+      "question": "How many people have stood in at least five parliamentary candidacies (candidacies in ballots at elections whose ID begins 'parl.') without ever having been elected in any contest?",
+      "difficulty": "expert",
+      "expected": 48,
+      "queries": {
+        "typeql": "match $p isa person; not { $c0 isa candidacy, links (candidate: $p), has elected true; }; $c isa candidacy, links (candidate: $p, ballot: $b); at_election (ballot: $b, election: $e); $e has election_id $id; $id like \"^parl[.]\"; reduce $n = count groupby $p; match $n >= 5; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT c.person_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id LIKE 'parl.%' GROUP BY c.person_id HAVING COUNT(*) >= 5) t WHERE NOT EXISTS (SELECT 1 FROM candidacy c2 WHERE c2.person_id = t.person_id AND c2.elected = true);",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:Election) WHERE e.election_id STARTS WITH 'parl.' WITH p, count(c) AS n WHERE n >= 5 AND NOT EXISTS { (p)-[:STOOD]->(:Candidacy {elected: true}) } RETURN count(p)",
+        "dummy": "48"
+      }
+    },
+    {
       "question": "How tall is each candidate?",
       "difficulty": "unanswerable",
       "unanswerable": true

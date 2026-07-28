@@ -269,7 +269,13 @@ impl BenchmarkRunner<'_> {
         for (question_index, question) in questions.iter().enumerate() {
             let mut records = Vec::with_capacity(REPETITIONS as usize);
             for repetition in 1..=REPETITIONS {
-                eprintln!("Running question {} of {} repetition {repetition} of {}", question_index + 1, questions.len(), REPETITIONS);
+                eprintln!(
+                    "Running question: {} - {} of {} repetition {repetition} of {}",
+                    question.question,
+                    question_index + 1,
+                    questions.len(),
+                    REPETITIONS
+                );
                 match self.run_once(question, repetition).await {
                     Ok(record) => records.push(record),
                     Err(error) => {

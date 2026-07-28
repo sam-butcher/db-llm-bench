@@ -48,4 +48,5 @@ exampleCounts:
   - 1
 #  - 3
 maxRetryCounts:
+  - 0
   - 4

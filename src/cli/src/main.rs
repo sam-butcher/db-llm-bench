@@ -336,14 +336,13 @@ async fn run_benchmarks(
             for &example_count in plan.example_counts {
                 for skills in skills_variants(&prepared.assets.skills, plan.skills_baseline) {
                     eprintln!(
-                        "Running for {} against {} with skills {}",
+                        "Running for {} against {} with {} skill(s)",
                         prepared.db.query_language(),
                         model.model_id(),
                         &skills
                             .clone()
-                            .unwrap_or(vec!("none".to_string()))
-                            .first()
-                            .unwrap_or(&"none".to_string())
+                            .map(|x| x.len())
+                            .unwrap_or(0)
                     );
                     let runner = BenchmarkRunner {
                         db: prepared.db.as_ref(),

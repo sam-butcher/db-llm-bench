@@ -68,6 +68,26 @@ run_pass() {                                # run_pass <query.tql> <data.csv> [e
         "$@"
 }
 
+console() {                                 # console <console args...>
+    typedb console \
+        --address "$ADDRESS" \
+        --username "$DB_USER" \
+        --password "$DB_PASS" \
+        --tls-disabled \
+        "$@"
+}
+
+# `--create-db true` creates the database only when it is absent, and it is
+# absent that keeps a re-run honest: entities dedupe on their @key, but
+# candidacy and the three ballot links are relations with no key, so loading
+# over existing data inserts a second copy of every one of them (a silent
+# doubling the loader reports as a clean run). Drop first, so re-running this
+# reloads rather than duplicates.
+if console --command "database list" | grep -qx "$DB"; then
+    echo "== dropping existing database: $DB =="
+    console --command "database delete $DB"
+fi
+
 # Pass 1 creates the database and installs the schema; the rest load into it.
 run_pass 1-person.tql       person.csv        --create-db true --schema-file "$SCHEMA"
 run_pass 2-party.tql        party.csv

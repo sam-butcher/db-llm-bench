@@ -12,7 +12,7 @@ docker compose up -d
 | -------- | --------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------- |
 | Postgres | `localhost:5432` (`candidates`) | benchmark: `bench_ro` / `bench_ro` (SELECT-only); admin: `postgres` / `postgres` | one-shot `postgres-seed` (schema → server-side COPY → role) |
 | Neo4j    | `bolt://localhost:7687`     | `neo4j` / `password`                                                             | one-shot `neo4j-seed` via cypher-shell (`LOAD CSV` MERGE, idempotent) |
-| TypeDB   | `localhost:1729`            | `admin` / `password`                                                            | one-shot `typedb-seed` (multi-pass bulk loader, below) |
+| TypeDB   | `localhost:1729`            | `admin` / `password`                                                            | one-shot `typedb-seed` (multi-pass bulk loader, below; drops the database first) |
 
 A shared `prep` service cleans the raw CSV once (`../../data/candidates/clean.py`)
 and fans the result out to two volumes — Postgres and Neo4j both read the file
@@ -38,8 +38,11 @@ TypeDB server (its default `ADDRESS` is `localhost:1729`).
 - A distinct compose project name (`candidates`) keeps this isolated from the
   sample DBs compose. They expose the same ports, so run one dataset at a time.
 - Re-running `docker compose up` re-seeds Neo4j idempotently (MERGE); Postgres's
-  load uses `ON CONFLICT DO NOTHING`. To reset everything including volumes:
-  `docker compose down -v && docker compose up -d`.
+  load uses `ON CONFLICT DO NOTHING`. TypeDB's `load.sh` deletes the database
+  before pass 1 and reloads from scratch — its keyless relations (candidacy and
+  the three ballot links) would otherwise be inserted a second time, doubling
+  them while the loader still reports a clean run. To reset everything including
+  volumes: `docker compose down -v && docker compose up -d`.
 - All three loads were verified to produce identical counts: person 119,686 ·
   party 668 · organisation 486 · post 17,772 · election 3,927 · ballot 39,271 ·
   candidacy 217,872, with each ballot relation (`at_election`/`for_post`/

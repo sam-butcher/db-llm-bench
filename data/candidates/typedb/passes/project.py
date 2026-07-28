@@ -9,10 +9,18 @@ that collision, so the multi-pass load can run with large parallel batches.
 
 Each output CSV's header matches exactly the `given` block of the pass that
 consumes it (no extra columns), so column-to-variable binding is unambiguous.
-Passes 1-6 are deduplicated to one row per entity key (first occurrence wins);
-the ballot key column feeds both the ballot entity pass and the ballot-relation
-pass. The candidacy projection is not deduplicated - each base row is one
-candidacy - it just narrows the 63-column base CSV to the candidacy columns.
+Passes 1-6 are deduplicated to one row per entity key; the ballot key column
+feeds both the ballot entity pass and the ballot-relation pass. The candidacy
+projection is not deduplicated - each base row is one candidacy - it just
+narrows the 63-column base CSV to the candidacy columns.
+
+Deduplication merges *per column*, keeping the first non-blank value each
+column takes across the key's rows, rather than keeping the first row whole.
+The rows for one key can disagree: post gss:E05008823's first row has no nuts1
+while a later one does, and 10 posts carry two post_labels (ward renames).
+First-row-wins dropped that nuts1, leaving TypeDB one region short of the other
+two DBs, which both resolve to first-non-blank-per-column (`coalesce(node.x,
+row.x)` in Neo4j, a `first_non_blank` aggregate in Postgres).
 
 Usage: project.py CLEANED_CSV OUT_DIR
 """
@@ -41,7 +49,8 @@ CANDIDACY = ["person_id", "ballot_paper_id", "party_id", "party_description_text
              "statement_last_updated"]
 
 # (output file, dedup key column or None, columns). A None key means every row
-# is kept (candidacy is one-per-row); otherwise the first row per key wins.
+# is kept (candidacy is one-per-row); otherwise rows sharing a key merge into
+# one, each column taking its first non-blank value.
 PROJECTIONS = [
     ("person.csv", "person_id", PERSON),
     ("party.csv", "party_id", PARTY),
@@ -60,26 +69,37 @@ def main():
     src, out_dir = sys.argv[1], sys.argv[2]
     os.makedirs(out_dir, exist_ok=True)
 
-    files, writers, seen, counts = {}, {}, {}, {}
+    files, writers, counts = {}, {}, {}
+    # One merged row per key, insertion-ordered so the output keeps
+    # first-appearance order. Unkeyed projections stream straight out instead.
+    merged = {}
     for name, key, cols in PROJECTIONS:
         f = open(os.path.join(out_dir, name), "w", newline="")
         files[name] = f
-        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
-        w.writeheader()
-        writers[name] = w
-        seen[name] = set() if key else None
+        writers[name] = csv.writer(f)
+        writers[name].writerow(cols)
+        merged[name] = {} if key else None
         counts[name] = 0
 
     with open(src, newline="") as fi:
         for row in csv.DictReader(fi):
             for name, key, cols in PROJECTIONS:
-                if key is not None:
-                    k = row[key]
-                    if k in seen[name]:
-                        continue
-                    seen[name].add(k)
-                writers[name].writerow(row)
-                counts[name] += 1
+                if key is None:
+                    writers[name].writerow([row[c] for c in cols])
+                    counts[name] += 1
+                    continue
+                kept = merged[name].get(row[key])
+                if kept is None:
+                    merged[name][row[key]] = [row[c] for c in cols]
+                    counts[name] += 1
+                else:
+                    for i, c in enumerate(cols):
+                        if not kept[i]:
+                            kept[i] = row[c]
+
+    for name, key, _ in PROJECTIONS:
+        if key is not None:
+            writers[name].writerows(merged[name].values())
 
     for f in files.values():
         f.close()

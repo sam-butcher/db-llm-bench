@@ -1,6 +1,6 @@
 define
 
-# Democracy Club candidates data, normalised from data/candidates/headers.csv.
+# Democracy Club candidates data.
 # Each CSV row is one candidacy; `candidacy` is the native n-ary relation
 # (candidate + ballot + party) carrying the result. Attribute names mirror the
 # CSV columns.

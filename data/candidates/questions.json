@@ -482,7 +482,7 @@
       }
     },
     {
-      "question": "For each region (the nuts1 value of a post), which party has won the most elected candidacies in that region? Return one row per region, ignoring posts with no region recorded.",
+      "question": "For each region (the nuts1 value of a post), which party has won the most elected candidacies in that region? Return one row per region.",
       "difficulty": "expert",
       "expected": [
         {
@@ -537,7 +537,7 @@
       "queries": {
         "typeql": "with fun top_party($r: nuts1) -> party_name: match $po isa post, has nuts1 $r; $c isa candidacy, links (ballot: $b, party: $pa), has elected true; for_post (ballot: $b, post: $po); $pa has party_name $pn; reduce $n = count groupby $pn; sort $n desc; limit 1; return first $pn; match $po isa post, has nuts1 $region; reduce $x = count groupby $region; match let $party in top_party($region); fetch { \"region\": $region, \"party\": $party };",
         "sql": "WITH s AS (SELECT po.nuts1 AS region, pa.party_name AS party, COUNT(*) AS n FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id JOIN post po ON b.post_id = po.post_id JOIN party pa ON c.party_id = pa.party_id WHERE c.elected = true GROUP BY po.nuts1, pa.party_name) SELECT region, party FROM s WHERE (region, n) IN (SELECT region, MAX(n) FROM s GROUP BY region);",
-        "cypher": "MATCH (po:Post)<-[:FOR_POST]-(b:Ballot)<-[:IN_BALLOT]-(c:Candidacy)-[:FOR_PARTY]->(pa:Party) WHERE c.elected = true AND po.nuts1 IS NOT NULL WITH po.nuts1 AS region, pa.party_name AS party, count(c) AS n ORDER BY n DESC WITH region, collect(party)[0] AS party RETURN region, party",
+        "cypher": "MATCH (po:Post)<-[:FOR_POST]-(b:Ballot)<-[:IN_BALLOT]-(c:Candidacy)-[:FOR_PARTY]->(pa:Party) WHERE c.elected = true WITH po.nuts1 AS region, pa.party_name AS party, count(c) AS n ORDER BY n DESC WITH region, collect(party)[0] AS party RETURN region, party",
         "dummy": "[{\"region\": \"East Midlands (England)\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"East of England\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"London\", \"party\": \"Labour Party\"}, {\"region\": \"North East (England)\", \"party\": \"Labour Party\"}, {\"region\": \"North West (England)\", \"party\": \"Labour Party\"}, {\"region\": \"Northern Ireland\", \"party\": \"Democratic Unionist Party - D.U.P.\"}, {\"region\": \"Scotland\", \"party\": \"Scottish National Party (SNP)\"}, {\"region\": \"South East (England)\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"South West (England)\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"Wales\", \"party\": \"Labour Party\"}, {\"region\": \"West Midlands (England)\", \"party\": \"Conservative and Unionist Party\"}, {\"region\": \"Yorkshire and The Humber\", \"party\": \"Labour Party\"}]"
       }
     },

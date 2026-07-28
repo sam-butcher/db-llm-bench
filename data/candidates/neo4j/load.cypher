@@ -2,6 +2,21 @@
 // MERGEd on their key (deduping shared entities); Candidacy is reified.
 // Pass the CSV as a param, e.g.:
 //   cypher-shell -u neo4j -p password --param "csv => 'file:///cleaned.csv'" -f load.cypher
+//
+// LOAD CSV yields null for a blank cell, never '' (verified: no column in the
+// cleaned CSV ever produces an empty string), and the conversion functions
+// propagate null, so a bare `row.x` is already the "value or null" the schema
+// wants.
+//
+// Person/Party/Post/Election/Ballot are written once per CSV row that mentions
+// them, so plain assignment made the *last* row win — losing `post.nuts1` for
+// gss:E05001147, whose last row is blank, and disagreeing with the other two
+// DBs on four post_labels that differ across rows (ward renames). Postgres takes
+// one whole row per key with `DISTINCT ON` and TypeDB's `put` keeps what it
+// first stored, so both effectively hold the earliest value; `coalesce(node.x,
+// row.x)` matches them — first non-blank per property wins, and a blank never
+// overwrites. Candidacy needs no guard: the CSV holds exactly one row per
+// (person, ballot).
 
 CREATE CONSTRAINT person_key IF NOT EXISTS FOR (n:Person) REQUIRE n.person_id IS UNIQUE;
 CREATE CONSTRAINT party_key IF NOT EXISTS FOR (n:Party) REQUIRE n.party_id IS UNIQUE;
@@ -14,72 +29,72 @@ LOAD CSV WITH HEADERS FROM $csv AS row
 CALL {
   WITH row
   MERGE (person:Person {person_id: toInteger(row.person_id)})
-    SET person.person_name = CASE row.person_name WHEN '' THEN null ELSE row.person_name END,
-      person.honorific_prefix = CASE row.honorific_prefix WHEN '' THEN null ELSE row.honorific_prefix END,
-      person.honorific_suffix = CASE row.honorific_suffix WHEN '' THEN null ELSE row.honorific_suffix END,
-      person.gender = CASE row.gender WHEN '' THEN null ELSE row.gender END,
-      person.birth_date = CASE row.birth_date WHEN '' THEN null ELSE date(row.birth_date) END,
-      person.death_date = CASE row.death_date WHEN '' THEN null ELSE date(row.death_date) END,
-      person.favourite_biscuit = CASE row.favourite_biscuit WHEN '' THEN null ELSE row.favourite_biscuit END,
-      person.email = CASE row.email WHEN '' THEN null ELSE row.email END,
-      person.facebook_page_url = CASE row.facebook_page_url WHEN '' THEN null ELSE row.facebook_page_url END,
-      person.facebook_personal_url = CASE row.facebook_personal_url WHEN '' THEN null ELSE row.facebook_personal_url END,
-      person.homepage_url = CASE row.homepage_url WHEN '' THEN null ELSE row.homepage_url END,
-      person.blog_url = CASE row.blog_url WHEN '' THEN null ELSE row.blog_url END,
-      person.linkedin_url = CASE row.linkedin_url WHEN '' THEN null ELSE row.linkedin_url END,
-      person.party_ppc_page_url = CASE row.party_ppc_page_url WHEN '' THEN null ELSE row.party_ppc_page_url END,
-      person.twitter_username = CASE row.twitter_username WHEN '' THEN null ELSE row.twitter_username END,
-      person.mastodon_username = CASE row.mastodon_username WHEN '' THEN null ELSE row.mastodon_username END,
-      person.wikipedia_url = CASE row.wikipedia_url WHEN '' THEN null ELSE row.wikipedia_url END,
-      person.wikidata_id = CASE row.wikidata_id WHEN '' THEN null ELSE row.wikidata_id END,
-      person.youtube_profile = CASE row.youtube_profile WHEN '' THEN null ELSE row.youtube_profile END,
-      person.instagram_url = CASE row.instagram_url WHEN '' THEN null ELSE row.instagram_url END,
-      person.blue_sky_url = CASE row.blue_sky_url WHEN '' THEN null ELSE row.blue_sky_url END,
-      person.threads_url = CASE row.threads_url WHEN '' THEN null ELSE row.threads_url END,
-      person.tiktok_url = CASE row.tiktok_url WHEN '' THEN null ELSE row.tiktok_url END,
-      person.other_url = CASE row.other_url WHEN '' THEN null ELSE row.other_url END,
-      person.mnis_id = CASE row.mnis_id WHEN '' THEN null ELSE row.mnis_id END,
-      person.twfy_id = CASE row.twfy_id WHEN '' THEN null ELSE row.twfy_id END,
-      person.image = CASE row.image WHEN '' THEN null ELSE row.image END,
-      person.person_last_updated = CASE row.person_last_updated WHEN '' THEN null ELSE datetime(row.person_last_updated) END
+    SET person.person_name = coalesce(person.person_name, row.person_name),
+      person.honorific_prefix = coalesce(person.honorific_prefix, row.honorific_prefix),
+      person.honorific_suffix = coalesce(person.honorific_suffix, row.honorific_suffix),
+      person.gender = coalesce(person.gender, row.gender),
+      person.birth_date = coalesce(person.birth_date, date(row.birth_date)),
+      person.death_date = coalesce(person.death_date, date(row.death_date)),
+      person.favourite_biscuit = coalesce(person.favourite_biscuit, row.favourite_biscuit),
+      person.email = coalesce(person.email, row.email),
+      person.facebook_page_url = coalesce(person.facebook_page_url, row.facebook_page_url),
+      person.facebook_personal_url = coalesce(person.facebook_personal_url, row.facebook_personal_url),
+      person.homepage_url = coalesce(person.homepage_url, row.homepage_url),
+      person.blog_url = coalesce(person.blog_url, row.blog_url),
+      person.linkedin_url = coalesce(person.linkedin_url, row.linkedin_url),
+      person.party_ppc_page_url = coalesce(person.party_ppc_page_url, row.party_ppc_page_url),
+      person.twitter_username = coalesce(person.twitter_username, row.twitter_username),
+      person.mastodon_username = coalesce(person.mastodon_username, row.mastodon_username),
+      person.wikipedia_url = coalesce(person.wikipedia_url, row.wikipedia_url),
+      person.wikidata_id = coalesce(person.wikidata_id, row.wikidata_id),
+      person.youtube_profile = coalesce(person.youtube_profile, row.youtube_profile),
+      person.instagram_url = coalesce(person.instagram_url, row.instagram_url),
+      person.blue_sky_url = coalesce(person.blue_sky_url, row.blue_sky_url),
+      person.threads_url = coalesce(person.threads_url, row.threads_url),
+      person.tiktok_url = coalesce(person.tiktok_url, row.tiktok_url),
+      person.other_url = coalesce(person.other_url, row.other_url),
+      person.mnis_id = coalesce(person.mnis_id, row.mnis_id),
+      person.twfy_id = coalesce(person.twfy_id, row.twfy_id),
+      person.image = coalesce(person.image, row.image),
+      person.person_last_updated = coalesce(person.person_last_updated, datetime(row.person_last_updated))
   MERGE (party:Party {party_id: row.party_id})
-    SET party.party_name = CASE row.party_name WHEN '' THEN null ELSE row.party_name END,
-      party.legacy_party_id = CASE row.legacy_party_id WHEN '' THEN null ELSE row.legacy_party_id END
+    SET party.party_name = coalesce(party.party_name, row.party_name),
+      party.legacy_party_id = coalesce(party.legacy_party_id, row.legacy_party_id)
   MERGE (org:Organisation {organisation_name: row.organisation_name})
   MERGE (post:Post {post_id: row.post_id})
-    SET post.post_label = CASE row.post_label WHEN '' THEN null ELSE row.post_label END,
-      post.gss = CASE row.gss WHEN '' THEN null ELSE row.gss END,
-      post.nuts1 = CASE row.nuts1 WHEN '' THEN null ELSE row.nuts1 END
+    SET post.post_label = coalesce(post.post_label, row.post_label),
+      post.gss = coalesce(post.gss, row.gss),
+      post.nuts1 = coalesce(post.nuts1, row.nuts1)
   MERGE (election:Election {election_id: row.election_id})
-    SET election.election_date = CASE row.election_date WHEN '' THEN null ELSE date(row.election_date) END,
-      election.election_current = toBoolean(row.election_current)
+    SET election.election_date = coalesce(election.election_date, date(row.election_date)),
+      election.election_current = coalesce(election.election_current, toBoolean(row.election_current))
   MERGE (ballot:Ballot {ballot_paper_id: row.ballot_paper_id})
-    SET ballot.seats_contested = toInteger(row.seats_contested),
-      ballot.cancelled_poll = toBoolean(row.cancelled_poll),
-      ballot.by_election = toBoolean(row.by_election),
-      ballot.by_election_reason = CASE row.by_election_reason WHEN '' THEN null ELSE row.by_election_reason END,
-      ballot.party_lists_in_use = toBoolean(row.party_lists_in_use),
-      ballot.candidates_locked = toBoolean(row.candidates_locked),
-      ballot.total_electorate = toInteger(row.total_electorate),
-      ballot.turnout_reported = toInteger(row.turnout_reported),
-      ballot.turnout_percentage = toFloat(row.turnout_percentage),
-      ballot.spoilt_ballots = toInteger(row.spoilt_ballots),
-      ballot.results_source = CASE row.results_source WHEN '' THEN null ELSE row.results_source END
+    SET ballot.seats_contested = coalesce(ballot.seats_contested, toInteger(row.seats_contested)),
+      ballot.cancelled_poll = coalesce(ballot.cancelled_poll, toBoolean(row.cancelled_poll)),
+      ballot.by_election = coalesce(ballot.by_election, toBoolean(row.by_election)),
+      ballot.by_election_reason = coalesce(ballot.by_election_reason, row.by_election_reason),
+      ballot.party_lists_in_use = coalesce(ballot.party_lists_in_use, toBoolean(row.party_lists_in_use)),
+      ballot.candidates_locked = coalesce(ballot.candidates_locked, toBoolean(row.candidates_locked)),
+      ballot.total_electorate = coalesce(ballot.total_electorate, toInteger(row.total_electorate)),
+      ballot.turnout_reported = coalesce(ballot.turnout_reported, toInteger(row.turnout_reported)),
+      ballot.turnout_percentage = coalesce(ballot.turnout_percentage, toFloat(row.turnout_percentage)),
+      ballot.spoilt_ballots = coalesce(ballot.spoilt_ballots, toInteger(row.spoilt_ballots)),
+      ballot.results_source = coalesce(ballot.results_source, row.results_source)
   MERGE (ballot)-[:AT_ELECTION]->(election)
   MERGE (ballot)-[:FOR_POST]->(post)
   MERGE (ballot)-[:ELECTS_TO]->(org)
   MERGE (person)-[:STOOD]->(cand:Candidacy)-[:IN_BALLOT]->(ballot)
   MERGE (cand)-[:FOR_PARTY]->(party)
-    SET cand.party_description_text = CASE row.party_description_text WHEN '' THEN null ELSE row.party_description_text END,
+    SET cand.party_description_text = row.party_description_text,
       cand.party_list_position = toInteger(row.party_list_position),
-      cand.previous_party_affiliations = CASE row.previous_party_affiliations WHEN '' THEN null ELSE row.previous_party_affiliations END,
-      cand.sopn_first_names = CASE row.sopn_first_names WHEN '' THEN null ELSE row.sopn_first_names END,
-      cand.sopn_last_name = CASE row.sopn_last_name WHEN '' THEN null ELSE row.sopn_last_name END,
+      cand.previous_party_affiliations = row.previous_party_affiliations,
+      cand.sopn_first_names = row.sopn_first_names,
+      cand.sopn_last_name = row.sopn_last_name,
       cand.votes_cast = toInteger(row.votes_cast),
       cand.elected = toBoolean(row.elected),
       cand.tied_vote_winner = toBoolean(row.tied_vote_winner),
       cand.rank = toInteger(row.rank),
-      cand.statement_to_voters = CASE row.statement_to_voters WHEN '' THEN null ELSE row.statement_to_voters END,
-      cand.statement_last_updated = CASE row.statement_last_updated WHEN '' THEN null ELSE datetime(row.statement_last_updated) END
+      cand.statement_to_voters = row.statement_to_voters,
+      cand.statement_last_updated = datetime(row.statement_last_updated)
 } IN TRANSACTIONS OF 1000 ROWS
 ;

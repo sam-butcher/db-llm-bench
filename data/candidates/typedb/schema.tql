@@ -1,11 +1,5 @@
 define
 
-# Democracy Club candidates data.
-# Each CSV row is one candidacy; `candidacy` is the native n-ary relation
-# (candidate + ballot + party) carrying the result. Attribute names mirror the
-# CSV columns.
-
-# --- person ---
 attribute person_id, value integer;
 attribute person_name, value string;
 attribute honorific_prefix, value string;
@@ -36,26 +30,21 @@ attribute twfy_id, value string;
 attribute image, value string;
 attribute person_last_updated, value datetime;
 
-# --- party ---
 attribute party_id, value string;
 attribute party_name, value string;
 attribute legacy_party_id, value string;
 
-# --- organisation ---
 attribute organisation_name, value string;
 
-# --- post ---
 attribute post_id, value string;
 attribute post_label, value string;
 attribute gss, value string;
 attribute nuts1, value string;
 
-# --- election ---
 attribute election_id, value string;
 attribute election_date, value date;
 attribute election_current, value boolean;
 
-# --- ballot ---
 attribute ballot_paper_id, value string;
 attribute seats_contested, value integer;
 attribute cancelled_poll, value boolean;
@@ -69,7 +58,6 @@ attribute turnout_percentage, value double;
 attribute spoilt_ballots, value integer;
 attribute results_source, value string;
 
-# --- candidacy (result + nomination details) ---
 attribute party_description_text, value string;
 attribute party_list_position, value integer;
 attribute previous_party_affiliations, value string;

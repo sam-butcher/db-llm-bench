@@ -1,8 +1,17 @@
 -- Load the cleaned candidates CSV into the normalised schema.
 -- Staging holds the flat file as text; each entity is de-duplicated into
--- its table (DISTINCT ON key), then candidacy links them. Pass the CSV
--- path as :data_path, e.g.:
+-- its table, then candidacy links them. Pass the CSV path as :data_path, e.g.:
 --   psql -v data_path=/path/cleaned.csv -f schema.sql -f load.sql
+--
+-- A key repeats across rows, and those rows can disagree: a cell may be blank
+-- in one and filled in another (post gss:E05001147's last row has no nuts1),
+-- or hold different values (ward renames give 10 posts two post_labels). Each
+-- entity column therefore takes the FIRST NON-BLANK value in CSV row order,
+-- per column -- `first_non_blank(col ORDER BY row_no)`. `DISTINCT ON (key)` with
+-- no tiebreaker used to pick an arbitrary whole row instead, which disagreed
+-- with the other two loaders on four post_labels and was not stable across
+-- reloads. Neo4j's `coalesce(node.x, row.x)` and TypeDB's `put` + `try has`
+-- both resolve to this same first-non-blank-per-column rule.
 
 DROP TABLE IF EXISTS staging;
 CREATE TABLE staging (
@@ -72,103 +81,116 @@ CREATE TABLE staging (
 );
 COPY staging FROM :'data_path' WITH (FORMAT csv, HEADER true);
 
+-- CSV row order. COPY appends rows in file order into a freshly created table,
+-- so the identity values the rewrite assigns follow the file.
+ALTER TABLE staging ADD COLUMN row_no bigint GENERATED ALWAYS AS IDENTITY;
+
+-- Keeps the first non-null input; `ORDER BY row_no` at the call site makes
+-- "first" mean the earliest CSV row rather than whatever order the scan yields.
+CREATE FUNCTION keep_first(anyelement, anyelement) RETURNS anyelement
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE AS 'SELECT coalesce($1, $2)';
+CREATE AGGREGATE first_non_blank(anyelement) (SFUNC = keep_first, STYPE = anyelement);
+
 INSERT INTO party (party_id, party_name, legacy_party_id)
-SELECT DISTINCT ON (party_id)
+SELECT
     NULLIF(party_id,''),
-    NULLIF(party_name,''),
-    NULLIF(legacy_party_id,'')
+    first_non_blank(NULLIF(party_name,'') ORDER BY row_no),
+    first_non_blank(NULLIF(legacy_party_id,'') ORDER BY row_no)
 FROM staging
 WHERE NULLIF(party_id,'') IS NOT NULL
-ORDER BY party_id
+GROUP BY 1
 ON CONFLICT (party_id) DO NOTHING;
 
 INSERT INTO organisation (organisation_name)
-SELECT DISTINCT ON (organisation_name)
+SELECT
     NULLIF(organisation_name,'')
 FROM staging
 WHERE NULLIF(organisation_name,'') IS NOT NULL
-ORDER BY organisation_name
+GROUP BY 1
 ON CONFLICT (organisation_name) DO NOTHING;
 
 INSERT INTO election (election_id, election_date, election_current)
-SELECT DISTINCT ON (election_id)
+SELECT
     NULLIF(election_id,''),
-    NULLIF(election_date,'')::date,
-    NULLIF(election_current,'')::boolean
+    first_non_blank(NULLIF(election_date,'') ORDER BY row_no)::date,
+    first_non_blank(NULLIF(election_current,'') ORDER BY row_no)::boolean
 FROM staging
 WHERE NULLIF(election_id,'') IS NOT NULL
-ORDER BY election_id
+GROUP BY 1
 ON CONFLICT (election_id) DO NOTHING;
 
 INSERT INTO person (person_id, person_name, honorific_prefix, honorific_suffix, gender, birth_date, death_date, favourite_biscuit, email, facebook_page_url, facebook_personal_url, homepage_url, blog_url, linkedin_url, party_ppc_page_url, twitter_username, mastodon_username, wikipedia_url, wikidata_id, youtube_profile, instagram_url, blue_sky_url, threads_url, tiktok_url, other_url, mnis_id, twfy_id, image, person_last_updated)
-SELECT DISTINCT ON (person_id)
+SELECT
     NULLIF(person_id,'')::integer,
-    NULLIF(person_name,''),
-    NULLIF(honorific_prefix,''),
-    NULLIF(honorific_suffix,''),
-    NULLIF(gender,''),
-    NULLIF(birth_date,'')::date,
-    NULLIF(death_date,'')::date,
-    NULLIF(favourite_biscuit,''),
-    NULLIF(email,''),
-    NULLIF(facebook_page_url,''),
-    NULLIF(facebook_personal_url,''),
-    NULLIF(homepage_url,''),
-    NULLIF(blog_url,''),
-    NULLIF(linkedin_url,''),
-    NULLIF(party_ppc_page_url,''),
-    NULLIF(twitter_username,''),
-    NULLIF(mastodon_username,''),
-    NULLIF(wikipedia_url,''),
-    NULLIF(wikidata_id,''),
-    NULLIF(youtube_profile,''),
-    NULLIF(instagram_url,''),
-    NULLIF(blue_sky_url,''),
-    NULLIF(threads_url,''),
-    NULLIF(tiktok_url,''),
-    NULLIF(other_url,''),
-    NULLIF(mnis_id,''),
-    NULLIF(twfy_id,''),
-    NULLIF(image,''),
-    NULLIF(person_last_updated,'')::timestamp
+    first_non_blank(NULLIF(person_name,'') ORDER BY row_no),
+    first_non_blank(NULLIF(honorific_prefix,'') ORDER BY row_no),
+    first_non_blank(NULLIF(honorific_suffix,'') ORDER BY row_no),
+    first_non_blank(NULLIF(gender,'') ORDER BY row_no),
+    first_non_blank(NULLIF(birth_date,'') ORDER BY row_no)::date,
+    first_non_blank(NULLIF(death_date,'') ORDER BY row_no)::date,
+    first_non_blank(NULLIF(favourite_biscuit,'') ORDER BY row_no),
+    first_non_blank(NULLIF(email,'') ORDER BY row_no),
+    first_non_blank(NULLIF(facebook_page_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(facebook_personal_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(homepage_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(blog_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(linkedin_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(party_ppc_page_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(twitter_username,'') ORDER BY row_no),
+    first_non_blank(NULLIF(mastodon_username,'') ORDER BY row_no),
+    first_non_blank(NULLIF(wikipedia_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(wikidata_id,'') ORDER BY row_no),
+    first_non_blank(NULLIF(youtube_profile,'') ORDER BY row_no),
+    first_non_blank(NULLIF(instagram_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(blue_sky_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(threads_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(tiktok_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(other_url,'') ORDER BY row_no),
+    first_non_blank(NULLIF(mnis_id,'') ORDER BY row_no),
+    first_non_blank(NULLIF(twfy_id,'') ORDER BY row_no),
+    first_non_blank(NULLIF(image,'') ORDER BY row_no),
+    first_non_blank(NULLIF(person_last_updated,'') ORDER BY row_no)::timestamp
 FROM staging
 WHERE NULLIF(person_id,'') IS NOT NULL
-ORDER BY person_id
+GROUP BY 1
 ON CONFLICT (person_id) DO NOTHING;
 
 INSERT INTO post (post_id, post_label, gss, nuts1)
-SELECT DISTINCT ON (post_id)
+SELECT
     NULLIF(post_id,''),
-    NULLIF(post_label,''),
-    NULLIF(gss,''),
-    NULLIF(nuts1,'')
+    first_non_blank(NULLIF(post_label,'') ORDER BY row_no),
+    first_non_blank(NULLIF(gss,'') ORDER BY row_no),
+    first_non_blank(NULLIF(nuts1,'') ORDER BY row_no)
 FROM staging
 WHERE NULLIF(post_id,'') IS NOT NULL
-ORDER BY post_id
+GROUP BY 1
 ON CONFLICT (post_id) DO NOTHING;
 
 INSERT INTO ballot (ballot_paper_id, election_id, post_id, organisation_name, seats_contested, cancelled_poll, by_election, by_election_reason, party_lists_in_use, candidates_locked, total_electorate, turnout_reported, turnout_percentage, spoilt_ballots, results_source)
-SELECT DISTINCT ON (ballot_paper_id)
+SELECT
     NULLIF(ballot_paper_id,''),
-    NULLIF(election_id,''),
-    NULLIF(post_id,''),
-    NULLIF(organisation_name,''),
-    NULLIF(seats_contested,'')::integer,
-    NULLIF(cancelled_poll,'')::boolean,
-    NULLIF(by_election,'')::boolean,
-    NULLIF(by_election_reason,''),
-    NULLIF(party_lists_in_use,'')::boolean,
-    NULLIF(candidates_locked,'')::boolean,
-    NULLIF(total_electorate,'')::integer,
-    NULLIF(turnout_reported,'')::integer,
-    NULLIF(turnout_percentage,'')::numeric,
-    NULLIF(spoilt_ballots,'')::integer,
-    NULLIF(results_source,'')
+    first_non_blank(NULLIF(election_id,'') ORDER BY row_no),
+    first_non_blank(NULLIF(post_id,'') ORDER BY row_no),
+    first_non_blank(NULLIF(organisation_name,'') ORDER BY row_no),
+    first_non_blank(NULLIF(seats_contested,'') ORDER BY row_no)::integer,
+    first_non_blank(NULLIF(cancelled_poll,'') ORDER BY row_no)::boolean,
+    first_non_blank(NULLIF(by_election,'') ORDER BY row_no)::boolean,
+    first_non_blank(NULLIF(by_election_reason,'') ORDER BY row_no),
+    first_non_blank(NULLIF(party_lists_in_use,'') ORDER BY row_no)::boolean,
+    first_non_blank(NULLIF(candidates_locked,'') ORDER BY row_no)::boolean,
+    first_non_blank(NULLIF(total_electorate,'') ORDER BY row_no)::integer,
+    first_non_blank(NULLIF(turnout_reported,'') ORDER BY row_no)::integer,
+    first_non_blank(NULLIF(turnout_percentage,'') ORDER BY row_no)::numeric,
+    first_non_blank(NULLIF(spoilt_ballots,'') ORDER BY row_no)::integer,
+    first_non_blank(NULLIF(results_source,'') ORDER BY row_no)
 FROM staging
 WHERE NULLIF(ballot_paper_id,'') IS NOT NULL
-ORDER BY ballot_paper_id
+GROUP BY 1
 ON CONFLICT (ballot_paper_id) DO NOTHING;
 
+-- The CSV holds exactly one row per (person_id, ballot_paper_id), so there is
+-- nothing to merge here; DISTINCT ON keeps that assumption from turning a
+-- duplicate into a load failure, and row_no makes which row wins deterministic.
 INSERT INTO candidacy (person_id, ballot_paper_id, party_id, party_description_text, party_list_position, previous_party_affiliations, sopn_first_names, sopn_last_name, votes_cast, elected, tied_vote_winner, rank, statement_to_voters, statement_last_updated)
 SELECT DISTINCT ON (person_id, ballot_paper_id)
     NULLIF(person_id,'')::integer,
@@ -187,7 +209,9 @@ SELECT DISTINCT ON (person_id, ballot_paper_id)
     NULLIF(statement_last_updated,'')::timestamp
 FROM staging
 WHERE NULLIF(person_id,'') IS NOT NULL AND NULLIF(ballot_paper_id,'') IS NOT NULL
-ORDER BY person_id, ballot_paper_id
+ORDER BY person_id, ballot_paper_id, row_no
 ON CONFLICT (person_id, ballot_paper_id) DO NOTHING;
 
+DROP AGGREGATE first_non_blank(anyelement);
+DROP FUNCTION keep_first(anyelement, anyelement);
 DROP TABLE staging;

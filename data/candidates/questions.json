@@ -630,7 +630,7 @@
       }
     },
     {
-      "question": "What is the smallest number of defections needed to get from 'Abolish The Welsh Assembly Party' to 'Trade Unionist and Socialist Coalition'?",
+      "question": "How many defection links lie on the shortest chain of defections leading from 'Abolish The Welsh Assembly Party' to 'Trade Unionist and Socialist Coalition'? Count the links in the chain, not the people who defected along it.",
       "difficulty": "recursion",
       "expected": 4,
       "queries": {

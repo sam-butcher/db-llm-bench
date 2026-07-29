@@ -663,7 +663,7 @@
       }
     },
     {
-      "question": "How many people have stood for the same party at the same post in two different elections?",
+      "question": "How many distinct people have stood for the same party at the same post in two different elections?",
       "difficulty": "reification",
       "expected": 22807,
       "queries": {
@@ -674,7 +674,7 @@
       }
     },
     {
-      "question": "How many people have stood for two different parties at the same post?",
+      "question": "How many distinct people have stood for at least two different parties at the same post?",
       "difficulty": "reification",
       "expected": 2460,
       "queries": {
@@ -707,7 +707,7 @@
       }
     },
     {
-      "question": "Which person has stood for the greatest number of distinct parties? Return their name and that number.",
+      "question": "Which person has stood for the greatest number of distinct parties? Return that person's name and the number of parties. Count people by their person record, since different people can share a name.",
       "difficulty": "reification",
       "expected": {
         "person": "Laurence Williams",

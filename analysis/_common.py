@@ -6,6 +6,12 @@ returned the expected result.
 
 Two facts about the record model matter for correctness:
 
+- Later tiers name the *construct* a question stresses rather than a difficulty:
+  `recursion` needs transitive closure, `reification` needs the n-ary candidacy
+  fact constrained on several roles at once, and `control` holds questions of the
+  same aggregation shape as the `reification` ones but with no candidacy in them.
+  Read those columns against each other — this benchmark exists to compare query
+  languages, so a tier where all DBs score alike carries no information.
 - `unanswerable` is its own difficulty tier. Those questions measure a different
   skill (emitting the UNANSWERABLE token rather than a correct query), so read
   the `unanswerable` column as detection accuracy, not query accuracy.
@@ -19,7 +25,8 @@ Two facts about the record model matter for correctness:
 
 import json
 
-DIFF_ORDER = ["easy", "medium", "hard", "expert", "recursion", "unanswerable"]
+DIFF_ORDER = ["easy", "medium", "hard", "expert", "recursion", "reification",
+               "control", "unanswerable"]
 
 
 def load_records(path):

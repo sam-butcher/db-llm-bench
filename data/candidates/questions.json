@@ -663,6 +663,86 @@
       }
     },
     {
+      "question": "How many people have stood for the same party at the same post in two different elections?",
+      "difficulty": "reification",
+      "expected": 22807,
+      "queries": {
+        "typeql": "match $p isa person; $pa isa party; $po isa post; $c1 isa candidacy, links (candidate: $p, party: $pa, ballot: $b1); for_post (ballot: $b1, post: $po); at_election (ballot: $b1, election: $e1); $c2 isa candidacy, links (candidate: $p, party: $pa, ballot: $b2); for_post (ballot: $b2, post: $po); at_election (ballot: $b2, election: $e2); not { $e1 is $e2; }; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT c1.person_id FROM candidacy c1 JOIN ballot b1 ON b1.ballot_paper_id = c1.ballot_paper_id JOIN candidacy c2 ON c2.person_id = c1.person_id AND c2.party_id = c1.party_id JOIN ballot b2 ON b2.ballot_paper_id = c2.ballot_paper_id AND b2.post_id = b1.post_id WHERE b1.election_id <> b2.election_id GROUP BY c1.person_id) t;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c1:Candidacy)-[:FOR_PARTY]->(pa:Party), (c1)-[:IN_BALLOT]->(b1:Ballot)-[:FOR_POST]->(po:Post), (b1)-[:AT_ELECTION]->(e1:Election), (p)-[:STOOD]->(c2:Candidacy)-[:FOR_PARTY]->(pa), (c2)-[:IN_BALLOT]->(b2:Ballot)-[:FOR_POST]->(po), (b2)-[:AT_ELECTION]->(e2:Election) WHERE e1 <> e2 RETURN count(DISTINCT p)",
+        "dummy": "22807"
+      }
+    },
+    {
+      "question": "How many people have stood for two different parties at the same post?",
+      "difficulty": "reification",
+      "expected": 2460,
+      "queries": {
+        "typeql": "match $p isa person; $po isa post; $c1 isa candidacy, links (candidate: $p, party: $pa1, ballot: $b1); for_post (ballot: $b1, post: $po); $c2 isa candidacy, links (candidate: $p, party: $pa2, ballot: $b2); for_post (ballot: $b2, post: $po); not { $pa1 is $pa2; }; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT c1.person_id FROM candidacy c1 JOIN ballot b1 ON b1.ballot_paper_id = c1.ballot_paper_id JOIN candidacy c2 ON c2.person_id = c1.person_id JOIN ballot b2 ON b2.ballot_paper_id = c2.ballot_paper_id AND b2.post_id = b1.post_id WHERE c1.party_id <> c2.party_id GROUP BY c1.person_id) t;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c1:Candidacy)-[:FOR_PARTY]->(pa1:Party), (c1)-[:IN_BALLOT]->(b1:Ballot)-[:FOR_POST]->(po:Post), (p)-[:STOOD]->(c2:Candidacy)-[:FOR_PARTY]->(pa2:Party), (c2)-[:IN_BALLOT]->(b2:Ballot)-[:FOR_POST]->(po) WHERE pa1 <> pa2 RETURN count(DISTINCT p)",
+        "dummy": "2460"
+      }
+    },
+    {
+      "question": "Which party has the most candidacies in which the candidate was elected with more than 20,000 votes? Return the party's name.",
+      "difficulty": "reification",
+      "expected": "Conservative and Unionist Party",
+      "queries": {
+        "typeql": "match $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa), has elected true, has votes_cast $v; $v > 20000; reduce $n = count groupby $pa, $name; sort $n desc; limit 1; select $name;",
+        "sql": "SELECT p.party_name FROM candidacy c JOIN party p ON p.party_id = c.party_id WHERE c.elected = true AND c.votes_cast > 20000 GROUP BY p.party_id, p.party_name ORDER BY COUNT(*) DESC LIMIT 1;",
+        "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(p:Party) WHERE c.elected = true AND c.votes_cast > 20000 WITH p, count(c) AS n RETURN p.party_name ORDER BY n DESC LIMIT 1",
+        "dummy": "\"Conservative and Unionist Party\""
+      }
+    },
+    {
+      "question": "In how many ballots did two or more candidates stand for the same party?",
+      "difficulty": "reification",
+      "expected": 12174,
+      "queries": {
+        "typeql": "match $b isa ballot; $pa isa party; $c isa candidacy, links (ballot: $b, party: $pa); reduce $n = count groupby $b, $pa; match $n >= 2; reduce $x = count groupby $b; reduce $count = count;",
+        "sql": "SELECT COUNT(DISTINCT ballot_paper_id) FROM (SELECT ballot_paper_id, party_id FROM candidacy GROUP BY 1, 2 HAVING COUNT(*) >= 2) t;",
+        "cypher": "MATCH (b:Ballot)<-[:IN_BALLOT]-(c:Candidacy)-[:FOR_PARTY]->(pa:Party) WITH b, pa, count(c) AS n WHERE n >= 2 RETURN count(DISTINCT b)",
+        "dummy": "12174"
+      }
+    },
+    {
+      "question": "Which person has stood for the greatest number of distinct parties? Return their name and that number.",
+      "difficulty": "reification",
+      "expected": {
+        "person": "Laurence Williams",
+        "parties": 8
+      },
+      "queries": {
+        "typeql": "match $p isa person, has person_name $name; $c isa candidacy, links (candidate: $p, party: $pa); reduce $x = count groupby $p, $name, $pa; reduce $parties = count groupby $p, $name; sort $parties desc; limit 1; fetch { \"person\": $name, \"parties\": $parties };",
+        "sql": "SELECT p.person_name AS person, COUNT(DISTINCT c.party_id) AS parties FROM candidacy c JOIN person p ON p.person_id = c.person_id GROUP BY p.person_id, p.person_name ORDER BY parties DESC LIMIT 1;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(:Candidacy)-[:FOR_PARTY]->(pa:Party) WITH p, count(DISTINCT pa) AS parties RETURN p.person_name AS person, parties ORDER BY parties DESC LIMIT 1",
+        "dummy": "{\"person\": \"Laurence Williams\", \"parties\": 8}"
+      }
+    },
+    {
+      "question": "Which organisation has held ballots at the greatest number of distinct elections? Return its name.",
+      "difficulty": "control",
+      "expected": "City of London Corporation",
+      "queries": {
+        "typeql": "match $o isa organisation, has organisation_name $name; $b isa ballot; elects_to (ballot: $b, organisation: $o); at_election (ballot: $b, election: $e); reduce $x = count groupby $o, $name, $e; reduce $n = count groupby $o, $name; sort $n desc; limit 1; select $name;",
+        "sql": "SELECT organisation_name FROM ballot GROUP BY organisation_name ORDER BY COUNT(DISTINCT election_id) DESC LIMIT 1;",
+        "cypher": "MATCH (b:Ballot)-[:ELECTS_TO]->(o:Organisation), (b)-[:AT_ELECTION]->(e:Election) WITH o, count(DISTINCT e) AS n RETURN o.organisation_name ORDER BY n DESC LIMIT 1",
+        "dummy": "\"City of London Corporation\""
+      }
+    },
+    {
+      "question": "How many posts have been contested at more than eight distinct elections?",
+      "difficulty": "control",
+      "expected": 95,
+      "queries": {
+        "typeql": "match $po isa post; $b isa ballot; for_post (ballot: $b, post: $po); at_election (ballot: $b, election: $e); reduce $x = count groupby $po, $e; reduce $n = count groupby $po; match $n > 8; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT post_id FROM ballot GROUP BY post_id HAVING COUNT(DISTINCT election_id) > 8) t;",
+        "cypher": "MATCH (b:Ballot)-[:FOR_POST]->(po:Post), (b)-[:AT_ELECTION]->(e:Election) WITH po, count(DISTINCT e) AS n WHERE n > 8 RETURN count(po)",
+        "dummy": "95"
+      }
+    },
+    {
       "question": "How tall is each candidate?",
       "difficulty": "unanswerable",
       "unanswerable": true

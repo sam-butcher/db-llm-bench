@@ -608,6 +608,61 @@
       }
     },
     {
+      "question": "Starting from the Scottish National Party (SNP) and following defections from one party to the next, how many other parties can be reached in one or more steps?",
+      "difficulty": "recursion",
+      "expected": 10,
+      "queries": {
+        "typeql": "with fun reaches($p: party) -> { party }: match { defection (from_party: $p, to_party: $q); } or { defection (from_party: $p, to_party: $mid); let $q in reaches($mid); }; return { $q }; match $s isa party, has party_name \"Scottish National Party (SNP)\"; let $r in reaches($s); not { $r is $s; }; reduce $x = count groupby $r; reduce $count = count;",
+        "sql": "WITH RECURSIVE reach AS (SELECT d.to_party_id AS node FROM defection d JOIN party p ON p.party_id = d.from_party_id WHERE p.party_name = 'Scottish National Party (SNP)' UNION SELECT d.to_party_id FROM reach r JOIN defection d ON d.from_party_id = r.node) SELECT count(*) FROM reach WHERE node <> (SELECT party_id FROM party WHERE party_name = 'Scottish National Party (SNP)');",
+        "cypher": "MATCH (s:Party {party_name: 'Scottish National Party (SNP)'})-[:DEFECTED_TO*1..]->(p:Party) WHERE p <> s RETURN count(DISTINCT p)",
+        "dummy": "10"
+      }
+    },
+    {
+      "question": "Starting from Gwlad, how many other parties can be reached by following at most two defections?",
+      "difficulty": "recursion",
+      "expected": 5,
+      "queries": {
+        "typeql": "match $g isa party, has party_name \"Gwlad\"; { defection (from_party: $g, to_party: $r); } or { defection (from_party: $g, to_party: $mid); defection (from_party: $mid, to_party: $r); }; not { $r is $g; }; reduce $x = count groupby $r; reduce $count = count;",
+        "sql": "WITH RECURSIVE steps AS (SELECT party_id AS node, 0 AS depth FROM party WHERE party_name = 'Gwlad' UNION ALL SELECT d.to_party_id, s.depth + 1 FROM steps s JOIN defection d ON d.from_party_id = s.node WHERE s.depth < 2) SELECT count(DISTINCT node) FROM steps WHERE depth > 0 AND node <> (SELECT party_id FROM party WHERE party_name = 'Gwlad');",
+        "cypher": "MATCH (g:Party {party_name: 'Gwlad'})-[:DEFECTED_TO*1..2]->(p:Party) WHERE p <> g RETURN count(DISTINCT p)",
+        "dummy": "5"
+      }
+    },
+    {
+      "question": "What is the smallest number of defections needed to get from 'Abolish The Welsh Assembly Party' to 'Trade Unionist and Socialist Coalition'?",
+      "difficulty": "recursion",
+      "expected": 4,
+      "queries": {
+        "typeql": "with fun steps($a: party, $b: party, $budget: integer) -> { integer }: match { defection (from_party: $a, to_party: $b); let $n = 1; } or { $budget > 1; defection (from_party: $a, to_party: $mid); let $rem = $budget - 1; let $m in steps($mid, $b, $rem); let $n = $m + 1; }; return { $n }; match $a isa party, has party_name \"Abolish The Welsh Assembly Party\"; $b isa party, has party_name \"Trade Unionist and Socialist Coalition\"; let $n in steps($a, $b, 8); reduce $min = min($n);",
+        "sql": "WITH RECURSIVE walk AS (SELECT party_id AS node, 0 AS depth, ARRAY[party_id] AS seen FROM party WHERE party_name = 'Abolish The Welsh Assembly Party' UNION ALL SELECT d.to_party_id, w.depth + 1, w.seen || d.to_party_id FROM walk w JOIN defection d ON d.from_party_id = w.node WHERE NOT d.to_party_id = ANY(w.seen)) SELECT min(depth) FROM walk w JOIN party p ON p.party_id = w.node WHERE p.party_name = 'Trade Unionist and Socialist Coalition';",
+        "cypher": "MATCH path = shortestPath((a:Party {party_name: 'Abolish The Welsh Assembly Party'})-[:DEFECTED_TO*1..]->(b:Party {party_name: 'Trade Unionist and Socialist Coalition'})) RETURN length(path)",
+        "dummy": "4"
+      }
+    },
+    {
+      "question": "From how many other parties can 'Independent' be reached by following one or more defections?",
+      "difficulty": "recursion",
+      "expected": 22,
+      "queries": {
+        "typeql": "with fun reaches($p: party) -> { party }: match { defection (from_party: $p, to_party: $q); } or { defection (from_party: $p, to_party: $mid); let $q in reaches($mid); }; return { $q }; match $t isa party, has party_name \"Independent\"; $p isa party; let $r in reaches($p); $r is $t; not { $p is $t; }; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "WITH RECURSIVE back AS (SELECT d.from_party_id AS node FROM defection d JOIN party p ON p.party_id = d.to_party_id WHERE p.party_name = 'Independent' UNION SELECT d.from_party_id FROM back b JOIN defection d ON d.to_party_id = b.node) SELECT count(*) FROM back WHERE node <> (SELECT party_id FROM party WHERE party_name = 'Independent');",
+        "cypher": "MATCH (p:Party)-[:DEFECTED_TO*1..]->(t:Party {party_name: 'Independent'}) WHERE p <> t RETURN count(DISTINCT p)",
+        "dummy": "22"
+      }
+    },
+    {
+      "question": "How many parties can return to themselves by following one or more defections?",
+      "difficulty": "recursion",
+      "expected": 6,
+      "queries": {
+        "typeql": "with fun reaches($p: party) -> { party }: match { defection (from_party: $p, to_party: $q); } or { defection (from_party: $p, to_party: $mid); let $q in reaches($mid); }; return { $q }; match $p isa party; let $r in reaches($p); $r is $p; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "WITH RECURSIVE reach AS (SELECT from_party_id AS root, to_party_id AS node FROM defection UNION SELECT r.root, d.to_party_id FROM reach r JOIN defection d ON d.from_party_id = r.node) SELECT count(DISTINCT root) FROM reach WHERE root = node;",
+        "cypher": "MATCH (p:Party) WHERE EXISTS { (p)-[:DEFECTED_TO*1..]->(p) } RETURN count(p)",
+        "dummy": "6"
+      }
+    },
+    {
       "question": "How tall is each candidate?",
       "difficulty": "unanswerable",
       "unanswerable": true

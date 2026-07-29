@@ -1,0 +1,14 @@
+# Party-to-party defections, from the pre-derived defection.csv
+# (../../derive_defections.py) — one row per edge, so each relation is inserted
+# exactly once. Both parties were created by pass 2, so the match always
+# resolves.
+given
+    $from_party_id: string,
+    $to_party_id: string,
+    $defectors: integer;
+match
+$from_party isa party, has party_id == $from_party_id;
+$to_party isa party, has party_id == $to_party_id;
+insert
+$defection isa defection, links (from_party: $from_party, to_party: $to_party),
+    has defectors == $defectors;

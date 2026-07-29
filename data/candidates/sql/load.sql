@@ -1,7 +1,9 @@
 -- Load the cleaned candidates CSV into the normalised schema.
 -- Staging holds the flat file as text; each entity is de-duplicated into
--- its table, then candidacy links them. Pass the CSV path as :data_path, e.g.:
---   psql -v data_path=/path/cleaned.csv -f schema.sql -f load.sql
+-- its table, then candidacy links them. Pass the CSV paths as :data_path and
+-- :defection_path, e.g.:
+--   psql -v data_path=/path/cleaned.csv -v defection_path=/path/defection.csv \
+--        -f schema.sql -f load.sql
 --
 -- A key repeats across rows, and those rows can disagree: a cell may be blank
 -- in one and filled in another (post gss:E05001147's last row has no nuts1),
@@ -211,6 +213,24 @@ FROM staging
 WHERE NULLIF(person_id,'') IS NOT NULL AND NULLIF(ballot_paper_id,'') IS NOT NULL
 ORDER BY person_id, ballot_paper_id, row_no
 ON CONFLICT (person_id, ballot_paper_id) DO NOTHING;
+
+-- The defection edges arrive pre-derived (../derive_defections.py) so that all
+-- three loaders hold the identical graph; staging only exists to make a re-run
+-- idempotent, since COPY has no ON CONFLICT.
+DROP TABLE IF EXISTS staging_defection;
+CREATE TABLE staging_defection (
+    from_party_id TEXT,
+    to_party_id TEXT,
+    defectors TEXT
+);
+COPY staging_defection FROM :'defection_path' WITH (FORMAT csv, HEADER true);
+
+INSERT INTO defection (from_party_id, to_party_id, defectors)
+SELECT from_party_id, to_party_id, NULLIF(defectors,'')::integer
+FROM staging_defection
+ON CONFLICT (from_party_id, to_party_id) DO NOTHING;
+
+DROP TABLE staging_defection;
 
 DROP AGGREGATE first_non_blank(anyelement);
 DROP FUNCTION keep_first(anyelement, anyelement);

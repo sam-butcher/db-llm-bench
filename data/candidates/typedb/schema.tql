@@ -58,6 +58,7 @@ attribute turnout_percentage, value double;
 attribute spoilt_ballots, value integer;
 attribute results_source, value string;
 
+attribute defectors, value integer;
 attribute party_description_text, value string;
 attribute party_list_position, value integer;
 attribute previous_party_affiliations, value string;
@@ -106,7 +107,9 @@ entity party,
     owns party_id @key,
     owns party_name,
     owns legacy_party_id,
-    plays candidacy:party;
+    plays candidacy:party,
+    plays defection:from_party,
+    plays defection:to_party;
 
 entity organisation,
     owns organisation_name @key,
@@ -170,3 +173,8 @@ relation candidacy,
     owns rank,
     owns statement_to_voters,
     owns statement_last_updated;
+
+relation defection,
+    relates from_party,
+    relates to_party,
+    owns defectors;

@@ -31,8 +31,9 @@ services:
       - -c
       - >
         python3 /candidates/clean.py /candidates/data.csv.gz /out/data.cleaned.csv &&
-        cp /out/data.cleaned.csv /out-neo4j/data.cleaned.csv &&
-        chmod 0644 /out/data.cleaned.csv /out-neo4j/data.cleaned.csv
+        python3 /candidates/derive_defections.py /out/data.cleaned.csv /out/defection.csv &&
+        cp /out/data.cleaned.csv /out/defection.csv /out-neo4j/ &&
+        chmod 0644 /out/data.cleaned.csv /out/defection.csv /out-neo4j/data.cleaned.csv /out-neo4j/defection.csv
 
   typedb:
     # Must match the loader version (loader/server share a protocol); a mismatch
@@ -104,6 +105,7 @@ services:
       - >
         psql -h postgres -U postgres -d candidates -v ON_ERROR_STOP=1
         -v data_path=/data/data.cleaned.csv
+        -v defection_path=/data/defection.csv
         -f /sql/schema.sql -f /sql/load.sql -f /roles.sql
 
   neo4j:
@@ -143,5 +145,7 @@ services:
       - password
       - --param
       - "csv => 'file:///data.cleaned.csv'"
+      - --param
+      - "defection_csv => 'file:///defection.csv'"
       - -f
       - /seed/load.cypher

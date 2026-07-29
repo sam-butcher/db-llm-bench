@@ -1,7 +1,8 @@
 // Load the cleaned candidates CSV into the property graph. Nodes are
 // MERGEd on their key (deduping shared entities); Candidacy is reified.
-// Pass the CSV as a param, e.g.:
-//   cypher-shell -u neo4j -p password --param "csv => 'file:///cleaned.csv'" -f load.cypher
+// Pass both CSVs as params, e.g.:
+//   cypher-shell -u neo4j -p password --param "csv => 'file:///cleaned.csv'" \
+//     --param "defection_csv => 'file:///defection.csv'" -f load.cypher
 //
 // LOAD CSV yields null for a blank cell, never '' (verified: no column in the
 // cleaned CSV ever produces an empty string), and the conversion functions
@@ -96,5 +97,18 @@ CALL {
       cand.rank = toInteger(row.rank),
       cand.statement_to_voters = row.statement_to_voters,
       cand.statement_last_updated = datetime(row.statement_last_updated)
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+// Party-to-party defections, pre-derived by ../derive_defections.py so that all
+// three loaders hold the identical graph. Both endpoints were created above, so
+// the MATCH always resolves; MERGE keeps a re-run idempotent.
+LOAD CSV WITH HEADERS FROM $defection_csv AS row
+CALL {
+  WITH row
+  MATCH (from_party:Party {party_id: row.from_party_id})
+  MATCH (to_party:Party {party_id: row.to_party_id})
+  MERGE (from_party)-[defection:DEFECTED_TO]->(to_party)
+    SET defection.defectors = toInteger(row.defectors)
 } IN TRANSACTIONS OF 1000 ROWS
 ;

@@ -50,6 +50,11 @@ fi
 echo "== projecting per-pass CSVs =="
 python3 "$HERE/project.py" "$CLEANED" "$WORK"
 
+# Derived, not projected: the defection edges roll up across rows rather than
+# narrowing them, and the same script feeds the Postgres and Neo4j loads.
+echo "== deriving defection edges =="
+python3 "$CAND/derive_defections.py" "$CLEANED" "$WORK/defection.csv"
+
 run_pass() {                                # run_pass <query.tql> <data.csv> [extra args...]
     local query="$1" data="$2"; shift 2
     echo "== load: $(basename "$query") <- $(basename "$data") =="
@@ -97,5 +102,6 @@ run_pass 5-organisation.tql organisation.csv
 run_pass 6-ballot.tql       ballot.csv
 run_pass 7-ballot-links.tql ballot-links.csv
 run_pass 8-candidacy.tql    candidacy.csv
+run_pass 9-defection.tql    defection.csv
 
 echo "== done =="

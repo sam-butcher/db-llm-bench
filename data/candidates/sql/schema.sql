@@ -88,3 +88,10 @@ CREATE TABLE candidacy (
     statement_last_updated TIMESTAMP,
     PRIMARY KEY (person_id, ballot_paper_id)
 );
+
+CREATE TABLE defection (
+    from_party_id TEXT REFERENCES party(party_id),
+    to_party_id TEXT REFERENCES party(party_id),
+    defectors INTEGER,
+    PRIMARY KEY (from_party_id, to_party_id)
+);

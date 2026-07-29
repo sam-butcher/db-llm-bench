@@ -19,7 +19,7 @@ Two facts about the record model matter for correctness:
 
 import json
 
-DIFF_ORDER = ["easy", "medium", "hard", "expert", "unanswerable"]
+DIFF_ORDER = ["easy", "medium", "hard", "expert", "recursion", "unanswerable"]
 
 
 def load_records(path):

@@ -24,6 +24,12 @@ Notes (see `_common.py`):
   result. `unanswerable` is its own difficulty tier (bucketed from the question's
   `unanswerable` flag); that column measures UNANSWERABLE-detection accuracy, a
   different skill from query generation.
+- **Return shape counts.** A query that computes the right answer but hands back
+  the wrong shape — an extra column, say — is a miss. Producing the asked-for
+  shape is part of using a language, and a language that makes it awkward should
+  score worse for it: Cypher won't `ORDER BY` an aggregate that isn't projected,
+  so argmax answers come back as two columns unless the model adds a further
+  clause. Use `incorrect_queries.py` to see which failures are of this kind.
 - **Retry levels** are derived: the runner executes each run once at the highest
   configured retry level and truncates the attempt trace for the lower ones. So
   summing/averaging across levels double-counts — `accuracy_by_db` and

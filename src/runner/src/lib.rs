@@ -193,6 +193,14 @@ struct AttemptOutcome {
 /// `expected`, so return type is scored uniformly with `expected` as the single
 /// source of truth (like field naming for objects). Unanswerable questions have
 /// no `expected`, so they get the bare question.
+///
+/// A right answer in the wrong shape is scored as a miss, deliberately. Shaping
+/// the output is part of using a query language, and where a language makes that
+/// awkward the difficulty is the thing being measured: Cypher rejects `ORDER BY
+/// count(x)` unless the count is also projected, so models repair the error by
+/// returning the count alongside the answer and hand back a two-column row where
+/// one value was asked for. That is the ergonomic gap showing up in the score,
+/// not a scoring accident.
 fn question_text(question: &Question) -> String {
     match question.expected.as_ref() {
         Some(expected) => format!(

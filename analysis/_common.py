@@ -8,8 +8,11 @@ Two facts about the record model matter for correctness:
 
 - Later tiers name the *construct* a question stresses rather than a difficulty:
   `recursion` needs transitive closure, `reification` needs the n-ary candidacy
-  fact constrained on several roles at once, and `control` holds questions of the
-  same aggregation shape as the `reification` ones but with no candidacy in them.
+  fact constrained on several roles at once, `control` holds questions of the same
+  aggregation shape as the `reification` ones but with no candidacy in them, and
+  `argmax` picks the top of a group — where the languages diverge most, since
+  Cypher won't ORDER BY an aggregate it hasn't projected and TypeQL needs a
+  user-defined function for any per-group extreme.
   Read those columns against each other — this benchmark exists to compare query
   languages, so a tier where all DBs score alike carries no information.
 - `unanswerable` is its own difficulty tier. Those questions measure a different
@@ -26,7 +29,7 @@ Two facts about the record model matter for correctness:
 import json
 
 DIFF_ORDER = ["easy", "medium", "hard", "expert", "recursion", "reification",
-               "control", "unanswerable"]
+               "control", "argmax", "unanswerable"]
 
 
 def load_records(path):

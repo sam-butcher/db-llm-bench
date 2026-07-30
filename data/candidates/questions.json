@@ -743,6 +743,89 @@
       }
     },
     {
+      "question": "Which person has been elected the most times? Return that person's name and the number of times. Count people by their person record, since different people can share a name.",
+      "difficulty": "argmax",
+      "expected": {
+        "person": "Chris Boden",
+        "times": 8
+      },
+      "queries": {
+        "typeql": "match $p isa person, has person_name $name; $c isa candidacy, links (candidate: $p), has elected true; reduce $times = count groupby $p, $name; sort $times desc; limit 1; fetch { \"person\": $name, \"times\": $times };",
+        "sql": "SELECT p.person_name AS person, COUNT(*) AS times FROM candidacy c JOIN person p ON p.person_id = c.person_id WHERE c.elected = true GROUP BY p.person_id, p.person_name ORDER BY times DESC LIMIT 1;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy) WHERE c.elected = true WITH p, count(c) AS times RETURN p.person_name AS person, times ORDER BY times DESC LIMIT 1",
+        "dummy": "{\"person\": \"Chris Boden\", \"times\": 8}"
+      }
+    },
+    {
+      "question": "For each of the five parliamentary general elections (parl.2010-05-06, parl.2015-05-07, parl.2017-06-08, parl.2019-12-12 and parl.2024-07-04), which party won the most seats? Return one row per election.",
+      "difficulty": "argmax",
+      "expected": [
+        {
+          "election": "parl.2010-05-06",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "election": "parl.2015-05-07",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "election": "parl.2017-06-08",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "election": "parl.2019-12-12",
+          "party": "Conservative and Unionist Party"
+        },
+        {
+          "election": "parl.2024-07-04",
+          "party": "Labour Party"
+        }
+      ],
+      "queries": {
+        "typeql": "with fun top_party($e: election) -> party_name: match $c isa candidacy, links (ballot: $b, party: $pa), has elected true; at_election (ballot: $b, election: $e); $pa has party_name $pn; reduce $n = count groupby $pn; sort $n desc; limit 1; return first $pn; match $e isa election, has election_id $id; { $id == \"parl.2010-05-06\"; } or { $id == \"parl.2015-05-07\"; } or { $id == \"parl.2017-06-08\"; } or { $id == \"parl.2019-12-12\"; } or { $id == \"parl.2024-07-04\"; }; let $party in top_party($e); fetch { \"election\": $id, \"party\": $party };",
+        "sql": "WITH s AS (SELECT b.election_id, pa.party_name, COUNT(*) AS n FROM candidacy c JOIN ballot b ON b.ballot_paper_id = c.ballot_paper_id JOIN party pa ON pa.party_id = c.party_id WHERE c.elected = true AND b.election_id IN ('parl.2010-05-06', 'parl.2015-05-07', 'parl.2017-06-08', 'parl.2019-12-12', 'parl.2024-07-04') GROUP BY 1, 2) SELECT election_id AS election, party_name AS party FROM s WHERE (election_id, n) IN (SELECT election_id, MAX(n) FROM s GROUP BY 1);",
+        "cypher": "MATCH (c:Candidacy)-[:IN_BALLOT]->(b:Ballot)-[:AT_ELECTION]->(e:Election), (c)-[:FOR_PARTY]->(pa:Party) WHERE c.elected = true AND e.election_id IN ['parl.2010-05-06', 'parl.2015-05-07', 'parl.2017-06-08', 'parl.2019-12-12', 'parl.2024-07-04'] WITH e.election_id AS election, pa.party_name AS party, count(c) AS n ORDER BY n DESC WITH election, collect(party)[0] AS party RETURN election, party",
+        "dummy": "[{\"election\": \"parl.2010-05-06\", \"party\": \"Conservative and Unionist Party\"}, {\"election\": \"parl.2015-05-07\", \"party\": \"Conservative and Unionist Party\"}, {\"election\": \"parl.2017-06-08\", \"party\": \"Conservative and Unionist Party\"}, {\"election\": \"parl.2019-12-12\", \"party\": \"Conservative and Unionist Party\"}, {\"election\": \"parl.2024-07-04\", \"party\": \"Labour Party\"}]"
+      }
+    },
+    {
+      "question": "Which party won the second-most seats at the 2024 general election (parl.2024-07-04)? Return its name.",
+      "difficulty": "argmax",
+      "expected": "Conservative and Unionist Party",
+      "queries": {
+        "typeql": "match $e isa election, has election_id \"parl.2024-07-04\"; $c isa candidacy, links (ballot: $b, party: $pa), has elected true; at_election (ballot: $b, election: $e); $pa has party_name $name; reduce $n = count groupby $pa, $name; sort $n desc; offset 1; limit 1; select $name;",
+        "sql": "SELECT pa.party_name FROM candidacy c JOIN ballot b ON b.ballot_paper_id = c.ballot_paper_id JOIN party pa ON pa.party_id = c.party_id WHERE c.elected = true AND b.election_id = 'parl.2024-07-04' GROUP BY pa.party_id, pa.party_name ORDER BY COUNT(*) DESC OFFSET 1 LIMIT 1;",
+        "cypher": "MATCH (c:Candidacy)-[:IN_BALLOT]->(b:Ballot)-[:AT_ELECTION]->(:Election {election_id: 'parl.2024-07-04'}), (c)-[:FOR_PARTY]->(pa:Party) WHERE c.elected = true WITH pa, count(c) AS n RETURN pa.party_name ORDER BY n DESC SKIP 1 LIMIT 1",
+        "dummy": "\"Conservative and Unionist Party\""
+      }
+    },
+    {
+      "question": "Among parties that have fielded at least 100 candidacies, which has the highest share of its candidacies that resulted in the candidate being elected? Return its name.",
+      "difficulty": "argmax",
+      "expected": "Ashfield Independents",
+      "queries": {
+        "typeql": "with fun stood($pa: party) -> integer: match $c isa candidacy, links (party: $pa); return count; with fun won($pa: party) -> integer: match $c isa candidacy, links (party: $pa), has elected true; return count; match $pa isa party, has party_name $name; let $s in stood($pa); $s >= 100; let $w in won($pa); let $share = 1.0 * $w / $s; sort $share desc; limit 1; select $name;",
+        "sql": "SELECT pa.party_name FROM candidacy c JOIN party pa ON pa.party_id = c.party_id GROUP BY pa.party_id, pa.party_name HAVING COUNT(*) >= 100 ORDER BY 1.0 * COUNT(*) FILTER (WHERE c.elected = true) / COUNT(*) DESC LIMIT 1;",
+        "cypher": "MATCH (c:Candidacy)-[:FOR_PARTY]->(pa:Party) WITH pa, count(c) AS stood, count(CASE WHEN c.elected = true THEN 1 END) AS won WHERE stood >= 100 RETURN pa.party_name ORDER BY 1.0 * won / stood DESC LIMIT 1",
+        "dummy": "\"Ashfield Independents\""
+      }
+    },
+    {
+      "question": "For the party that won the most seats at the 2024 general election (parl.2024-07-04), return its name, how many candidacies it fielded there, and how many of those resulted in the candidate being elected.",
+      "difficulty": "argmax",
+      "expected": {
+        "party": "Labour Party",
+        "candidacies": 582,
+        "elected": 368
+      },
+      "queries": {
+        "typeql": "with fun won_2024($pa: party) -> integer: match $c isa candidacy, links (party: $pa, ballot: $b), has elected true; at_election (ballot: $b, election: $e); $e has election_id \"parl.2024-07-04\"; return count; match $pa isa party, has party_name $name; $c isa candidacy, links (party: $pa, ballot: $b); at_election (ballot: $b, election: $e); $e has election_id \"parl.2024-07-04\"; reduce $candidacies = count groupby $pa, $name; match let $elected in won_2024($pa); sort $elected desc; limit 1; fetch { \"party\": $name, \"candidacies\": $candidacies, \"elected\": $elected };",
+        "sql": "SELECT pa.party_name AS party, COUNT(*) AS candidacies, COUNT(*) FILTER (WHERE c.elected = true) AS elected FROM candidacy c JOIN ballot b ON b.ballot_paper_id = c.ballot_paper_id JOIN party pa ON pa.party_id = c.party_id WHERE b.election_id = 'parl.2024-07-04' GROUP BY pa.party_id, pa.party_name ORDER BY elected DESC LIMIT 1;",
+        "cypher": "MATCH (c:Candidacy)-[:IN_BALLOT]->(b:Ballot)-[:AT_ELECTION]->(:Election {election_id: 'parl.2024-07-04'}), (c)-[:FOR_PARTY]->(pa:Party) WITH pa, count(c) AS candidacies, count(CASE WHEN c.elected = true THEN 1 END) AS elected ORDER BY elected DESC LIMIT 1 RETURN pa.party_name AS party, candidacies, elected",
+        "dummy": "{\"party\": \"Labour Party\", \"candidacies\": 582, \"elected\": 368}"
+      }
+    },
+    {
       "question": "How tall is each candidate?",
       "difficulty": "unanswerable",
       "unanswerable": true

@@ -111,23 +111,6 @@ WHERE NULLIF(organisation_name,'') IS NOT NULL
 GROUP BY 1
 ON CONFLICT (organisation_name) DO NOTHING;
 
--- The taxonomy itself, which the other two DBs hold as types and labels. Roots
--- first, so each parent_kind exists before a child references it.
-INSERT INTO election_kind (kind, parent_kind) VALUES
-    ('election', NULL),
-    ('parliamentary_election', 'election'),
-    ('european_election', 'election'),
-    ('devolved_election', 'election'),
-    ('local_election', 'election'),
-    ('scottish_parliament_election', 'devolved_election'),
-    ('senedd_election', 'devolved_election'),
-    ('ni_assembly_election', 'devolved_election'),
-    ('london_assembly_election', 'devolved_election'),
-    ('council_election', 'local_election'),
-    ('mayoral_election', 'local_election'),
-    ('pcc_election', 'local_election')
-ON CONFLICT (kind) DO NOTHING;
-
 DROP TABLE IF EXISTS staging_election_kind;
 CREATE TABLE staging_election_kind (election_id TEXT, kind TEXT);
 COPY staging_election_kind FROM :'election_kind_path' WITH (FORMAT csv, HEADER true);

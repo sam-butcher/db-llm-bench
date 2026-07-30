@@ -20,6 +20,21 @@ CREATE TABLE election_kind (
     parent_kind TEXT REFERENCES election_kind(kind)
 );
 
+INSERT INTO election_kind (kind, parent_kind) VALUES
+    ('election', NULL),
+    ('parliamentary_election', 'election'),
+    ('european_election', 'election'),
+    ('devolved_election', 'election'),
+    ('local_election', 'election'),
+    ('scottish_parliament_election', 'devolved_election'),
+    ('senedd_election', 'devolved_election'),
+    ('ni_assembly_election', 'devolved_election'),
+    ('london_assembly_election', 'devolved_election'),
+    ('council_election', 'local_election'),
+    ('mayoral_election', 'local_election'),
+    ('pcc_election', 'local_election')
+ON CONFLICT (kind) DO NOTHING;
+
 CREATE TABLE election (
     election_id TEXT PRIMARY KEY,
     election_date DATE,

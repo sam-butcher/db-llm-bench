@@ -339,10 +339,7 @@ async fn run_benchmarks(
                         "Running for {} against {} with {} skill(s)",
                         prepared.db.query_language(),
                         model.model_id(),
-                        &skills
-                            .clone()
-                            .map(|x| x.len())
-                            .unwrap_or(0)
+                        &skills.clone().map(|x| x.len()).unwrap_or(0)
                     );
                     let runner = BenchmarkRunner {
                         db: prepared.db.as_ref(),

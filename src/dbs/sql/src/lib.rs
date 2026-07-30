@@ -22,8 +22,8 @@ use tokio::sync::OnceCell;
 /// statement_timeout so the server cancels first — that path yields a clean
 /// SQLSTATE 57014 on a still-healthy connection, instead of the client
 /// dropping the stream mid-query.
-const QUERY_TIMEOUT: Duration = Duration::from_secs(35);
-const STATEMENT_TIMEOUT: &str = "30s";
+const QUERY_TIMEOUT: Duration = Duration::from_secs(95);
+const STATEMENT_TIMEOUT: &str = "90s";
 const MAX_ROWS: usize = 10_000;
 
 #[derive(Debug, Clone, Deserialize)]

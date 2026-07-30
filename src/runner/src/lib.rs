@@ -28,7 +28,7 @@ const INFRA_BACKOFF: Duration = Duration::from_millis(500);
 /// hung backend into a diagnosable infrastructure failure instead of a
 /// frozen run.
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(600);
-const DB_TIMEOUT: Duration = Duration::from_secs(120);
+const DB_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// Literal token the prompt instructs the model to emit, alone on its own
 /// line, when it believes the question cannot be answered against the

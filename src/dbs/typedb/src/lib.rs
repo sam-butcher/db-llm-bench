@@ -19,8 +19,12 @@ use typedb_driver::{
 };
 
 /// Pathological queries surface as model-fault timeouts rather than hanging
-/// the run (the runner's 120s ceiling stays a last resort).
-const QUERY_TIMEOUT: Duration = Duration::from_secs(30);
+/// the run (the runner's 180s ceiling stays a last resort). Set to catch
+/// runaway queries, not slow ones: a legitimate query that needs a minute is
+/// a fact about the language, not a fault, so the cap is well clear of the
+/// slowest reference query. The three DB packages hold the same cap, or a
+/// query that is merely slow would fail in one language and pass in another.
+const QUERY_TIMEOUT: Duration = Duration::from_secs(90);
 const MAX_ROWS: usize = 10_000;
 
 #[derive(Debug, Clone, Deserialize)]

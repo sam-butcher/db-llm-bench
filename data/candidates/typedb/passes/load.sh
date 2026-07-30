@@ -52,14 +52,20 @@ python3 "$HERE/project.py" "$CLEANED" "$WORK"
 
 # Derived, not projected: the defection edges roll up across rows rather than
 # narrowing them, and the same script feeds the Postgres and Neo4j loads.
+echo "== deriving election kinds =="
+python3 "$CAND/derive_election_kinds.py" "$CLEANED" "$WORK/election_kind.csv"
+
 echo "== deriving defection edges =="
 python3 "$CAND/derive_defections.py" "$CLEANED" "$WORK/defection.csv"
 
 run_pass() {                                # run_pass <query.tql> <data.csv> [extra args...]
     local query="$1" data="$2"; shift 2
+    # A rendered pass (see the election loop) is an absolute path in $WORK; the
+    # committed ones are named relative to this directory.
+    case "$query" in /*) ;; *) query="$HERE/$query" ;; esac
     echo "== load: $(basename "$query") <- $(basename "$data") =="
     typedb loader \
-        --query "$HERE/$query" \
+        --query "$query" \
         --data "$WORK/$data" \
         --header true \
         --database "$DB" \
@@ -97,7 +103,15 @@ fi
 run_pass 1-person.tql       person.csv        --create-db true --schema-file "$SCHEMA"
 run_pass 2-party.tql        party.csv
 run_pass 3-post.tql         post.csv
-run_pass 4-election.tql     election.csv
+# `election` is abstract, so each leaf subtype is loaded by its own pass. The
+# passes differ only in the type name, so they are rendered from one template
+# rather than kept as nine near-identical files.
+for kind in parliamentary_election european_election \
+            scottish_parliament_election senedd_election ni_assembly_election \
+            london_assembly_election council_election mayoral_election pcc_election; do
+    sed "s/{{TYPE}}/$kind/" "$HERE/4-election.tql.template" > "$WORK/4-$kind.tql"
+    run_pass "$WORK/4-$kind.tql" "election-$kind.csv"
+done
 run_pass 5-organisation.tql organisation.csv
 run_pass 6-ballot.tql       ballot.csv
 run_pass 7-ballot-links.tql ballot-links.csv

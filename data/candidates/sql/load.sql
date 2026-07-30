@@ -3,7 +3,7 @@
 -- its table, then candidacy links them. Pass the CSV paths as :data_path and
 -- :defection_path, e.g.:
 --   psql -v data_path=/path/cleaned.csv -v defection_path=/path/defection.csv \
---        -f schema.sql -f load.sql
+--        -v election_kind_path=/path/election_kind.csv -f schema.sql -f load.sql
 --
 -- A key repeats across rows, and those rows can disagree: a cell may be blank
 -- in one and filled in another (post gss:E05001147's last row has no nuts1),
@@ -111,6 +111,27 @@ WHERE NULLIF(organisation_name,'') IS NOT NULL
 GROUP BY 1
 ON CONFLICT (organisation_name) DO NOTHING;
 
+-- The taxonomy itself, which the other two DBs hold as types and labels. Roots
+-- first, so each parent_kind exists before a child references it.
+INSERT INTO election_kind (kind, parent_kind) VALUES
+    ('election', NULL),
+    ('parliamentary_election', 'election'),
+    ('european_election', 'election'),
+    ('devolved_election', 'election'),
+    ('local_election', 'election'),
+    ('scottish_parliament_election', 'devolved_election'),
+    ('senedd_election', 'devolved_election'),
+    ('ni_assembly_election', 'devolved_election'),
+    ('london_assembly_election', 'devolved_election'),
+    ('council_election', 'local_election'),
+    ('mayoral_election', 'local_election'),
+    ('pcc_election', 'local_election')
+ON CONFLICT (kind) DO NOTHING;
+
+DROP TABLE IF EXISTS staging_election_kind;
+CREATE TABLE staging_election_kind (election_id TEXT, kind TEXT);
+COPY staging_election_kind FROM :'election_kind_path' WITH (FORMAT csv, HEADER true);
+
 INSERT INTO election (election_id, election_date, election_current)
 SELECT
     NULLIF(election_id,''),
@@ -213,6 +234,11 @@ FROM staging
 WHERE NULLIF(person_id,'') IS NOT NULL AND NULLIF(ballot_paper_id,'') IS NOT NULL
 ORDER BY person_id, ballot_paper_id, row_no
 ON CONFLICT (person_id, ballot_paper_id) DO NOTHING;
+
+UPDATE election e SET kind = k.kind FROM staging_election_kind k
+WHERE k.election_id = e.election_id;
+
+DROP TABLE staging_election_kind;
 
 -- The defection edges arrive pre-derived (../derive_defections.py) so that all
 -- three loaders hold the identical graph; staging only exists to make a re-run

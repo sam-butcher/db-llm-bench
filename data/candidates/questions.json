@@ -564,13 +564,13 @@
       }
     },
     {
-      "question": "How many people stood for one party at a parliamentary election (an election whose ID begins 'parl.') and then for a different party at the next parliamentary election in which they stood?",
+      "question": "How many people stood for one party at a parliamentary election and then for a different party at the next parliamentary election in which they stood?",
       "difficulty": "expert",
       "expected": 439,
       "queries": {
-        "typeql": "match $p isa person; $c1 isa candidacy, links (candidate: $p, ballot: $b1, party: $pa1); at_election (ballot: $b1, election: $e1); $e1 has election_id $id1, has election_date $d1; $id1 like \"^parl[.]\"; $c2 isa candidacy, links (candidate: $p, ballot: $b2, party: $pa2); at_election (ballot: $b2, election: $e2); $e2 has election_id $id2, has election_date $d2; $id2 like \"^parl[.]\"; $d1 < $d2; not { $pa1 is $pa2; }; not { $c3 isa candidacy, links (candidate: $p, ballot: $b3); at_election (ballot: $b3, election: $e3); $e3 has election_id $id3, has election_date $d3; $id3 like \"^parl[.]\"; $d3 > $d1; $d3 < $d2; }; reduce $x = count groupby $p; reduce $count = count;",
-        "sql": "WITH pc AS (SELECT DISTINCT c.person_id, e.election_date, c.party_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id JOIN election e ON b.election_id = e.election_id WHERE e.election_id LIKE 'parl.%'), ord AS (SELECT person_id, party_id, LAG(party_id) OVER (PARTITION BY person_id ORDER BY election_date) AS prev FROM pc) SELECT COUNT(DISTINCT person_id) FROM ord WHERE prev IS NOT NULL AND prev <> party_id;",
-        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy)-[:FOR_PARTY]->(pa:Party), (c)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:Election) WHERE e.election_id STARTS WITH 'parl.' WITH DISTINCT p, e.election_date AS d, pa.party_id AS party WITH p, d, party ORDER BY d WITH p, collect(party) AS ps WHERE any(i IN range(0, size(ps) - 2) WHERE ps[i] <> ps[i + 1]) RETURN count(p)",
+        "typeql": "match $p isa person; $c1 isa candidacy, links (candidate: $p, ballot: $b1, party: $pa1); at_election (ballot: $b1, election: $e1); $e1 isa parliamentary_election, has election_date $d1; $c2 isa candidacy, links (candidate: $p, ballot: $b2, party: $pa2); at_election (ballot: $b2, election: $e2); $e2 isa parliamentary_election, has election_date $d2; $d1 < $d2; not { $pa1 is $pa2; }; not { $c3 isa candidacy, links (candidate: $p, ballot: $b3); at_election (ballot: $b3, election: $e3); $e3 isa parliamentary_election, has election_date $d3; $d3 > $d1; $d3 < $d2; }; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "WITH pc AS (SELECT DISTINCT c.person_id, e.election_date, c.party_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id JOIN election e ON b.election_id = e.election_id WHERE e.kind = 'parliamentary_election'), ord AS (SELECT person_id, party_id, LAG(party_id) OVER (PARTITION BY person_id ORDER BY election_date) AS prev FROM pc) SELECT COUNT(DISTINCT person_id) FROM ord WHERE prev IS NOT NULL AND prev <> party_id;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy)-[:FOR_PARTY]->(pa:Party), (c)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:ParliamentaryElection) WITH DISTINCT p, e.election_date AS d, pa.party_id AS party WITH p, d, party ORDER BY d WITH p, collect(party) AS ps WHERE any(i IN range(0, size(ps) - 2) WHERE ps[i] <> ps[i + 1]) RETURN count(p)",
         "dummy": "439"
       }
     },
@@ -597,13 +597,13 @@
       }
     },
     {
-      "question": "How many people have stood in at least five parliamentary candidacies (candidacies in ballots at elections whose ID begins 'parl.') without ever having been elected in any contest?",
+      "question": "How many people have stood in at least five parliamentary candidacies (candidacies in ballots at parliamentary elections) without ever having been elected in any contest?",
       "difficulty": "expert",
       "expected": 48,
       "queries": {
-        "typeql": "match $p isa person; not { $c0 isa candidacy, links (candidate: $p), has elected true; }; $c isa candidacy, links (candidate: $p, ballot: $b); at_election (ballot: $b, election: $e); $e has election_id $id; $id like \"^parl[.]\"; reduce $n = count groupby $p; match $n >= 5; reduce $count = count;",
-        "sql": "SELECT COUNT(*) FROM (SELECT c.person_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id WHERE b.election_id LIKE 'parl.%' GROUP BY c.person_id HAVING COUNT(*) >= 5) t WHERE NOT EXISTS (SELECT 1 FROM candidacy c2 WHERE c2.person_id = t.person_id AND c2.elected = true);",
-        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:Election) WHERE e.election_id STARTS WITH 'parl.' WITH p, count(c) AS n WHERE n >= 5 AND NOT EXISTS { (p)-[:STOOD]->(:Candidacy {elected: true}) } RETURN count(p)",
+        "typeql": "match $p isa person; not { $c0 isa candidacy, links (candidate: $p), has elected true; }; $c isa candidacy, links (candidate: $p, ballot: $b); at_election (ballot: $b, election: $e); $e isa parliamentary_election; reduce $n = count groupby $p; match $n >= 5; reduce $count = count;",
+        "sql": "SELECT COUNT(*) FROM (SELECT c.person_id FROM candidacy c JOIN ballot b ON c.ballot_paper_id = b.ballot_paper_id JOIN election e ON e.election_id = b.election_id WHERE e.kind = 'parliamentary_election' GROUP BY c.person_id HAVING COUNT(*) >= 5) t WHERE NOT EXISTS (SELECT 1 FROM candidacy c2 WHERE c2.person_id = t.person_id AND c2.elected = true);",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(c:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(e:ParliamentaryElection) WITH p, count(c) AS n WHERE n >= 5 AND NOT EXISTS { (p)-[:STOOD]->(:Candidacy {elected: true}) } RETURN count(p)",
         "dummy": "48"
       }
     },
@@ -823,6 +823,39 @@
         "sql": "SELECT pa.party_name AS party, COUNT(*) AS candidacies, COUNT(*) FILTER (WHERE c.elected = true) AS elected FROM candidacy c JOIN ballot b ON b.ballot_paper_id = c.ballot_paper_id JOIN party pa ON pa.party_id = c.party_id WHERE b.election_id = 'parl.2024-07-04' GROUP BY pa.party_id, pa.party_name ORDER BY elected DESC LIMIT 1;",
         "cypher": "MATCH (c:Candidacy)-[:IN_BALLOT]->(b:Ballot)-[:AT_ELECTION]->(:Election {election_id: 'parl.2024-07-04'}), (c)-[:FOR_PARTY]->(pa:Party) WITH pa, count(c) AS candidacies, count(CASE WHEN c.elected = true THEN 1 END) AS elected ORDER BY elected DESC LIMIT 1 RETURN pa.party_name AS party, candidacies, elected",
         "dummy": "{\"party\": \"Labour Party\", \"candidacies\": 582, \"elected\": 368}"
+      }
+    },
+    {
+      "question": "How many devolved elections have there been?",
+      "difficulty": "polymorphism",
+      "expected": 24,
+      "queries": {
+        "typeql": "match $e isa devolved_election; reduce $count = count;",
+        "sql": "WITH RECURSIVE k AS (SELECT kind FROM election_kind WHERE kind = 'devolved_election' UNION SELECT ek.kind FROM election_kind ek JOIN k ON ek.parent_kind = k.kind) SELECT COUNT(*) FROM election WHERE kind IN (SELECT kind FROM k);",
+        "cypher": "MATCH (e:DevolvedElection) RETURN count(e)",
+        "dummy": "24"
+      }
+    },
+    {
+      "question": "How many distinct people have stood as candidates at local elections of any kind?",
+      "difficulty": "polymorphism",
+      "expected": 111049,
+      "queries": {
+        "typeql": "match $p isa person; $c isa candidacy, links (candidate: $p, ballot: $b); at_election (ballot: $b, election: $e); $e isa local_election; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "WITH RECURSIVE k AS (SELECT kind FROM election_kind WHERE kind = 'local_election' UNION SELECT ek.kind FROM election_kind ek JOIN k ON ek.parent_kind = k.kind) SELECT COUNT(DISTINCT c.person_id) FROM candidacy c JOIN ballot b ON b.ballot_paper_id = c.ballot_paper_id JOIN election e ON e.election_id = b.election_id WHERE e.kind IN (SELECT kind FROM k);",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(:LocalElection) RETURN count(DISTINCT p)",
+        "dummy": "111049"
+      }
+    },
+    {
+      "question": "How many distinct people have stood at a devolved election but never at a parliamentary election?",
+      "difficulty": "polymorphism",
+      "expected": 2676,
+      "queries": {
+        "typeql": "match $p isa person; $c isa candidacy, links (candidate: $p, ballot: $b); at_election (ballot: $b, election: $e); $e isa devolved_election; not { $c2 isa candidacy, links (candidate: $p, ballot: $b2); at_election (ballot: $b2, election: $e2); $e2 isa parliamentary_election; }; reduce $x = count groupby $p; reduce $count = count;",
+        "sql": "WITH RECURSIVE k AS (SELECT kind FROM election_kind WHERE kind = 'devolved_election' UNION SELECT ek.kind FROM election_kind ek JOIN k ON ek.parent_kind = k.kind) SELECT COUNT(*) FROM (SELECT c.person_id FROM candidacy c JOIN ballot b ON b.ballot_paper_id = c.ballot_paper_id JOIN election e ON e.election_id = b.election_id WHERE e.kind IN (SELECT kind FROM k) EXCEPT SELECT c.person_id FROM candidacy c JOIN ballot b ON b.ballot_paper_id = c.ballot_paper_id JOIN election e ON e.election_id = b.election_id WHERE e.kind = 'parliamentary_election') t;",
+        "cypher": "MATCH (p:Person)-[:STOOD]->(:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(:DevolvedElection) WHERE NOT EXISTS { (p)-[:STOOD]->(:Candidacy)-[:IN_BALLOT]->(:Ballot)-[:AT_ELECTION]->(:ParliamentaryElection) } RETURN count(DISTINCT p)",
+        "dummy": "2676"
       }
     },
     {

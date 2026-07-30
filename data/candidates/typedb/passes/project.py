@@ -26,6 +26,12 @@ Usage: project.py CLEANED_CSV OUT_DIR
 """
 import csv, os, sys
 
+# The prefix -> kind mapping lives with the other derivation, so the TypeDB
+# passes and the Postgres/Neo4j loads cannot drift apart on which election is
+# which type.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+from derive_election_kinds import PREFIX_KIND
+
 PERSON = ["person_id", "person_name", "honorific_prefix", "honorific_suffix",
           "gender", "birth_date", "death_date", "favourite_biscuit", "email",
           "facebook_page_url", "facebook_personal_url", "homepage_url",
@@ -55,7 +61,6 @@ PROJECTIONS = [
     ("person.csv", "person_id", PERSON),
     ("party.csv", "party_id", PARTY),
     ("post.csv", "post_id", POST),
-    ("election.csv", "election_id", ELECTION),
     ("organisation.csv", "organisation_name", ORGANISATION),
     ("ballot.csv", "ballot_paper_id", BALLOT),
     ("ballot-links.csv", "ballot_paper_id", BALLOT_LINKS),
@@ -68,6 +73,17 @@ def main():
         sys.exit("usage: project.py CLEANED_CSV OUT_DIR")
     src, out_dir = sys.argv[1], sys.argv[2]
     os.makedirs(out_dir, exist_ok=True)
+
+    # `election` is abstract in the TypeDB schema, so its rows go to one file
+    # per leaf kind and are loaded by one pass each. Merged the same way as the
+    # keyed projections below: first non-blank per column, not first row whole.
+    election_files, election_writers = {}, {}
+    for kind in sorted(set(PREFIX_KIND.values())):
+        f = open(os.path.join(out_dir, f"election-{kind}.csv"), "w", newline="")
+        election_files[kind] = f
+        election_writers[kind] = csv.writer(f)
+        election_writers[kind].writerow(ELECTION)
+    elections = {}
 
     files, writers, counts = {}, {}, {}
     # One merged row per key, insertion-ordered so the output keeps
@@ -83,6 +99,18 @@ def main():
 
     with open(src, newline="") as fi:
         for row in csv.DictReader(fi):
+            election_id = row["election_id"]
+            if election_id:
+                kept = elections.get(election_id)
+                if kept is None:
+                    kind = PREFIX_KIND.get(election_id.split(".", 1)[0])
+                    if kind is None:
+                        sys.exit(f"unclassified election_id: {election_id}")
+                    elections[election_id] = (kind, [row[c] for c in ELECTION])
+                else:
+                    for i, c in enumerate(ELECTION):
+                        if not kept[1][i]:
+                            kept[1][i] = row[c]
             for name, key, cols in PROJECTIONS:
                 if key is None:
                     writers[name].writerow([row[c] for c in cols])
@@ -100,11 +128,17 @@ def main():
     for name, key, _ in PROJECTIONS:
         if key is not None:
             writers[name].writerows(merged[name].values())
+    election_counts = {kind: 0 for kind in election_writers}
+    for kind, values in elections.values():
+        election_writers[kind].writerow(values)
+        election_counts[kind] += 1
 
-    for f in files.values():
+    for f in list(files.values()) + list(election_files.values()):
         f.close()
     for name, _, _ in PROJECTIONS:
         print(f"  {name}: {counts[name]} rows")
+    for kind, n in sorted(election_counts.items()):
+        print(f"  election-{kind}.csv: {n} rows")
 
 
 if __name__ == "__main__":

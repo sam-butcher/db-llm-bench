@@ -122,11 +122,25 @@ entity post,
     owns nuts1,
     plays for_post:post;
 
-entity election,
+entity election @abstract,
     owns election_id @key,
     owns election_date,
     owns election_current,
     plays at_election:election;
+
+entity parliamentary_election sub election;
+entity european_election sub election;
+
+entity devolved_election @abstract, sub election;
+entity scottish_parliament_election sub devolved_election;
+entity senedd_election sub devolved_election;
+entity ni_assembly_election sub devolved_election;
+entity london_assembly_election sub devolved_election;
+
+entity local_election @abstract, sub election;
+entity council_election sub local_election;
+entity mayoral_election sub local_election;
+entity pcc_election sub local_election;
 
 entity ballot,
     owns ballot_paper_id @key,

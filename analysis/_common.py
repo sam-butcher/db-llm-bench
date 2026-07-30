@@ -12,7 +12,9 @@ Two facts about the record model matter for correctness:
   aggregation shape as the `reification` ones but with no candidacy in them, and
   `argmax` picks the top of a group — where the languages diverge most, since
   Cypher won't ORDER BY an aggregate it hasn't projected and TypeQL needs a
-  user-defined function for any per-group extreme.
+  user-defined function for any per-group extreme — and `polymorphism` queries
+  the election type hierarchy through an abstract parent, which TypeQL and
+  Cypher answer from the type system while Postgres walks a taxonomy table.
   Read those columns against each other — this benchmark exists to compare query
   languages, so a tier where all DBs score alike carries no information.
 - `unanswerable` is its own difficulty tier. Those questions measure a different
@@ -29,7 +31,7 @@ Two facts about the record model matter for correctness:
 import json
 
 DIFF_ORDER = ["easy", "medium", "hard", "expert", "recursion", "reification",
-               "control", "argmax", "unanswerable"]
+               "control", "argmax", "polymorphism", "unanswerable"]
 
 
 def load_records(path):

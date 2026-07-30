@@ -2,7 +2,8 @@
 // MERGEd on their key (deduping shared entities); Candidacy is reified.
 // Pass both CSVs as params, e.g.:
 //   cypher-shell -u neo4j -p password --param "csv => 'file:///cleaned.csv'" \
-//     --param "defection_csv => 'file:///defection.csv'" -f load.cypher
+//     --param "defection_csv => 'file:///defection.csv'" \
+//     --param "election_kind_csv => 'file:///election_kind.csv'" -f load.cypher
 //
 // LOAD CSV yields null for a blank cell, never '' (verified: no column in the
 // cleaned CSV ever produces an empty string), and the conversion functions
@@ -110,5 +111,91 @@ CALL {
   MATCH (to_party:Party {party_id: row.to_party_id})
   MERGE (from_party)-[defection:DEFECTED_TO]->(to_party)
     SET defection.defectors = toInteger(row.defectors)
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+// Election kinds, pre-derived by ../derive_election_kinds.py. Neo4j has no label
+// inheritance, so each node carries its leaf label and every ancestor label —
+// that is what makes (:DevolvedElection) match all four devolved kinds. Labels
+// cannot be parameterised, so each kind needs its own statement.
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'parliamentary_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:ParliamentaryElection
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'european_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:EuropeanElection
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'scottish_parliament_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:DevolvedElection:ScottishParliamentElection
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'senedd_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:DevolvedElection:SeneddElection
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'ni_assembly_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:DevolvedElection:NiAssemblyElection
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'london_assembly_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:DevolvedElection:LondonAssemblyElection
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'council_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:LocalElection:CouncilElection
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'mayoral_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:LocalElection:MayoralElection
+} IN TRANSACTIONS OF 1000 ROWS
+;
+
+LOAD CSV WITH HEADERS FROM $election_kind_csv AS row
+CALL {
+  WITH row
+  WITH row WHERE row.kind = 'pcc_election'
+  MATCH (e:Election {election_id: row.election_id})
+  SET e:LocalElection:PccElection
 } IN TRANSACTIONS OF 1000 ROWS
 ;

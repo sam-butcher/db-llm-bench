@@ -15,10 +15,16 @@ CREATE TABLE post (
     nuts1 TEXT
 );
 
+CREATE TABLE election_kind (
+    kind TEXT PRIMARY KEY,
+    parent_kind TEXT REFERENCES election_kind(kind)
+);
+
 CREATE TABLE election (
     election_id TEXT PRIMARY KEY,
     election_date DATE,
-    election_current BOOLEAN
+    election_current BOOLEAN,
+    kind TEXT REFERENCES election_kind(kind)
 );
 
 CREATE TABLE ballot (

@@ -161,10 +161,14 @@ MySQL dump `gk_current.sql.gz` (115 MB compressed) from
   manageable (115 MB compressed) compared with the FlyBase Chado dump. Schema is
   auto-generated from a class model, giving class-table inheritance and a
   `DatabaseObject` supertype — genuine polymorphism rather than the emulated kind.
-- **Cons:** contamination is asymmetric in the *unfavourable* direction. Reactome
-  publishes a Cypher query cookbook alongside the graph database, while the
-  relational side has comparatively little published SQL — so a Cypher advantage
-  is baked in. The generated schema also has a meta/generic flavour
+- **Cons:** contamination is asymmetric in the *unfavourable* direction. There is
+  no cookbook document as such, but a substantial first-party Cypher corpus is
+  published as source: ~365 `MATCH` clauses in `reactome/graph-core` (74 in Spring
+  Data `@Query` annotations), ~216 in `reactome/graph-qa`, two `.cyp` files in
+  `reactome/statistics-generator`, and ~15 worked examples on the
+  [extract-participating-molecules](https://reactome.org/dev/graph-database/extract-participating-molecules)
+  doc page. The relational side has no comparable published SQL, so a Cypher
+  advantage is baked in. The generated schema also has a meta/generic flavour
   (`_displayName`, class-per-table) that reads less like a designed domain model.
 
 ### iTop CMDB/ITSM (197 classes)
@@ -210,7 +214,7 @@ which is the contamination condition's exact exclusion.
 - **OMOP CDM (OHDSI)** — ~40 tables, under target, and fails contamination badly:
   the OHDSI cookbook, ATLAS and Achilles constitute exactly the kind of large
   published SQL corpus the criteria exclude.
-- **MIMIC-III / MIMIC-IV** — ~40 tables, and the `mimic-code` repository is a
+- **MIMIC-III / M![img.png](img.png)IMIC-IV** — ~40 tables, and the `mimic-code` repository is a
   large published query corpus.
 - **TPC-DS, Spider 2.0, BIRD** — self-defeating; their query sets *are* the
   published corpus.

@@ -61,17 +61,54 @@ Counted from `chado/modules/default_schema.sql`.
   (`feature_relationship`, `cvterm_relationship`, `organism_relationship`,
   `pub_relationship`, `analysis_relationship`), each with a `type_id` naming the
   edge kind — an extension of the recursion questions already authored against
-  the party-defection graph. Query corpus is thin: users go through the GMOD
-  Perl/Python APIs, GBrowse or the FlyBase web UI rather than raw SQL, and what
-  exists is a handful of files in the `FlyBase/chado` repo plus GMOD wiki
-  snippets. FlyBase runs a public read-only Postgres instance
+  the party-defection graph. FlyBase runs a public read-only Postgres instance
   (`chado.flybase.org:5432`, user `flybase`), so questions can be screened
   against real data before committing to any load.
 - **Cons:** the full FlyBase dump
   (`s3ftp.flybase.org/releases/FB2026_02/psql/FB2026_02.sql.gz`) needs roughly
   200 GB loaded, so subsetting is mandatory. Domain vocabulary (gene, transcript,
-  ontology term) is well represented in model training even though schema-specific
-  queries are not.
+  ontology term) is well represented in model training. The published SQL corpus
+  is substantial and the asymmetry runs against SQL's already-higher base rate —
+  see below.
+
+#### Chado published-query corpus
+
+Measured the same way as Reactome's, by grepping cloned first-party and
+ecosystem repositories plus the GMOD wiki. Counts are `SELECT` occurrences,
+which overcount somewhat (subqueries, CTEs) but are consistent across the two
+datasets.
+
+Prose and tutorial material, the most contaminating form because it is indexed
+HTML written to be read:
+
+| Source | SELECTs |
+|---|---|
+| [FlyBase Field Mapping Tables](https://gmod.org/wiki/FlyBase_Field_Mapping_Tables) | ~546 |
+| [Sample Chado SQL](https://gmod.org/wiki/Sample_Chado_SQL) | ~26 |
+| Chado Tutorial 2010/2012/2013 pages | ~1 inline |
+
+Application source:
+
+| Source | SELECTs | joining core Chado tables |
+|---|---|---|
+| `tripal/tripal` (PHP/inc/module) | 1164 | 373 |
+| `GMOD/Chado` `hackathon_2007` dump specs | 629 | — |
+| `Bio::GMOD::DB::Adapter` (Perl) | 82 | — |
+| `sanger-pathogens/chado-tools` | 105 | 24 |
+| `lmb-embrapa/machado` (Django ORM) | 33 | 2 |
+
+View definitions bundled in the DDL are a separate category — machine-generated
+rather than hand-authored, and unlikely to teach query *style*: the SO/SOFA
+bridge files carry 3967 `SELECT`s (one view per ontology term) and
+`default_schema.sql` another 2106, repeated across roughly six version copies in
+the repo. `FlyBase/chado`'s `schema/` tree adds 32 hand-written data-class view
+files (160 SELECTs, 247 core-table references).
+
+Graph-language corpus across all five repositories: **zero** — no `MATCH (`, no
+TypeQL. So Chado's contamination is entirely one-sided toward SQL, compounding
+the general SQL > Cypher > TypeQL base-rate effect rather than offsetting it.
+Reactome's asymmetry runs the other way (Cypher-heavy, no published SQL), which
+is the more favourable direction given that base rate.
 
 ### Ensembl (269 tables across four schemas)
 

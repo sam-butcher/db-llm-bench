@@ -11,6 +11,30 @@ docker compose up -d --wait
 `--wait` blocks until both loads have finished — neither service reports healthy
 before then. Without it, `up -d` returns while the data is still loading.
 
+## Getting the dumps
+
+Both dumps are far over GitHub's file-size limit and are gitignored, so a fresh
+clone has to fetch them before the stack will start:
+
+```sh
+mkdir -p data/reactome/sql data/reactome/neo4j
+curl -L https://reactome.org/download/current/databases/gk_current.sql.gz \
+  | gunzip > data/reactome/sql/gk_current.sql
+curl -Lo data/reactome/neo4j/reactome.graphdb.dump \
+  https://reactome.org/download/current/reactome.graphdb.dump
+```
+
+The derived `data/reactome/sql/schema.sql` (the 242-table DDL used in the
+prompt) *is* committed, so it does not need regenerating on every clone — only
+when moving to a new Reactome release:
+
+```sh
+python3 data/reactome/sql/extract_schema.py
+```
+
+That script fails loudly if the release no longer has exactly 242 tables, which
+is the signal that the questions and their expected values need rechecking.
+
 | DB    | Endpoint                       | Credentials                                                                | Seeding                                                              |
 | ----- | ------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | MySQL | `localhost:3306` (`reactome`)  | benchmark: `bench_ro` / `bench_ro` (SELECT-only); admin: `root` / `password` | self-seeding via `/docker-entrypoint-initdb.d` on first init          |

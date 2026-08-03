@@ -16,5 +16,7 @@ __pycache__/
 # Reactome ships its data as two large dumps (a ~841MB MySQL dump and a ~528MB
 # Neo4j dump) downloaded per release from reactome.org — far over GitHub's
 # file-size limit. databases/reactome/README.md says where to fetch them.
-/data/reactome/sql/*.sql
-/data/reactome/neo4j/*.dump
+# Named individually rather than by glob so the derived schema.sql, which is
+# small and belongs in the repo, keeps being tracked.
+/data/reactome/sql/gk_current.sql
+/data/reactome/neo4j/reactome.graphdb.dump

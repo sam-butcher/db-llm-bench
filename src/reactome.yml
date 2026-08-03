@@ -1,0 +1,30 @@
+# Reactome dataset. SQL (MySQL) only for now — the Cypher and TypeQL reference
+# queries in data/reactome/questions.json are still to be written, and a DB
+# listed here without a query for its language fails validation.
+#
+# Prereqs:
+#   1. Seed the Reactome stack (restores both dumps; the first run is slow):
+#        cd databases/reactome && docker compose up -d --wait
+#
+# Run:  cargo run -p bench-cli -- src/reactome.yml results-reactome.json
+#
+# The schema slot carries the complete 242-table DDL (~15.6k est. tokens), so
+# navigating a schema too large to hold comfortably in working memory is part of
+# what this dataset measures. See docs/dataset-selection-large-schema.md.
+dbs:
+  - sql:
+      # The shared data/prompts/sql.txt names PostgreSQL; this dataset runs on
+      # MySQL, so it uses the MySQL-worded variant of the same template.
+      prompts: data/prompts/sql-mysql.txt
+      url: mysql://bench_ro:bench_ro@localhost/reactome
+      schema: data/reactome/sql/schema.sql
+models:
+  - claude:
+      model: claude-opus-5
+questionsPath: data/reactome/questions.json
+# No few-shot examples ship with this dataset, so the only valid count is 0.
+exampleCounts:
+  - 0
+maxRetryCounts:
+  - 0
+  - 4

@@ -9,35 +9,11 @@
       }
     },
     {
-      "question": "Take every event in the hasEvent hierarchy at any depth below the pathway with stable identifier R-HSA-168256. Among the EntityWithAccessionedSequence instances that are direct inputs of those events, count the distinct reference entities that are reference gene products (ReferenceGeneProduct or any subclass) and that are never the reference entity of any EntityWithAccessionedSequence appearing as a direct output of any event in that same hierarchy.",
-      "difficulty": "expert",
-      "expected": 359,
-      "queries": {
-        "sql": "WITH RECURSIVE sub AS (SELECT he.hasEvent AS ev FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM sub JOIN Pathway_2_hasEvent he ON he.DB_ID = sub.ev), ins AS (SELECT DISTINCT e.referenceEntity AS re FROM sub JOIN ReactionlikeEvent_2_input i ON i.DB_ID = sub.ev JOIN EntityWithAccessionedSequence e ON e.DB_ID = i.input), outs AS (SELECT DISTINCT e.referenceEntity AS re FROM sub JOIN ReactionlikeEvent_2_output o ON o.DB_ID = sub.ev JOIN EntityWithAccessionedSequence e ON e.DB_ID = o.output) SELECT COUNT(*) FROM ins JOIN ReferenceGeneProduct rgp ON rgp.DB_ID = ins.re WHERE ins.re NOT IN (SELECT re FROM outs);"
-      }
-    },
-    {
       "question": "Restrict to human reaction-like events (species includes Homo sapiens) that have at least 4 distinct input entities, ignoring rank and ignoring any entity listed more than once. How many unordered pairs of two different such events have exactly the same set of input entities?",
       "difficulty": "expert",
       "expected": 104,
       "queries": {
         "sql": "WITH inp AS (SELECT DISTINCT i.DB_ID AS ev, i.input AS ent FROM ReactionlikeEvent_2_input i JOIN Event_2_species es ON es.DB_ID = i.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens'), card AS (SELECT ev, COUNT(*) AS n FROM inp GROUP BY ev HAVING COUNT(*) >= 4) SELECT COUNT(*) FROM card a JOIN card b ON b.n = a.n AND b.ev > a.ev WHERE NOT EXISTS (SELECT 1 FROM inp x WHERE x.ev = a.ev AND NOT EXISTS (SELECT 1 FROM inp y WHERE y.ev = b.ev AND y.ent = x.ent));"
-      }
-    },
-    {
-      "question": "Consider every GO cellular component that is used as a compartment by at least one reaction-like event. How many of them reach the GO cellular component with accession 0016020 by following one or more instanceOf links?",
-      "difficulty": "recursion",
-      "expected": 49,
-      "queries": {
-        "sql": "WITH RECURSIVE anc AS (SELECT DISTINCT rc.compartment AS node, rc.compartment AS root FROM ReactionlikeEvent_2_compartment rc UNION SELECT i.instanceOf, a.root FROM anc a JOIN GO_CellularComponent_2_instanceOf i ON i.DB_ID = a.node) SELECT COUNT(DISTINCT a.root) FROM anc a JOIN GO_CellularComponent g ON g.DB_ID = a.node AND g.accession = '0016020';"
-      }
-    },
-    {
-      "question": "Call a compartment 'membrane-derived' if it reaches the GO cellular component with accession 0016020 by following one or more instanceOf links. How many human reaction-like events (species includes Homo sapiens) are assigned at least two distinct membrane-derived compartments?",
-      "difficulty": "recursion",
-      "expected": 242,
-      "queries": {
-        "sql": "WITH RECURSIVE anc AS (SELECT DISTINCT rc.compartment AS node, rc.compartment AS root FROM ReactionlikeEvent_2_compartment rc UNION SELECT i.instanceOf, a.root FROM anc a JOIN GO_CellularComponent_2_instanceOf i ON i.DB_ID = a.node), memb AS (SELECT DISTINCT a.root AS cmp FROM anc a JOIN GO_CellularComponent g ON g.DB_ID = a.node AND g.accession = '0016020') SELECT COUNT(*) FROM (SELECT rc.DB_ID FROM ReactionlikeEvent_2_compartment rc JOIN memb m ON m.cmp = rc.compartment JOIN Event_2_species es ON es.DB_ID = rc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' GROUP BY rc.DB_ID HAVING COUNT(DISTINCT rc.compartment) >= 2) t;"
       }
     },
     {
@@ -89,14 +65,6 @@
       "expected": 34,
       "queries": {
         "sql": "SELECT COUNT(*) FROM (SELECT DISTINCT activeUnit AS a FROM CatalystActivity_2_activeUnit) x JOIN (SELECT DISTINCT activeUnit AS a FROM Regulation_2_activeUnit) y ON y.a = x.a;"
-      }
-    },
-    {
-      "question": "For each human pathway (species includes Homo sapiens), look only at the reaction-like events it contains directly through hasEvent, and count the distinct compartments assigned across those events. What is the greatest such count over all human pathways?",
-      "difficulty": "expert",
-      "expected": 17,
-      "queries": {
-        "sql": "SELECT MAX(c) FROM (SELECT he.DB_ID, COUNT(DISTINCT rc.compartment) AS c FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN ReactionlikeEvent_2_compartment rc ON rc.DB_ID = he.hasEvent GROUP BY he.DB_ID) t;"
       }
     },
     {

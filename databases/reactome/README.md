@@ -57,11 +57,28 @@ Verified after a from-scratch `up`: all **242 tables** loaded, `DatabaseObject`
 1,871,599 rows, `PhysicalEntity` 410,334, `ReactionlikeEvent` 95,780, `Pathway`
 23,604. `bench_ro` reads and is refused `CREATE`.
 
-**The benchmark cannot query this DB yet.** `src/dbs/sql` is Postgres-only —
-`PgConnectOptions`/`PgPool`/`PgRow` in `src/dbs/sql/src/lib.rs`. Running the
-benchmark against Reactome needs that package extended to MySQL; `sqlx` is
-already the dependency and supports MySQL, so it is a `MySqlPool` branch rather
-than a new dependency.
+### Querying it from the benchmark
+
+`src/dbs/sql` speaks both engines and picks one from the URL scheme, so a
+dataset config selects MySQL with nothing but its `url`:
+
+```yaml
+- sql:
+    url: mysql://bench_ro:bench_ro@localhost/reactome
+```
+
+Type coverage was checked against all 242 tables. Every column type Reactome
+uses is coerced except `longblob`, which appears exactly twice —
+`Ontology.ontology` and `PathwayDiagram.storedATXML`, both serialized payloads
+rather than queryable data. Selecting either returns a `WrongShape` error naming
+the column, which is the intended behaviour: there is no canonical benchmark
+value for a binary blob.
+
+One modelling quirk worth knowing before authoring questions: Reactome stores
+booleans as `enum('TRUE','FALSE')` in 9 columns, so they come back as the
+**strings** `"TRUE"`/`"FALSE"`, not booleans. That is what MySQL actually holds —
+the package does not second-guess it — but an expected answer written as a
+boolean will not match.
 
 ## Neo4j
 

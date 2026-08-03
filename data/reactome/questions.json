@@ -1,0 +1,100 @@
+{
+  "questions": [
+    {
+      "question": "In the pathway hierarchy below the pathway with stable identifier R-HSA-168256, following hasEvent links to any depth, how many distinct reaction-like events are reachable? Count an event if it is an instance of ReactionlikeEvent or of any subclass of ReactionlikeEvent.",
+      "difficulty": "recursion",
+      "expected": 1900,
+      "queries": {
+        "sql": "WITH RECURSIVE sub AS (SELECT he.hasEvent AS ev FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM sub JOIN Pathway_2_hasEvent he ON he.DB_ID = sub.ev) SELECT COUNT(*) FROM sub JOIN ReactionlikeEvent r ON r.DB_ID = sub.ev;"
+      }
+    },
+    {
+      "question": "Starting from the complex with stable identifier R-HSA-157689, follow hasComponent links out of complexes and hasMember links out of entity sets, to any depth. How many distinct EntityWithAccessionedSequence instances are reachable?",
+      "difficulty": "recursion",
+      "expected": 32,
+      "queries": {
+        "sql": "WITH RECURSIVE parts AS (SELECT hc.hasComponent AS ent FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Complex_2_hasComponent hc ON hc.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-157689' UNION SELECT hc.hasComponent FROM parts p JOIN Complex_2_hasComponent hc ON hc.DB_ID = p.ent UNION SELECT hm.hasMember FROM parts p JOIN EntitySet_2_hasMember hm ON hm.DB_ID = p.ent) SELECT COUNT(*) FROM parts JOIN EntityWithAccessionedSequence e ON e.DB_ID = parts.ent;"
+      }
+    },
+    {
+      "question": "Taxon instances form chains through the superTaxon attribute. Counting links rather than taxa, how many superTaxon links does the longest such chain contain?",
+      "difficulty": "recursion",
+      "expected": 33,
+      "queries": {
+        "sql": "WITH RECURSIVE up AS (SELECT DB_ID AS node, superTaxon AS parent, 1 AS depth FROM Taxon WHERE superTaxon IS NOT NULL UNION ALL SELECT u.node, t.superTaxon, u.depth + 1 FROM up u JOIN Taxon t ON t.DB_ID = u.parent WHERE t.superTaxon IS NOT NULL) SELECT MAX(depth) FROM up;"
+      }
+    },
+    {
+      "question": "The inputs and outputs of a reaction-like event are ordered lists, ranked from 0. In how many reaction-like events is the rank-0 input the very same physical entity instance as the rank-0 output?",
+      "difficulty": "reification",
+      "expected": 528,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM (SELECT DB_ID, input FROM ReactionlikeEvent_2_input WHERE input_rank = 0) i JOIN (SELECT DB_ID, output FROM ReactionlikeEvent_2_output WHERE output_rank = 0) o ON o.DB_ID = i.DB_ID AND o.output = i.input;"
+      }
+    },
+    {
+      "question": "How many distinct reaction-like events are regulated by at least one positive regulation and also by at least one negative regulation? Treat any subclass of PositiveRegulation as positive and any subclass of NegativeRegulation as negative.",
+      "difficulty": "polymorphism",
+      "expected": 767,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT a.DB_ID) FROM ReactionlikeEvent_2_regulatedBy a JOIN PositiveRegulation pr ON pr.DB_ID = a.regulatedBy WHERE EXISTS (SELECT 1 FROM ReactionlikeEvent_2_regulatedBy b JOIN NegativeRegulation nr ON nr.DB_ID = b.regulatedBy WHERE b.DB_ID = a.DB_ID);"
+      }
+    },
+    {
+      "question": "Considering only reaction-like events whose species includes Homo sapiens, which physical entity is the catalyst of the greatest number of distinct such events? Give that entity's display name.",
+      "difficulty": "argmax",
+      "expected": "26S proteasome [cytosol]",
+      "queries": {
+        "sql": "SELECT d._displayName FROM ReactionlikeEvent_2_catalystActivity rc JOIN CatalystActivity ca ON ca.DB_ID = rc.catalystActivity JOIN DatabaseObject d ON d.DB_ID = ca.physicalEntity JOIN Event_2_species es ON es.DB_ID = rc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' GROUP BY ca.physicalEntity, d._displayName ORDER BY COUNT(DISTINCT rc.DB_ID) DESC LIMIT 1;"
+      }
+    },
+    {
+      "question": "How many distinct reaction-like events whose species includes Homo sapiens have neither any catalyst activity nor any regulation recorded against them?",
+      "difficulty": "expert",
+      "expected": 7698,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT r.DB_ID) FROM ReactionlikeEvent r JOIN Event_2_species es ON es.DB_ID = r.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' WHERE NOT EXISTS (SELECT 1 FROM ReactionlikeEvent_2_catalystActivity c WHERE c.DB_ID = r.DB_ID) AND NOT EXISTS (SELECT 1 FROM ReactionlikeEvent_2_regulatedBy g WHERE g.DB_ID = r.DB_ID);"
+      }
+    },
+    {
+      "question": "Treating the direct hasEvent children of the pathway with stable identifier R-HSA-168256 as depth 1, what is the greatest depth at which any event sits in the hasEvent hierarchy below that pathway?",
+      "difficulty": "recursion",
+      "expected": 10,
+      "queries": {
+        "sql": "WITH RECURSIVE lv AS (SELECT he.hasEvent AS ev, 1 AS d FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION ALL SELECT he.hasEvent, lv.d + 1 FROM lv JOIN Pathway_2_hasEvent he ON he.DB_ID = lv.ev WHERE lv.d < 40) SELECT MAX(d) FROM lv;"
+      }
+    },
+    {
+      "question": "Considering only pathways whose species includes Homo sapiens, each pathway records the InstanceEdit that created it, and that edit records its authors. Which person is an author of the creating edit of the greatest number of those pathways? Give the person's display name.",
+      "difficulty": "argmax",
+      "expected": "Jassal, Bijay",
+      "queries": {
+        "sql": "SELECT p._displayName FROM Pathway pw JOIN DatabaseObject d ON d.DB_ID = pw.DB_ID JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN InstanceEdit_2_author ia ON ia.DB_ID = d.created JOIN DatabaseObject p ON p.DB_ID = ia.author GROUP BY ia.author, p._displayName ORDER BY COUNT(DISTINCT pw.DB_ID) DESC LIMIT 1;"
+      }
+    },
+    {
+      "question": "Take every event in the hasEvent hierarchy at any depth below the pathway with stable identifier R-HSA-168256, and collect the orthologous events recorded on them. How many distinct species appear on those orthologous events?",
+      "difficulty": "expert",
+      "expected": 14,
+      "queries": {
+        "sql": "WITH RECURSIVE sub AS (SELECT he.hasEvent AS ev FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM sub JOIN Pathway_2_hasEvent he ON he.DB_ID = sub.ev) SELECT COUNT(DISTINCT es.species) FROM sub JOIN Event_2_orthologousEvent oe ON oe.DB_ID = sub.ev JOIN Event_2_species es ON es.DB_ID = oe.orthologousEvent;"
+      }
+    },
+    {
+      "question": "Among pathways whose species includes Homo sapiens, how many have a rank-0 hasEvent entry that is itself a pathway rather than a reaction-like event?",
+      "difficulty": "polymorphism",
+      "expected": 628,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Pathway p ON p.DB_ID = he.hasEvent WHERE he.hasEvent_rank = 0;"
+      }
+    },
+    {
+      "question": "Among reaction-like events whose species includes Homo sapiens, how many have at least one physical entity that appears both as an input and as an output of that same event?",
+      "difficulty": "reification",
+      "expected": 79,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT i.DB_ID) FROM ReactionlikeEvent_2_input i JOIN ReactionlikeEvent_2_output o ON o.DB_ID = i.DB_ID AND o.output = i.input JOIN Event_2_species es ON es.DB_ID = i.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens';"
+      }
+    }
+  ]
+}

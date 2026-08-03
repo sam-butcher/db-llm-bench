@@ -12,3 +12,9 @@ __pycache__/
 
 # TypeDB multi-pass load: derived projections and cleaned CSVs
 /data/candidates/typedb/passes/work/
+
+# Reactome ships its data as two large dumps (a ~841MB MySQL dump and a ~528MB
+# Neo4j dump) downloaded per release from reactome.org — far over GitHub's
+# file-size limit. databases/reactome/README.md says where to fetch them.
+/data/reactome/sql/*.sql
+/data/reactome/neo4j/*.dump

@@ -28,22 +28,6 @@
       }
     },
     {
-      "question": "Human reaction-like events (species includes Homo sapiens) may carry entity functional statuses, each of which carries functional statuses, each of which names a functional status type. Which functional status type is reached from the greatest number of distinct such events? Give its display name.",
-      "difficulty": "argmax",
-      "expected": "loss_of_function",
-      "queries": {
-        "sql": "SELECT t._displayName FROM ReactionlikeEvent_2_entityFunctionalStatus refs JOIN Event_2_species es ON es.DB_ID = refs.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN EntityFunctionalStatus_2_functionalStatus efs ON efs.DB_ID = refs.entityFunctionalStatus JOIN FunctionalStatus fs ON fs.DB_ID = efs.functionalStatus JOIN DatabaseObject t ON t.DB_ID = fs.functionalStatusType GROUP BY fs.functionalStatusType, t._displayName ORDER BY COUNT(DISTINCT refs.DB_ID) DESC LIMIT 1;"
-      }
-    },
-    {
-      "question": "How many distinct human reaction-like events (species includes Homo sapiens) have at least one orthologous event whose species includes Mus musculus, and no orthologous event whose species includes Rattus norvegicus?",
-      "difficulty": "expert",
-      "expected": 336,
-      "queries": {
-        "sql": "SELECT COUNT(DISTINCT r.DB_ID) FROM ReactionlikeEvent r JOIN Event_2_species hs ON hs.DB_ID = r.DB_ID JOIN DatabaseObject h ON h.DB_ID = hs.species AND h._displayName = 'Homo sapiens' WHERE EXISTS (SELECT 1 FROM Event_2_orthologousEvent oe JOIN Event_2_species es ON es.DB_ID = oe.orthologousEvent JOIN DatabaseObject s ON s.DB_ID = es.species AND s._displayName = 'Mus musculus' WHERE oe.DB_ID = r.DB_ID) AND NOT EXISTS (SELECT 1 FROM Event_2_orthologousEvent oe JOIN Event_2_species es ON es.DB_ID = oe.orthologousEvent JOIN DatabaseObject s ON s.DB_ID = es.species AND s._displayName = 'Rattus norvegicus' WHERE oe.DB_ID = r.DB_ID);"
-      }
-    },
-    {
       "question": "How many distinct publications are cited both as a literature reference of a summation of some human pathway and directly as a literature reference of some human reaction-like event? In both cases human means the event's species includes Homo sapiens.",
       "difficulty": "polymorphism",
       "expected": 1106,
@@ -116,27 +100,11 @@
       }
     },
     {
-      "question": "Among the reaction-like events lying in the hasEvent hierarchy at any depth below the pathway with stable identifier R-HSA-168256, which species appears on the orthologous events of the greatest number of distinct such reaction-like events? Give the species display name.",
-      "difficulty": "argmax",
-      "expected": "Mus musculus",
-      "queries": {
-        "sql": "WITH RECURSIVE sub AS (SELECT he.hasEvent AS ev FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM sub JOIN Pathway_2_hasEvent he ON he.DB_ID = sub.ev) SELECT d._displayName FROM sub JOIN ReactionlikeEvent r ON r.DB_ID = sub.ev JOIN Event_2_orthologousEvent oe ON oe.DB_ID = sub.ev JOIN Event_2_species es ON es.DB_ID = oe.orthologousEvent JOIN DatabaseObject d ON d.DB_ID = es.species GROUP BY es.species, d._displayName ORDER BY COUNT(DISTINCT sub.ev) DESC LIMIT 1;"
-      }
-    },
-    {
       "question": "How many human complexes (species includes Homo sapiens) that have at least one direct component have every one of their direct components be an EntityWithAccessionedSequence?",
       "difficulty": "polymorphism",
       "expected": 4822,
       "queries": {
         "sql": "SELECT COUNT(*) FROM (SELECT hc.DB_ID FROM Complex_2_hasComponent hc JOIN Complex_2_species cs ON cs.DB_ID = hc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = cs.species AND sp._displayName = 'Homo sapiens' LEFT JOIN EntityWithAccessionedSequence e ON e.DB_ID = hc.hasComponent GROUP BY hc.DB_ID HAVING COUNT(DISTINCT hc.hasComponent) = COUNT(DISTINCT e.DB_ID)) t;"
-      }
-    },
-    {
-      "question": "For each human pathway (species includes Homo sapiens), count the distinct events reachable from it through hasEvent at any depth. What is the greatest such count?",
-      "difficulty": "recursion",
-      "expected": 3002,
-      "queries": {
-        "sql": "WITH RECURSIVE t AS (SELECT he.DB_ID AS root, he.hasEvent AS ev FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' UNION SELECT t.root, he.hasEvent FROM t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev) SELECT MAX(n) FROM (SELECT root, COUNT(DISTINCT ev) AS n FROM t GROUP BY root) x;"
       }
     },
     {
@@ -250,6 +218,38 @@
       "expected": 1048,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT e.referenceEntity) FROM ReactionlikeEvent_2_catalystActivity rc JOIN CatalystActivity ca ON ca.DB_ID = rc.catalystActivity JOIN EntityWithAccessionedSequence e ON e.DB_ID = ca.physicalEntity JOIN ReferenceSequence rs ON rs.DB_ID = e.referenceEntity JOIN DatabaseObject d ON d.DB_ID = rs.species AND d._displayName = 'Homo sapiens';"
+      }
+    },
+    {
+      "question": "How many distinct human pathways (species includes Homo sapiens) have at least one recorded revision and have never been internally reviewed?",
+      "difficulty": "expert",
+      "expected": 236,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT pw.DB_ID) FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_revised rv ON rv.DB_ID = pw.DB_ID WHERE NOT EXISTS (SELECT 1 FROM Event_2_internalReviewed ir WHERE ir.DB_ID = pw.DB_ID);"
+      }
+    },
+    {
+      "question": "How many distinct events record at least one related species that is not also one of that same event's own species?",
+      "difficulty": "expert",
+      "expected": 1573,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT rs.DB_ID) FROM Event_2_relatedSpecies rs WHERE NOT EXISTS (SELECT 1 FROM Event_2_species es WHERE es.DB_ID = rs.DB_ID AND es.species = rs.relatedSpecies);"
+      }
+    },
+    {
+      "question": "How many distinct human reaction-like events (species includes Homo sapiens) were inferred from an event that records a species other than Homo sapiens?",
+      "difficulty": "expert",
+      "expected": 2257,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT inf.DB_ID) FROM Event_2_inferredFrom inf JOIN Event_2_species hs ON hs.DB_ID = inf.DB_ID JOIN DatabaseObject h ON h.DB_ID = hs.species AND h._displayName = 'Homo sapiens' WHERE EXISTS (SELECT 1 FROM Event_2_species es2 JOIN DatabaseObject d2 ON d2.DB_ID = es2.species WHERE es2.DB_ID = inf.inferredFrom AND d2._displayName <> 'Homo sapiens');"
+      }
+    },
+    {
+      "question": "How many distinct complexes record at least one included location that is not also one of that same complex's compartments?",
+      "difficulty": "expert",
+      "expected": 5591,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT il.DB_ID) FROM Complex_2_includedLocation il WHERE NOT EXISTS (SELECT 1 FROM Complex_2_compartment cc WHERE cc.DB_ID = il.DB_ID AND cc.compartment = il.includedLocation);"
       }
     }
   ]

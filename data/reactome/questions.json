@@ -127,44 +127,6 @@
       }
     },
     {
-      "question": "Among the reaction-like events lying at any depth below the pathway with stable identifier R-HSA-168256 in the hasEvent hierarchy, report every species that appears on the orthologous events of at least 1000 distinct such reaction-like events. Order by that count descending and then by species name, using columns named species and events.",
-      "difficulty": "expert",
-      "expected": [
-        {
-          "species": "Mus musculus",
-          "events": 1264
-        },
-        {
-          "species": "Bos taurus",
-          "events": 1222
-        },
-        {
-          "species": "Rattus norvegicus",
-          "events": 1193
-        },
-        {
-          "species": "Sus scrofa",
-          "events": 1163
-        },
-        {
-          "species": "Canis familiaris",
-          "events": 1151
-        }
-      ],
-      "queries": {
-        "sql": "WITH RECURSIVE sub AS (SELECT he.hasEvent AS ev FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM sub JOIN Pathway_2_hasEvent he ON he.DB_ID = sub.ev) SELECT d._displayName AS species, COUNT(DISTINCT sub.ev) AS events FROM sub JOIN ReactionlikeEvent r ON r.DB_ID = sub.ev JOIN Event_2_orthologousEvent oe ON oe.DB_ID = sub.ev JOIN Event_2_species es ON es.DB_ID = oe.orthologousEvent JOIN DatabaseObject d ON d.DB_ID = es.species GROUP BY es.species, d._displayName HAVING COUNT(DISTINCT sub.ev) >= 1000 ORDER BY events DESC, species;"
-      },
-      "ordered": true
-    },
-    {
-      "question": "Call a compartment 'membrane-derived' if it reaches the GO cellular component with accession 0016020 by following one or more instanceOf links. How many distinct human reaction-like events (species includes Homo sapiens) satisfy all three of the following: one of the event's catalyst physical entities is itself one of that same event's own inputs; the event is regulated by at least one instance of PositiveRegulation or any of its subclasses; and the event is assigned at least one membrane-derived compartment?",
-      "difficulty": "expert",
-      "expected": 44,
-      "queries": {
-        "sql": "WITH RECURSIVE anc AS (SELECT DISTINCT rc.compartment AS node, rc.compartment AS root FROM ReactionlikeEvent_2_compartment rc UNION SELECT i.instanceOf, a.root FROM anc a JOIN GO_CellularComponent_2_instanceOf i ON i.DB_ID = a.node), memb AS (SELECT DISTINCT a.root AS cmp FROM anc a JOIN GO_CellularComponent g ON g.DB_ID = a.node AND g.accession = '0016020') SELECT COUNT(DISTINCT rc.DB_ID) FROM ReactionlikeEvent_2_catalystActivity rc JOIN CatalystActivity ca ON ca.DB_ID = rc.catalystActivity JOIN ReactionlikeEvent_2_input i ON i.DB_ID = rc.DB_ID AND i.input = ca.physicalEntity JOIN ReactionlikeEvent_2_regulatedBy rb ON rb.DB_ID = rc.DB_ID JOIN PositiveRegulation pr ON pr.DB_ID = rb.regulatedBy JOIN ReactionlikeEvent_2_compartment rc2 ON rc2.DB_ID = rc.DB_ID JOIN memb m ON m.cmp = rc2.compartment JOIN Event_2_species es ON es.DB_ID = rc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens';"
-      }
-    },
-    {
       "question": "Consider human reaction-like events (species includes Homo sapiens) that carry at least one regulation. What percentage of them carry no regulation that is an instance of NegativeRegulation or any of its subclasses? Round to one decimal place.",
       "difficulty": "polymorphism",
       "expected": 62.4,
@@ -293,6 +255,75 @@
       ],
       "queries": {
         "sql": "SELECT d._displayName AS species, COUNT(DISTINCT r.DB_ID) AS reactions, COUNT(DISTINCT pw.DB_ID) AS pathways FROM Event_2_species es JOIN DatabaseObject d ON d.DB_ID = es.species LEFT JOIN ReactionlikeEvent r ON r.DB_ID = es.DB_ID LEFT JOIN Pathway pw ON pw.DB_ID = es.DB_ID GROUP BY es.species, d._displayName ORDER BY reactions DESC, species LIMIT 10;"
+      }
+    },
+    {
+      "question": "How many InstanceEdit instances are not recorded as the creating edit of any pathway? Treat a pathway as an instance of Pathway or of any subclass of Pathway.",
+      "difficulty": "expert",
+      "expected": 124393,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM InstanceEdit ie WHERE NOT EXISTS (SELECT 1 FROM Pathway pw JOIN DatabaseObject p ON p.DB_ID = pw.DB_ID AND p.created = ie.DB_ID);"
+      }
+    },
+    {
+      "question": "Treating the direct hasEvent children of the pathway with stable identifier R-HSA-168256 as depth 1, how many distinct events below that pathway are reachable at two or more different depths?",
+      "difficulty": "recursion",
+      "expected": 125,
+      "queries": {
+        "sql": "WITH RECURSIVE lv AS (SELECT he.hasEvent AS ev, 1 AS d FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent, lv.d + 1 FROM lv JOIN Pathway_2_hasEvent he ON he.DB_ID = lv.ev) SELECT COUNT(*) FROM (SELECT ev FROM lv GROUP BY ev HAVING COUNT(DISTINCT d) > 1) t;"
+      }
+    },
+    {
+      "question": "The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, take the set of reaction-like events reachable from it through hasEvent at any depth. For every unordered pair of two different children, report the pair with columns pathway_a, pathway_b, shared and jaccard, where shared is the number of reaction-like events in both sets and jaccard is that number divided by the size of the union, rounded to four decimal places. Order by jaccard descending, then pathway_a, then pathway_b.",
+      "difficulty": "expert",
+      "ordered": true,
+      "expected": [
+        {
+          "pathway_a": "Innate Immune System",
+          "pathway_b": "Cytokine Signaling in Immune system",
+          "shared": 60,
+          "jaccard": 0.0388
+        },
+        {
+          "pathway_a": "Innate Immune System",
+          "pathway_b": "Adaptive Immune System",
+          "shared": 10,
+          "jaccard": 0.0088
+        },
+        {
+          "pathway_a": "Cytokine Signaling in Immune system",
+          "pathway_b": "Adaptive Immune System",
+          "shared": 2,
+          "jaccard": 0.0017
+        }
+      ],
+      "queries": {
+        "sql": "WITH RECURSIVE roots AS (SELECT he.hasEvent AS root FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256'), tree AS (SELECT root, root AS ev FROM roots UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), rset AS (SELECT DISTINCT t.root, t.ev FROM tree t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev), sizes AS (SELECT root, COUNT(*) AS n FROM rset GROUP BY root), inter AS (SELECT a.root AS ra, b.root AS rb, COUNT(*) AS k FROM rset a JOIN rset b ON b.ev = a.ev AND b.root > a.root GROUP BY a.root, b.root) SELECT da._displayName AS pathway_a, db2._displayName AS pathway_b, i.k AS shared, ROUND(i.k / (sa.n + sb.n - i.k), 4) AS jaccard FROM inter i JOIN sizes sa ON sa.root = i.ra JOIN sizes sb ON sb.root = i.rb JOIN DatabaseObject da ON da.DB_ID = i.ra JOIN DatabaseObject db2 ON db2.DB_ID = i.rb ORDER BY jaccard DESC, pathway_a, pathway_b;"
+      }
+    },
+    {
+      "question": "Rank species by the number of distinct reaction-like events that record them as one of their species, and take the top three. For each of those three, report the pathway that directly contains, through hasEvent, the greatest number of reaction-like events recording that species. Use columns species, pathway and reactions, ordered by reactions descending then species.",
+      "difficulty": "expert",
+      "ordered": true,
+      "expected": [
+        {
+          "species": "Homo sapiens",
+          "pathway": "Estrogen-dependent gene expression",
+          "reactions": 66
+        },
+        {
+          "species": "Mus musculus",
+          "pathway": "Interleukin-20 family signaling",
+          "reactions": 52
+        },
+        {
+          "species": "Rattus norvegicus",
+          "pathway": "Interleukin-20 family signaling",
+          "reactions": 52
+        }
+      ],
+      "queries": {
+        "sql": "WITH sp3 AS (SELECT es.species AS sp, COUNT(DISTINCT es.DB_ID) AS n FROM Event_2_species es JOIN ReactionlikeEvent r ON r.DB_ID = es.DB_ID GROUP BY es.species ORDER BY n DESC LIMIT 3), cnt AS (SELECT es.species AS sp, he.DB_ID AS pw, COUNT(DISTINCT he.hasEvent) AS n FROM Pathway_2_hasEvent he JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent JOIN Event_2_species es ON es.DB_ID = he.hasEvent WHERE es.species IN (SELECT sp FROM sp3) GROUP BY es.species, he.DB_ID), rk AS (SELECT c.sp, c.pw, c.n, ROW_NUMBER() OVER (PARTITION BY c.sp ORDER BY c.n DESC, c.pw) AS r FROM cnt c) SELECT ds._displayName AS species, dp._displayName AS pathway, rk.n AS reactions FROM rk JOIN DatabaseObject ds ON ds.DB_ID = rk.sp JOIN DatabaseObject dp ON dp.DB_ID = rk.pw WHERE rk.r = 1 ORDER BY rk.n DESC, species;"
       }
     }
   ]

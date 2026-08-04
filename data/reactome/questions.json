@@ -325,6 +325,22 @@
       "queries": {
         "sql": "WITH sp3 AS (SELECT es.species AS sp, COUNT(DISTINCT es.DB_ID) AS n FROM Event_2_species es JOIN ReactionlikeEvent r ON r.DB_ID = es.DB_ID GROUP BY es.species ORDER BY n DESC LIMIT 3), cnt AS (SELECT es.species AS sp, he.DB_ID AS pw, COUNT(DISTINCT he.hasEvent) AS n FROM Pathway_2_hasEvent he JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent JOIN Event_2_species es ON es.DB_ID = he.hasEvent WHERE es.species IN (SELECT sp FROM sp3) GROUP BY es.species, he.DB_ID), rk AS (SELECT c.sp, c.pw, c.n, ROW_NUMBER() OVER (PARTITION BY c.sp ORDER BY c.n DESC, c.pw) AS r FROM cnt c) SELECT ds._displayName AS species, dp._displayName AS pathway, rk.n AS reactions FROM rk JOIN DatabaseObject ds ON ds.DB_ID = rk.sp JOIN DatabaseObject dp ON dp.DB_ID = rk.pw WHERE rk.r = 1 ORDER BY rk.n DESC, species;"
       }
+    },
+    {
+      "question": "How many InstanceEdit instances that have D'Eustachio, Peter as one of their authors are not recorded as the creating edit of any pathway?",
+      "difficulty": "expert",
+      "expected": 9081,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM InstanceEdit ie JOIN InstanceEdit_2_author ia ON ia.DB_ID = ie.DB_ID JOIN DatabaseObject p ON p.DB_ID = ia.author AND p._displayName = 'D''Eustachio, Peter' WHERE NOT EXISTS (SELECT 1 FROM Pathway pw JOIN DatabaseObject o ON o.DB_ID = pw.DB_ID AND o.created = ie.DB_ID);"
+      }
+    },
+    {
+      "question": "Human pathways (species includes Homo sapiens) record an authored InstanceEdit, and each InstanceEdit records its own authors. Which person is an author of the authored InstanceEdit of the greatest number of distinct human pathways? Give the person's display name.",
+      "difficulty": "argmax",
+      "expected": "Jassal, Bijay",
+      "queries": {
+        "sql": "SELECT pe._displayName FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_authored au ON au.DB_ID = pw.DB_ID JOIN InstanceEdit_2_author ia ON ia.DB_ID = au.authored JOIN DatabaseObject pe ON pe.DB_ID = ia.author GROUP BY ia.author, pe._displayName ORDER BY COUNT(DISTINCT pw.DB_ID) DESC LIMIT 1;"
+      }
     }
   ]
 }

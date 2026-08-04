@@ -389,6 +389,22 @@
       "queries": {
         "sql": "WITH RECURSIVE cp AS (SELECT c.DB_ID AS p, c.hasEvent AS ch FROM Pathway_2_hasEvent c JOIN Pathway x ON x.DB_ID = c.hasEvent), desc_ AS (SELECT cp.p, cp.ch AS node FROM cp UNION SELECT d.p, he.hasEvent FROM desc_ d JOIN Pathway_2_hasEvent he ON he.DB_ID = d.node) SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent WHERE NOT EXISTS (SELECT 1 FROM desc_ d WHERE d.p = he.DB_ID AND d.node = he.hasEvent);"
       }
+    },
+    {
+      "question": "An event below the pathway with stable identifier R-HSA-168256 may be reachable through hasEvent by more than one route, at different depths. Treating the direct children of that pathway as depth 1, take each reaction-like event's smallest such depth, and report the mean of those smallest depths across all reaction-like events below it, rounded to four decimal places.",
+      "difficulty": "recursion",
+      "expected": 4.3942,
+      "queries": {
+        "sql": "WITH RECURSIVE lv AS (SELECT he.hasEvent AS ev, 1 AS d FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent, lv.d + 1 FROM lv JOIN Pathway_2_hasEvent he ON he.DB_ID = lv.ev) SELECT ROUND(AVG(md), 4) FROM (SELECT lv.ev, MIN(lv.d) AS md FROM lv JOIN ReactionlikeEvent r ON r.DB_ID = lv.ev GROUP BY lv.ev) t;"
+      }
+    },
+    {
+      "question": "Walk outward from the pathway with stable identifier R-HSA-168256 through hasEvent, but only continue outward from a pathway that has at least one reviewed InstanceEdit; a pathway lacking one may still be reached, but nothing below it may. How many distinct reaction-like events are reachable under that restriction?",
+      "difficulty": "recursion",
+      "expected": 1881,
+      "queries": {
+        "sql": "WITH RECURSIVE con AS (SELECT he.hasEvent AS ev FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM con c JOIN Pathway_2_hasEvent he ON he.DB_ID = c.ev WHERE EXISTS (SELECT 1 FROM Event_2_reviewed rv WHERE rv.DB_ID = c.ev)) SELECT COUNT(*) FROM con c JOIN ReactionlikeEvent r ON r.DB_ID = c.ev;"
+      }
     }
   ]
 }

@@ -341,6 +341,30 @@
       "queries": {
         "sql": "SELECT pe._displayName FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_authored au ON au.DB_ID = pw.DB_ID JOIN InstanceEdit_2_author ia ON ia.DB_ID = au.authored JOIN DatabaseObject pe ON pe.DB_ID = ia.author GROUP BY ia.author, pe._displayName ORDER BY COUNT(DISTINCT pw.DB_ID) DESC LIMIT 1;"
       }
+    },
+    {
+      "question": "The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, collect the physical entities that are a direct input to any reaction-like event reachable from that child through hasEvent at any depth. How many distinct physical entities appear in all three of those collections?",
+      "difficulty": "expert",
+      "expected": 22,
+      "queries": {
+        "sql": "WITH RECURSIVE roots AS (SELECT he.hasEvent AS root FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256'), tree AS (SELECT root, root AS ev FROM roots UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), ent AS (SELECT DISTINCT t.root, i.input AS e FROM tree t JOIN ReactionlikeEvent_2_input i ON i.DB_ID = t.ev) SELECT COUNT(*) FROM (SELECT e FROM ent GROUP BY e HAVING COUNT(DISTINCT root) = (SELECT COUNT(*) FROM roots)) x;"
+      }
+    },
+    {
+      "question": "How many human pathways (species includes Homo sapiens) that directly contain at least one reaction-like event through hasEvent have the property that every one of those directly contained reaction-like events has at least one input and has every one of its inputs be a Complex?",
+      "difficulty": "expert",
+      "expected": 59,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent WHERE NOT EXISTS (SELECT 1 FROM Pathway_2_hasEvent h2 JOIN ReactionlikeEvent r2 ON r2.DB_ID = h2.hasEvent WHERE h2.DB_ID = he.DB_ID AND (NOT EXISTS (SELECT 1 FROM ReactionlikeEvent_2_input i WHERE i.DB_ID = h2.hasEvent) OR EXISTS (SELECT 1 FROM ReactionlikeEvent_2_input i WHERE i.DB_ID = h2.hasEvent AND NOT EXISTS (SELECT 1 FROM Complex cx WHERE cx.DB_ID = i.input))));"
+      }
+    },
+    {
+      "question": "For each human pathway (species includes Homo sapiens) whose hasEvent subtree contains at least one reaction-like event, count those distinct reaction-like events. Divide the pathways into four equally sized groups by that count using NTILE ordered ascending, and report how many pathways fall in the highest group.",
+      "difficulty": "expert",
+      "expected": 720,
+      "queries": {
+        "sql": "WITH RECURSIVE t AS (SELECT he.DB_ID AS root, he.hasEvent AS ev FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' UNION SELECT t.root, he.hasEvent FROM t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), agg AS (SELECT t.root, COUNT(DISTINCT t.ev) AS n FROM t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev GROUP BY t.root), q AS (SELECT root, n, NTILE(4) OVER (ORDER BY n) AS tile FROM agg) SELECT COUNT(*) FROM q WHERE tile = 4;"
+      }
     }
   ]
 }

@@ -28,43 +28,11 @@
       }
     },
     {
-      "question": "How many distinct publications are cited both as a literature reference of a summation of some human pathway and directly as a literature reference of some human reaction-like event? In both cases human means the event's species includes Homo sapiens.",
-      "difficulty": "polymorphism",
-      "expected": 1106,
-      "queries": {
-        "sql": "SELECT COUNT(*) FROM (SELECT DISTINCT sl.literatureReference AS p FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_summation s ON s.DB_ID = pw.DB_ID JOIN Summation_2_literatureReference sl ON sl.DB_ID = s.summation) a JOIN (SELECT DISTINCT el.literatureReference AS p FROM ReactionlikeEvent r JOIN Event_2_species es ON es.DB_ID = r.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_literatureReference el ON el.DB_ID = r.DB_ID) b ON b.p = a.p;"
-      }
-    },
-    {
-      "question": "How many distinct human reaction-like events (species includes Homo sapiens) are annotated with at least one disease and also take as a direct input a drug, of any Drug subclass, whose reference therapeutic is marked approved?",
-      "difficulty": "expert",
-      "expected": 52,
-      "queries": {
-        "sql": "SELECT COUNT(DISTINCT r.DB_ID) FROM ReactionlikeEvent r JOIN Event_2_species es ON es.DB_ID = r.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_disease ed ON ed.DB_ID = r.DB_ID JOIN ReactionlikeEvent_2_input i ON i.DB_ID = r.DB_ID JOIN Drug dr ON dr.DB_ID = i.input JOIN ReferenceTherapeutic rt ON rt.DB_ID = dr.referenceEntity AND rt.approved = 'TRUE';"
-      }
-    },
-    {
       "question": "Consider human pathways (species includes Homo sapiens) that have been reviewed, where at least one author of a reviewing InstanceEdit is affiliated with an organisation whose name contains the word 'University'. How many of those pathways directly contain, through hasEvent, an event carrying a negative preceding event whose reason has the display name 'Futile Cycle'?",
       "difficulty": "expert",
       "expected": 42,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT pw.DB_ID) FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_reviewed rv ON rv.DB_ID = pw.DB_ID JOIN InstanceEdit_2_author ia ON ia.DB_ID = rv.reviewed JOIN Person_2_affiliation pa ON pa.DB_ID = ia.author JOIN Affiliation_2_name an ON an.DB_ID = pa.affiliation AND an.name LIKE '%University%' JOIN Pathway_2_hasEvent he ON he.DB_ID = pw.DB_ID JOIN Event_2_negativePrecedingEvent ne ON ne.DB_ID = he.hasEvent JOIN NegativePrecedingEvent np ON np.DB_ID = ne.negativePrecedingEvent JOIN DatabaseObject rn ON rn.DB_ID = np.reason AND rn._displayName = 'Futile Cycle';"
-      }
-    },
-    {
-      "question": "Drugs that are a direct input to a human reaction-like event (species includes Homo sapiens) that is also annotated with at least one disease have reference therapeutics, and those carry cross-references. Which reference database is the source of the greatest number of distinct such cross-references? Give its display name.",
-      "difficulty": "argmax",
-      "expected": "ChEBI",
-      "queries": {
-        "sql": "SELECT d._displayName FROM ReactionlikeEvent_2_input i JOIN Drug dr ON dr.DB_ID = i.input JOIN ReferenceEntity_2_crossReference xr ON xr.DB_ID = dr.referenceEntity JOIN DatabaseIdentifier di ON di.DB_ID = xr.crossReference JOIN DatabaseObject d ON d.DB_ID = di.referenceDatabase JOIN Event_2_species es ON es.DB_ID = i.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_disease ed ON ed.DB_ID = i.DB_ID GROUP BY di.referenceDatabase, d._displayName ORDER BY COUNT(DISTINCT xr.crossReference) DESC LIMIT 1;"
-      }
-    },
-    {
-      "question": "Call a compartment 'membrane-derived' if it reaches the GO cellular component with accession 0016020 by following one or more instanceOf links. Now take every pathway lying at any depth below the pathway with stable identifier R-HSA-168256 in the hasEvent hierarchy. How many of those pathways were created by an InstanceEdit having an author affiliated with an organisation whose name contains 'University', and also directly contain, through hasEvent, a reaction-like event assigned at least one membrane-derived compartment?",
-      "difficulty": "expert",
-      "expected": 8,
-      "queries": {
-        "sql": "WITH RECURSIVE sub AS (SELECT he.hasEvent AS ev FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM sub JOIN Pathway_2_hasEvent he ON he.DB_ID = sub.ev), anc AS (SELECT DISTINCT rc.compartment AS node, rc.compartment AS root FROM ReactionlikeEvent_2_compartment rc UNION SELECT i.instanceOf, a.root FROM anc a JOIN GO_CellularComponent_2_instanceOf i ON i.DB_ID = a.node), memb AS (SELECT DISTINCT a.root AS cmp FROM anc a JOIN GO_CellularComponent g ON g.DB_ID = a.node AND g.accession = '0016020') SELECT COUNT(DISTINCT p.DB_ID) FROM sub JOIN Pathway p ON p.DB_ID = sub.ev JOIN DatabaseObject od ON od.DB_ID = p.DB_ID JOIN InstanceEdit_2_author ia ON ia.DB_ID = od.created JOIN Person_2_affiliation pa ON pa.DB_ID = ia.author JOIN Affiliation_2_name an ON an.DB_ID = pa.affiliation AND an.name LIKE '%University%' JOIN Pathway_2_hasEvent ch ON ch.DB_ID = p.DB_ID JOIN ReactionlikeEvent_2_compartment rc2 ON rc2.DB_ID = ch.hasEvent JOIN memb m ON m.cmp = rc2.compartment;"
       }
     },
     {
@@ -205,14 +173,6 @@
       }
     },
     {
-      "question": "Restrict to human pathways (species includes Homo sapiens) that directly contain at least 5 distinct reaction-like events through hasEvent. Averaged over those pathways, what is the mean number of distinct compartments assigned across their directly contained reaction-like events, rounded to two decimal places?",
-      "difficulty": "expert",
-      "expected": 3.1,
-      "queries": {
-        "sql": "SELECT ROUND(AVG(c), 2) FROM (SELECT he.DB_ID, COUNT(DISTINCT rc.compartment) AS c FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN ReactionlikeEvent_2_compartment rc ON rc.DB_ID = he.hasEvent GROUP BY he.DB_ID HAVING COUNT(DISTINCT he.hasEvent) >= 5) t;"
-      }
-    },
-    {
       "question": "Consider the EntityWithAccessionedSequence instances that are the physical entity of a catalyst activity of some reaction-like event. How many distinct reference entities do they reference whose own reference sequence records its species as Homo sapiens? Judge the species from the reference sequence itself, not from the species of any event.",
       "difficulty": "expert",
       "expected": 1048,
@@ -250,6 +210,89 @@
       "expected": 5591,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT il.DB_ID) FROM Complex_2_includedLocation il WHERE NOT EXISTS (SELECT 1 FROM Complex_2_compartment cc WHERE cc.DB_ID = il.DB_ID AND cc.compartment = il.includedLocation);"
+      }
+    },
+    {
+      "question": "For the human reaction-like events that have at least one catalyst activity, what is the mean catalytic rate constant (kcat) recorded for those catalyst activities?",
+      "difficulty": "unanswerable",
+      "unanswerable": true
+    },
+    {
+      "question": "Among the reference gene products referenced by EntityWithAccessionedSequence instances, which one has the greatest molecular mass in daltons?",
+      "difficulty": "unanswerable",
+      "unanswerable": true
+    },
+    {
+      "question": "Considering drugs whose reference therapeutic is marked as approved, what is the most frequently recorded recommended daily dosage?",
+      "difficulty": "unanswerable",
+      "unanswerable": true
+    },
+    {
+      "question": "Across human reaction-like events (species includes Homo sapiens), how many distinct pairings of an event with one of its compartments are recorded? Count each event-and-compartment pairing separately, so an event assigned three compartments contributes three pairings.",
+      "difficulty": "expert",
+      "expected": 23715,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM (SELECT DISTINCT rc.DB_ID, rc.compartment FROM ReactionlikeEvent_2_compartment rc JOIN Event_2_species es ON es.DB_ID = rc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens') t;"
+      }
+    },
+    {
+      "question": "For every species, count the distinct reaction-like events and the distinct pathways that record it as one of their species. Report the ten species with the most reaction-like events, ordered by that count descending and then by species name, using columns named species, reactions and pathways.",
+      "difficulty": "expert",
+      "ordered": true,
+      "expected": [
+        {
+          "species": "Homo sapiens",
+          "reactions": 16423,
+          "pathways": 2883
+        },
+        {
+          "species": "Mus musculus",
+          "reactions": 10495,
+          "pathways": 1845
+        },
+        {
+          "species": "Rattus norvegicus",
+          "reactions": 9095,
+          "pathways": 1833
+        },
+        {
+          "species": "Bos taurus",
+          "reactions": 8645,
+          "pathways": 1822
+        },
+        {
+          "species": "Sus scrofa",
+          "reactions": 8215,
+          "pathways": 1805
+        },
+        {
+          "species": "Canis familiaris",
+          "reactions": 7992,
+          "pathways": 1784
+        },
+        {
+          "species": "Gallus gallus",
+          "reactions": 7396,
+          "pathways": 1841
+        },
+        {
+          "species": "Danio rerio",
+          "reactions": 6224,
+          "pathways": 1696
+        },
+        {
+          "species": "Xenopus tropicalis",
+          "reactions": 5677,
+          "pathways": 1621
+        },
+        {
+          "species": "Drosophila melanogaster",
+          "reactions": 5045,
+          "pathways": 1591
+        }
+      ],
+      "queries": {
+        "sql": "SELECT d._displayName AS species, COUNT(DISTINCT r.DB_ID) AS reactions, COUNT(DISTINCT pw.DB_ID) AS pathways FROM Event_2_species es JOIN DatabaseObject d ON d.DB_ID = es.species LEFT JOIN ReactionlikeEvent r ON r.DB_ID = es.DB_ID LEFT JOIN Pathway pw ON pw.DB_ID = es.DB_ID GROUP BY es.species, d._displayName ORDER BY reactions DESC, species LIMIT 10;"
       }
     }
   ]

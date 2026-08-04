@@ -81,10 +81,42 @@ pub fn extract_query(response: &str) -> Extraction {
         .lines()
         .any(|line| line.trim() == UNANSWERABLE_TOKEN)
     {
-        Extraction::Unanswerable
-    } else {
-        Extraction::Malformed
+        return Extraction::Unanswerable;
     }
+    // Fallback: a reply that is nothing but a query, unfenced. Some models
+    // ignore the fencing instruction consistently, which would otherwise score
+    // them at zero for a formatting habit rather than for their queries. The
+    // rule is deliberately narrow — the whole reply must begin with a keyword
+    // that opens a query in one of the benchmarked languages — so a fenced
+    // reply, prose, or a refusal is unaffected.
+    let trimmed = response.trim();
+    if starts_a_query(trimmed) {
+        return Extraction::Query(trimmed.to_string());
+    }
+    Extraction::Malformed
+}
+
+/// First words that open a query in SQL, Cypher or TypeQL. Write keywords are
+/// included on purpose: an unfenced `INSERT` should reach the DB and be
+/// refused by the read-only role, scoring as the model's fault, rather than
+/// being filed as a formatting error.
+const QUERY_OPENERS: [&str; 18] = [
+    // SQL
+    "SELECT", "WITH", "VALUES", "TABLE", // Cypher
+    "MATCH", "OPTIONAL", "RETURN", "UNWIND", "CALL", "SHOW", // TypeQL
+    "DEFINE", "UNDEFINE", "INSERT", "DELETE", "UPDATE", "PUT", "FETCH", "REDUCE",
+];
+
+fn starts_a_query(response: &str) -> bool {
+    let Some(first) = response.split_whitespace().next() else {
+        return false;
+    };
+    // Trim punctuation a model might attach, e.g. a stray "SELECT," is still
+    // recognisably a query opener.
+    let first = first.trim_matches(|c: char| !c.is_ascii_alphabetic());
+    QUERY_OPENERS
+        .iter()
+        .any(|opener| first.eq_ignore_ascii_case(opener))
 }
 
 /// Fill the prompt template's slots. `skills` is empty when this setup runs
@@ -333,6 +365,7 @@ impl BenchmarkRunner<'_> {
             } = self.attempt(&conversation, question.unanswerable).await?;
             attempts.push(Attempt {
                 query: query.clone(),
+                response: query.is_none().then(|| response_text.clone()),
                 tokens,
                 latency_ms,
                 error: outcome
@@ -1083,6 +1116,46 @@ mod tests {
             extract_query("The query you want is SELECT 1;"),
             Extraction::Malformed
         );
+    }
+
+    #[test]
+    fn bare_query_without_a_fence_is_accepted_in_each_language() {
+        for query in [
+            "SELECT COUNT(*) FROM person;",
+            "WITH t AS (SELECT 1) SELECT * FROM t;",
+            "MATCH (p:Person) RETURN count(p)",
+            "OPTIONAL MATCH (p:Person) RETURN p",
+            "match $p isa person; reduce $count = count;",
+            "with fun f() -> integer: match $x isa thing; return count;",
+        ] {
+            assert_eq!(
+                extract_query(query),
+                Extraction::Query(query.to_string()),
+                "should have accepted bare query: {query}"
+            );
+        }
+    }
+
+    #[test]
+    fn bare_query_fallback_leaves_the_other_paths_alone() {
+        // A fence still wins, even when prose before it opens with a keyword.
+        assert_eq!(
+            extract_query("SELECT is the keyword you want.\n```sql\nSELECT 2;\n```"),
+            Extraction::Query("SELECT 2;".to_string())
+        );
+        // Declining still beats the fallback.
+        assert_eq!(extract_query("UNANSWERABLE"), Extraction::Unanswerable);
+        // Prose that merely mentions a query is still malformed: the reply has
+        // to *begin* with an opener.
+        assert_eq!(
+            extract_query("The query you want is SELECT 1;"),
+            Extraction::Malformed
+        );
+        assert_eq!(
+            extract_query("I cannot help with that."),
+            Extraction::Malformed
+        );
+        assert_eq!(extract_query(""), Extraction::Malformed);
     }
 
     #[test]

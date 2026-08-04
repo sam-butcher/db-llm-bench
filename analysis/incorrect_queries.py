@@ -112,12 +112,19 @@ def main():
         attempts = r["attempts"]
         if len(attempts) <= 1:
             print("   generated query:")
-            print(block(r["generated"]))
+            print(block(attempts[0].get("response") if attempts and not attempts[0].get("query")
+                        else r["generated"]))
         else:
             for i, a in enumerate(attempts, 1):
                 label = f"attempt {i} (final)" if i == len(attempts) else f"attempt {i}"
-                print(f"   generated query, {label}:")
-                print(block(a["query"]))
+                # No query means extraction failed; show the raw reply instead,
+                # which is the only thing that explains the failure.
+                if a.get("query"):
+                    print(f"   generated query, {label}:")
+                    print(block(a["query"]))
+                else:
+                    print(f"   raw response (no query extracted), {label}:")
+                    print(block(a.get("response") or "(not recorded)"))
                 if a["error"]:
                     print("        error: " + a["error"].splitlines()[0])
     print()

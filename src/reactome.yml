@@ -19,9 +19,15 @@ dbs:
       url: mysql://bench_ro:bench_ro@localhost/reactome
       schema: data/reactome/sql/schema.sql
 models:
-  - claude:
-      model: claude-opus-5
-questionsPath: data/reactome/questions.json
+#  - claude:
+#      model: claude-sonnet-5
+#  - claude:
+#      model: claude-haiku-4-5-20251001
+  - openai-compatible:
+      model: qwen3-coder:30b
+      base_url: http://localhost:11434/v1
+      label: qwen3-coder:30b
+questionsPath: data/reactome/questions-filtered.json
 # No few-shot examples ship with this dataset, so the only valid count is 0.
 exampleCounts:
   - 0

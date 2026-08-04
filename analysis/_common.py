@@ -73,7 +73,12 @@ def load_records(path):
                     "expected": q.get("expected"),
                     "error": last_error,
                     # One entry per attempt (the retry trace): the query tried and its error.
-                    "attempts": [{"query": a.get("query"), "error": a.get("error")} for a in attempts],
+                    # One entry per attempt: the query tried, its error, and
+                    # (only when nothing could be extracted) the raw reply.
+                    "attempts": [
+                        {"query": a.get("query"), "error": a.get("error"), "response": a.get("response")}
+                        for a in attempts
+                    ],
                 })
     return records
 

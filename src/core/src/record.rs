@@ -65,6 +65,13 @@ pub struct Attempt {
     /// None when no query was extractable (malformed or UNANSWERABLE
     /// response).
     pub query: Option<String>,
+    /// The model's raw reply, recorded only when nothing could be extracted
+    /// from it. Without this a malformed run says "no query found" and
+    /// discards the evidence, so diagnosing a model that ignores the output
+    /// format needs a rerun with logging. Omitted whenever `query` is set, so
+    /// results for well-behaved models serialize exactly as before.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<String>,
     pub tokens: TokenUsage,
     pub latency_ms: u64,
     /// None when this attempt succeeded (only ever the last attempt).

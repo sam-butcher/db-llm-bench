@@ -59,6 +59,7 @@ mod tests {
     fn attempt(query: &str, error: Option<&str>) -> Attempt {
         Attempt {
             query: Some(query.to_string()),
+            response: None,
             tokens: TokenUsage {
                 input: 100,
                 output: 10,

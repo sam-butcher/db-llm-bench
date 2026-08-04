@@ -10,12 +10,14 @@ and defaults to `results-candidates.json`.
 | `accuracy_by_variation.py` | Accuracy per (model, db, skills, examples, retries) × difficulty — one row per variation, so you can see the effect of skill injection, few-shot count, and retry budget. |
 | `incorrect_queries.py` | Every failing run: the question, its config, the expected and generated queries, and the expected vs actual answer. For debugging *what* the model got wrong. Accepts `key=value` filters (`db=`, `difficulty=`, `model=`, `examples=`, `skills=on\|off`). |
 | `token_usage.py` | Total model tokens used (input/output), broken down by model and DB, plus run and call counts. |
+| `format_questions.py` | Renders a *questions* file (not a results file) as Markdown for review, breaking the one-line reference queries across clause boundaries so the joins are actually checkable. Takes the questions path and an output path. |
 
 ```sh
 analysis/accuracy_by_db.py results-candidates.json
 analysis/accuracy_by_variation.py results-candidates.json
 analysis/incorrect_queries.py results-candidates.json db=sql difficulty=hard
 analysis/token_usage.py results-candidates.json
+analysis/format_questions.py data/reactome/questions.json data/reactome/questions-review.md
 ```
 
 Notes (see `_common.py`):

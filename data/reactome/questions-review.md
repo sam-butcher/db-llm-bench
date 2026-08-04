@@ -94,7 +94,7 @@ FROM (
 
 ## 4. expert
 
-The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, take the set of reaction-like events reachable from it through hasEvent at any depth. For every unordered pair of two different children, report the pair with columns pathway_a, pathway_b, shared and jaccard, where shared is the number of reaction-like events in both sets and jaccard is that number divided by the size of the union, rounded to four decimal places. Order by jaccard descending, then pathway_a, then pathway_b.
+The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, take the set of reaction-like events reachable from it through hasEvent at any depth. For every unordered pair of two different children, report the pair with columns pathway_a, pathway_b, shared and jaccard, where pathway_a and pathway_b are the two children's display names, where shared is the number of reaction-like events in both sets and jaccard is that number divided by the size of the union, rounded to four decimal places. Order by jaccard descending, then pathway_a, then pathway_b.
 
 **Expected** (ordered list):
 

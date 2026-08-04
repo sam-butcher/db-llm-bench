@@ -365,6 +365,30 @@
       "queries": {
         "sql": "WITH RECURSIVE t AS (SELECT he.DB_ID AS root, he.hasEvent AS ev FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' UNION SELECT t.root, he.hasEvent FROM t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), agg AS (SELECT t.root, COUNT(DISTINCT t.ev) AS n FROM t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev GROUP BY t.root), q AS (SELECT root, n, NTILE(4) OVER (ORDER BY n) AS tile FROM agg) SELECT COUNT(*) FROM q WHERE tile = 4;"
       }
+    },
+    {
+      "question": "Starting from the pathway with stable identifier R-HSA-168256, repeatedly follow either a hasEvent link from a pathway to a contained event or a precedingEvent link from an event to an event that precedes it, in any order and any number of times. How many distinct reaction-like events are reachable?",
+      "difficulty": "recursion",
+      "expected": 3453,
+      "queries": {
+        "sql": "WITH RECURSIVE reach AS (SELECT he.hasEvent AS ev FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM reach r JOIN Pathway_2_hasEvent he ON he.DB_ID = r.ev UNION SELECT p.precedingEvent FROM reach r JOIN Event_2_precedingEvent p ON p.DB_ID = r.ev) SELECT COUNT(*) FROM reach JOIN ReactionlikeEvent x ON x.DB_ID = reach.ev;"
+      }
+    },
+    {
+      "question": "For each of the pathways with stable identifiers R-HSA-168249, R-HSA-1280218 and R-HSA-1280215, collect the physical entities that are a direct input to any reaction-like event reachable from it through hasEvent at any depth. How many distinct physical entities are in both the R-HSA-168249 collection and the R-HSA-1280218 collection while not being in the R-HSA-1280215 collection?",
+      "difficulty": "expert",
+      "expected": 31,
+      "queries": {
+        "sql": "WITH RECURSIVE tree AS (SELECT s.identifier AS root, he.hasEvent AS ev FROM StableIdentifier s JOIN DatabaseObject o ON o.stableIdentifier = s.DB_ID JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier IN ('R-HSA-168249','R-HSA-1280218','R-HSA-1280215') UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), ent AS (SELECT DISTINCT t.root, i.input AS e FROM tree t JOIN ReactionlikeEvent_2_input i ON i.DB_ID = t.ev) SELECT COUNT(*) FROM (SELECT e FROM ent WHERE root = 'R-HSA-168249') a JOIN (SELECT e FROM ent WHERE root = 'R-HSA-1280218') b ON b.e = a.e WHERE a.e NOT IN (SELECT e FROM ent WHERE root = 'R-HSA-1280215');"
+      }
+    },
+    {
+      "question": "How many human pathways (species includes Homo sapiens) directly contain, through hasEvent, at least one reaction-like event that is not reachable through hasEvent at any depth from any pathway that the same human pathway also directly contains?",
+      "difficulty": "expert",
+      "expected": 2362,
+      "queries": {
+        "sql": "WITH RECURSIVE cp AS (SELECT c.DB_ID AS p, c.hasEvent AS ch FROM Pathway_2_hasEvent c JOIN Pathway x ON x.DB_ID = c.hasEvent), desc_ AS (SELECT cp.p, cp.ch AS node FROM cp UNION SELECT d.p, he.hasEvent FROM desc_ d JOIN Pathway_2_hasEvent he ON he.DB_ID = d.node) SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent WHERE NOT EXISTS (SELECT 1 FROM desc_ d WHERE d.p = he.DB_ID AND d.node = he.hasEvent);"
+      }
     }
   ]
 }

@@ -383,9 +383,13 @@ fn classify_postgres_error(db: &dyn sqlx::error::DatabaseError) -> QueryError {
     classify_sqlstate(code, db.message())
 }
 
-/// MySQL reports both timeout paths under the catch-all SQLSTATE HY000, so the
-/// native error number is the only thing that distinguishes them from genuine
-/// infrastructure faults — hence the downcast before falling back to SQLSTATE.
+/// MySQL overloads the catch-all SQLSTATE HY000 for both genuine
+/// infrastructure faults (a full disk, a lost server) and plain query-authoring
+/// mistakes, so SQLSTATE alone misfiles the latter as infrastructure — which
+/// aborts the run instead of letting the model retry. The native error number
+/// is the only thing that separates them, hence the downcast. HY000 still
+/// defaults to infrastructure; this list is the set of numbers known to be the
+/// query's fault, and wants extending whenever a new one shows up misfiled.
 fn classify_mysql_error(db: &dyn sqlx::error::DatabaseError) -> QueryError {
     if let Some(mysql) = db.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>() {
         match mysql.number() {
@@ -394,6 +398,15 @@ fn classify_mysql_error(db: &dyn sqlx::error::DatabaseError) -> QueryError {
             // ER_QUERY_INTERRUPTED: a KILL QUERY, which is how an external
             // watchdog rather than max_execution_time would cap a statement.
             1317 => return QueryError::Timeout,
+            // The recursive-CTE restrictions: the recursive block placed
+            // first, aggregation inside it, a forbidden join order, or the
+            // recursive table referenced more than once or from a subquery.
+            // Every question of any difficulty here uses a recursive CTE, so
+            // these are among the likeliest mistakes a model makes.
+            3574..=3578 => return QueryError::Syntax(db.message().to_string()),
+            // ER_CTE_MAX_RECURSION_DEPTH: unbounded recursion, typically
+            // UNION ALL where UNION was needed. The model can fix it.
+            3636 => return QueryError::Syntax(db.message().to_string()),
             _ => {}
         }
     }
@@ -590,5 +603,37 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(error, QueryError::Syntax(_)));
+
+        // Malformed recursive CTEs report SQLSTATE HY000, which reads as
+        // infrastructure unless the native error number is inspected. They are
+        // the model's fault and must be retryable, not run-aborting.
+        for (label, query) in [
+            (
+                "recursive table referenced twice",
+                "WITH RECURSIVE c AS (SELECT 1 n UNION ALL SELECT c1.n+1 FROM c c1, c c2 WHERE c1.n<3) SELECT * FROM c",
+            ),
+            (
+                "recursive reference inside a subquery",
+                "WITH RECURSIVE c AS (SELECT 1 n UNION ALL SELECT n+1 FROM (SELECT n FROM c) x WHERE n<3) SELECT * FROM c",
+            ),
+            (
+                "aggregation in the recursive block",
+                "WITH RECURSIVE c AS (SELECT 1 n UNION ALL SELECT COUNT(*) FROM c) SELECT * FROM c",
+            ),
+            (
+                "recursive block placed first",
+                "WITH RECURSIVE c AS (SELECT n+1 FROM c UNION ALL SELECT 1 n) SELECT * FROM c",
+            ),
+            (
+                "unbounded recursion hits the depth limit",
+                "WITH RECURSIVE c AS (SELECT 1 n UNION ALL SELECT n+1 FROM c) SELECT COUNT(*) FROM c",
+            ),
+        ] {
+            let error = db.send_query(query).await.unwrap_err();
+            assert!(
+                matches!(error, QueryError::Syntax(_)),
+                "{label}: expected a model fault, got {error:?}"
+            );
+        }
     }
 }

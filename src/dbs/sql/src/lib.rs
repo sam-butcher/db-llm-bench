@@ -383,35 +383,67 @@ fn classify_postgres_error(db: &dyn sqlx::error::DatabaseError) -> QueryError {
     classify_sqlstate(code, db.message())
 }
 
-/// MySQL overloads the catch-all SQLSTATE HY000 for both genuine
-/// infrastructure faults (a full disk, a lost server) and plain query-authoring
-/// mistakes, so SQLSTATE alone misfiles the latter as infrastructure — which
-/// aborts the run instead of letting the model retry. The native error number
-/// is the only thing that separates them, hence the downcast. HY000 still
-/// defaults to infrastructure; this list is the set of numbers known to be the
-/// query's fault, and wants extending whenever a new one shows up misfiled.
+/// MySQL error numbers that mean the *server* is in trouble, not the query.
+/// These all report SQLSTATE HY000, the same as ordinary query-authoring
+/// mistakes, so they have to be named explicitly — see [`classify_mysql_error`].
+const MYSQL_INFRASTRUCTURE: [u16; 10] = [
+    3,    // ER_ERROR_ON_WRITE: a temp-file write failed, typically a full disk
+    1021, // ER_DISK_FULL
+    1030, // ER_GET_ERRNO: "Got error N from storage engine" — MyISAM's disk path
+    1041, // ER_OUT_OF_RESOURCES
+    1053, // ER_SERVER_SHUTDOWN
+    1105, // ER_UNKNOWN_ERROR
+    1114, // ER_RECORD_FILE_FULL
+    1205, // ER_LOCK_WAIT_TIMEOUT
+    1206, // ER_LOCK_TABLE_FULL
+    126,  // ER_NOT_KEYFILE: a corrupted MyISAM index — every table here is MyISAM
+];
+
+/// Message fragments that mark resource exhaustion, as a backstop for the
+/// numbers above: the storage engine can wrap the same condition under codes
+/// not worth enumerating, and misreading a full disk as a bad query would
+/// score every remaining question as a model failure and finish the run with
+/// plausible-looking but meaningless accuracy.
+const MYSQL_EXHAUSTION_HINTS: [&str; 5] = [
+    "No space left",
+    "Disk full",
+    "Out of memory",
+    "from storage engine",
+    "server shutdown",
+];
+
+/// MySQL overloads the catch-all SQLSTATE HY000 for both query-authoring
+/// mistakes and genuine infrastructure faults. Most of what lands there is the
+/// query's fault — every recursive-CTE restriction, window-function misuse and
+/// JSON error — so HY000 defaults to a model fault and the server-side
+/// conditions are named explicitly instead. That way a new kind of bad query
+/// costs the model a retry rather than aborting the run, while a full disk
+/// still stops it loudly rather than being blamed on the model.
 fn classify_mysql_error(db: &dyn sqlx::error::DatabaseError) -> QueryError {
+    let message = db.message();
     if let Some(mysql) = db.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>() {
-        match mysql.number() {
+        let number = mysql.number();
+        match number {
             // ER_QUERY_TIMEOUT: max_execution_time elapsed.
             3024 => return QueryError::Timeout,
             // ER_QUERY_INTERRUPTED: a KILL QUERY, which is how an external
             // watchdog rather than max_execution_time would cap a statement.
             1317 => return QueryError::Timeout,
-            // The recursive-CTE restrictions: the recursive block placed
-            // first, aggregation inside it, a forbidden join order, or the
-            // recursive table referenced more than once or from a subquery.
-            // Every question of any difficulty here uses a recursive CTE, so
-            // these are among the likeliest mistakes a model makes.
-            3574..=3578 => return QueryError::Syntax(db.message().to_string()),
-            // ER_CTE_MAX_RECURSION_DEPTH: unbounded recursion, typically
-            // UNION ALL where UNION was needed. The model can fix it.
-            3636 => return QueryError::Syntax(db.message().to_string()),
             _ => {}
+        }
+        if MYSQL_INFRASTRUCTURE.contains(&number)
+            || MYSQL_EXHAUSTION_HINTS
+                .iter()
+                .any(|hint| message.contains(hint))
+        {
+            return QueryError::Infrastructure(message.to_string());
+        }
+        if db.code().as_deref() == Some("HY000") {
+            return QueryError::Syntax(message.to_string());
         }
     }
     let code = db.code();
-    classify_sqlstate(code.as_deref(), db.message())
+    classify_sqlstate(code.as_deref(), message)
 }
 
 /// SQLSTATE class decides fault ownership, and the standard classes mean the

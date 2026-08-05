@@ -12,6 +12,13 @@
 # navigating a schema too large to hold comfortably in working memory is part of
 # what this dataset measures. See docs/dataset-selection-large-schema.md.
 dbs:
+  - neo4j:
+      prompts: data/prompts/neo4j.txt
+      url: bolt://localhost:7687
+      auth:
+        username: neo4j
+        password: password
+      schema: data/reactome/neo4j/schema.txt
   - sql:
       # The shared data/prompts/sql.txt names PostgreSQL; this dataset runs on
       # MySQL, so it uses the MySQL-worded variant of the same template.
@@ -19,15 +26,15 @@ dbs:
       url: mysql://bench_ro:bench_ro@localhost/reactome
       schema: data/reactome/sql/schema.sql
 models:
-#  - claude:
-#      model: claude-sonnet-5
-#  - claude:
-#      model: claude-haiku-4-5-20251001
+  - claude:
+      model: claude-sonnet-5
+  - claude:
+      model: claude-haiku-4-5-20251001
   - openai-compatible:
       model: qwen3-coder:30b
       base_url: http://localhost:11434/v1
       label: qwen3-coder:30b
-questionsPath: data/reactome/questions-filtered.json
+questionsPath: data/reactome/questions.json
 # No few-shot examples ship with this dataset, so the only valid count is 0.
 exampleCounts:
   - 0

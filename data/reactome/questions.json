@@ -6,7 +6,8 @@
       "expected": 60,
       "queries": {
         "sql": "WITH RECURSIVE r0 AS (SELECT i.DB_ID AS ev, i.input AS cx FROM ReactionlikeEvent_2_input i JOIN Complex c ON c.DB_ID = i.input JOIN Event_2_species es ON es.DB_ID = i.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' WHERE i.input_rank = 0), parts AS (SELECT r0.ev, hc.hasComponent AS ent FROM r0 JOIN Complex_2_hasComponent hc ON hc.DB_ID = r0.cx UNION SELECT p.ev, hc.hasComponent FROM parts p JOIN Complex_2_hasComponent hc ON hc.DB_ID = p.ent UNION SELECT p.ev, hm.hasMember FROM parts p JOIN EntitySet_2_hasMember hm ON hm.DB_ID = p.ent) SELECT COUNT(DISTINCT rc.DB_ID) FROM ReactionlikeEvent_2_catalystActivity rc JOIN CatalystActivity ca ON ca.DB_ID = rc.catalystActivity JOIN parts p ON p.ev = rc.DB_ID AND p.ent = ca.physicalEntity;",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (r)-[i:input]->(cx:Complex) WHERE i.order = 0\nMATCH (r)-[:catalystActivity]->(:CatalystActivity)-[:physicalEntity]->(pe)\nWHERE (cx)-[:hasComponent|hasMember*]->(pe)\nRETURN count(DISTINCT r)"
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (r)-[i:input]->(cx:Complex) WHERE i.order = 0\nMATCH (r)-[:catalystActivity]->(:CatalystActivity)-[:physicalEntity]->(pe)\nWHERE (cx)-[:hasComponent|hasMember*]->(pe)\nRETURN count(DISTINCT r)",
+        "typeql": "with\nfun parts-of($w: physical-entity) -> { physical-entity }:\n  match\n    { composition (whole: $w, part: $x); } or\n    { composition (whole: $w, part: $m); let $x in parts-of($m); };\n  return { $x };\nmatch\n  $r isa reaction-like-event;\n  species-assignment (classified-thing: $r, species: $sp); $sp has display-name \"Homo sapiens\";\n  $i isa reaction-input, links (reaction: $r, consumed-entity: $cx), has ordering 0;\n  $cx isa complex;\n  catalysis (catalysed-reaction: $r, catalyst: $pe);\n  let $p in parts-of($cx);\n  $p is $pe;\nselect $r;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -15,7 +16,8 @@
       "expected": 104,
       "queries": {
         "sql": "WITH inp AS (SELECT DISTINCT i.DB_ID AS ev, i.input AS ent FROM ReactionlikeEvent_2_input i JOIN Event_2_species es ON es.DB_ID = i.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens'), card AS (SELECT ev, COUNT(*) AS n FROM inp GROUP BY ev HAVING COUNT(*) >= 4) SELECT COUNT(*) FROM card a JOIN card b ON b.n = a.n AND b.ev > a.ev WHERE NOT EXISTS (SELECT 1 FROM inp x WHERE x.ev = a.ev AND NOT EXISTS (SELECT 1 FROM inp y WHERE y.ev = b.ev AND y.ent = x.ent));",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (r)-[:input]->(e)\nWITH DISTINCT r, e\nWITH r, e ORDER BY e.dbId\nWITH r, collect(e.dbId) AS sig\nWHERE size(sig) >= 4\nWITH sig, count(*) AS k\nWHERE k > 1\nRETURN sum(k * (k - 1) / 2)"
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (r)-[:input]->(e)\nWITH DISTINCT r, e\nWITH r, e ORDER BY e.dbId\nWITH r, collect(e.dbId) AS sig\nWHERE size(sig) >= 4\nWITH sig, count(*) AS k\nWHERE k > 1\nRETURN sum(k * (k - 1) / 2)",
+        "typeql": "match\n  $r isa reaction-like-event;\n  species-assignment (classified-thing: $r, species: $sp); $sp has display-name \"Homo sapiens\";\n  reaction-input (reaction: $r, consumed-entity: $e);\nselect $r, $e;\ndistinct;\nreduce $n = count($e) groupby $r;\nmatch $n >= 4;\nreduce $count = count;"
       }
     },
     {
@@ -27,7 +29,8 @@
       ],
       "queries": {
         "sql": "WITH tally AS (SELECT pa.author AS person, COUNT(DISTINCT sl.literatureReference) AS n FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_summation s ON s.DB_ID = pw.DB_ID JOIN Summation_2_literatureReference sl ON sl.DB_ID = s.summation JOIN Publication_2_author pa ON pa.DB_ID = sl.literatureReference GROUP BY pa.author) SELECT CONCAT(pe.surname, ', ', pe.firstname) FROM tally t JOIN Person pe ON pe.DB_ID = t.person WHERE t.n = (SELECT MAX(n) FROM tally);",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:summation]->(:Summation)-[:literatureReference]->(lr)\nMATCH (lr)<-[:author]-(person:Person)\nWITH person, count(DISTINCT lr) AS n\nWITH collect({person: person, n: n}) AS rows, max(n) AS top\nUNWIND rows AS row\nWITH row WHERE row.n = top\nRETURN row.person.surname + ', ' + row.person.firstname"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:summation]->(:Summation)-[:literatureReference]->(lr)\nMATCH (lr)<-[:author]-(person:Person)\nWITH person, count(DISTINCT lr) AS n\nWITH collect({person: person, n: n}) AS rows, max(n) AS top\nUNWIND rows AS row\nWITH row WHERE row.n = top\nRETURN row.person.surname + ', ' + row.person.firstname",
+        "typeql": "match\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  summarisation (summarised-thing: $p, summation: $s);\n  literature-citation (citing-thing: $s, cited-publication: $lr);\n  publication-authorship (publication: $lr, publication-author: $person);\nselect $person, $lr;\ndistinct;\nreduce $n = count($lr) groupby $person;\nsort $n desc;\nmatch\n  $person has surname $sn, has first-name $fn;\n  let $name = concat($sn, \", \", $fn);\nselect $name, $n;"
       }
     },
     {
@@ -36,7 +39,8 @@
       "expected": 42,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT pw.DB_ID) FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_reviewed rv ON rv.DB_ID = pw.DB_ID JOIN InstanceEdit_2_author ia ON ia.DB_ID = rv.reviewed JOIN Person_2_affiliation pa ON pa.DB_ID = ia.author JOIN Affiliation_2_name an ON an.DB_ID = pa.affiliation AND an.name LIKE '%University%' JOIN Pathway_2_hasEvent he ON he.DB_ID = pw.DB_ID JOIN Event_2_negativePrecedingEvent ne ON ne.DB_ID = he.hasEvent JOIN NegativePrecedingEvent np ON np.DB_ID = ne.negativePrecedingEvent JOIN DatabaseObject rn ON rn.DB_ID = np.reason AND rn._displayName = 'Futile Cycle';",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)<-[:reviewed]-(ie:InstanceEdit)<-[:author]-(:Person)-[:affiliation]->(af:Affiliation)\nWHERE any(x IN af.name WHERE x CONTAINS 'University')\nMATCH (p)-[:hasEvent]->()-[:negativePrecedingEvent]->(:NegativePrecedingEvent)-[:reason]->(z)\nWHERE z.displayName = 'Futile Cycle'\nRETURN count(DISTINCT p)"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)<-[:reviewed]-(ie:InstanceEdit)<-[:author]-(:Person)-[:affiliation]->(af:Affiliation)\nWHERE any(x IN af.name WHERE x CONTAINS 'University')\nMATCH (p)-[:hasEvent]->()-[:negativePrecedingEvent]->(:NegativePrecedingEvent)-[:reason]->(z)\nWHERE z.displayName = 'Futile Cycle'\nRETURN count(DISTINCT p)",
+        "typeql": "match\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  review (curated-object: $p, edit: $ie);\n  edit-authorship (authored-edit: $ie, edit-author: $person);\n  person-affiliation (affiliated-person: $person, affiliation: $af);\n  $af has affiliation-name $an;\n  $an contains \"University\";\n  event-containment (containing-pathway: $p, contained-event: $ev);\n  negative-precedence (following-event: $ev, exclusion-reason: $why);\n  $why has display-name \"Futile Cycle\";\nselect $p;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -45,7 +49,8 @@
       "expected": "Innate Immune System",
       "queries": {
         "sql": "WITH RECURSIVE roots AS (SELECT he.hasEvent AS root FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256'), tree AS (SELECT root, root AS ev FROM roots UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), parts AS (SELECT t.root, i.input AS ent FROM tree t JOIN ReactionlikeEvent_2_input i ON i.DB_ID = t.ev UNION SELECT t.root, o.output FROM tree t JOIN ReactionlikeEvent_2_output o ON o.DB_ID = t.ev UNION SELECT p.root, hc.hasComponent FROM parts p JOIN Complex_2_hasComponent hc ON hc.DB_ID = p.ent UNION SELECT p.root, hm.hasMember FROM parts p JOIN EntitySet_2_hasMember hm ON hm.DB_ID = p.ent) SELECT d._displayName FROM parts p JOIN EntityWithAccessionedSequence e ON e.DB_ID = p.ent JOIN ReferenceGeneProduct rgp ON rgp.DB_ID = e.referenceEntity JOIN DatabaseObject d ON d.DB_ID = p.root GROUP BY p.root, d._displayName ORDER BY COUNT(DISTINCT e.referenceEntity) DESC LIMIT 1;",
-        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)\nMATCH (child)-[:hasEvent*0..]->(ev:ReactionLikeEvent)\nMATCH (ev)-[:input|output]->(part)\nMATCH (part)-[:hasComponent|hasMember*0..]->(x:EntityWithAccessionedSequence)\nMATCH (x)-[:referenceEntity]->(rgp:ReferenceGeneProduct)\nWITH child, count(DISTINCT rgp) AS n\nRETURN child.displayName ORDER BY n DESC LIMIT 1"
+        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)\nMATCH (child)-[:hasEvent*0..]->(ev:ReactionLikeEvent)\nMATCH (ev)-[:input|output]->(part)\nMATCH (part)-[:hasComponent|hasMember*0..]->(x:EntityWithAccessionedSequence)\nMATCH (x)-[:referenceEntity]->(rgp:ReferenceGeneProduct)\nWITH child, count(DISTINCT rgp) AS n\nRETURN child.displayName ORDER BY n DESC LIMIT 1",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nwith\nfun parts-of($w: physical-entity) -> { physical-entity }:\n  match\n    { composition (whole: $w, part: $x); } or\n    { composition (whole: $w, part: $m); let $x in parts-of($m); };\n  return { $x };\nmatch\n  $root isa pathway, has st-id \"R-HSA-168256\";\n  event-containment (containing-pathway: $root, contained-event: $child);\n  { $ev is $child; } or { let $ev in sub-events($child); };\n  $ev isa reaction-like-event;\n  reaction-participation (reaction: $ev, participant: $part);\n  { $x is $part; } or { let $x in parts-of($part); };\n  $x isa entity-with-accessioned-sequence;\n  reference-assignment (instance-entity: $x, reference: $rgp);\n  $rgp isa reference-gene-product;\nselect $child, $rgp;\ndistinct;\nreduce $n = count($rgp) groupby $child;\nsort $n desc;\nlimit 1;\nmatch $child has display-name $name;\nselect $name;"
       }
     },
     {
@@ -54,7 +59,8 @@
       "expected": 771,
       "queries": {
         "sql": "WITH RECURSIVE anc AS (SELECT DISTINCT rc.compartment AS node, rc.compartment AS root FROM ReactionlikeEvent_2_compartment rc UNION SELECT i.instanceOf, a.root FROM anc a JOIN GO_CellularComponent_2_instanceOf i ON i.DB_ID = a.node), memb AS (SELECT DISTINCT a.root AS cmp FROM anc a JOIN GO_CellularComponent g ON g.DB_ID = a.node AND g.accession = '0016020') SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent WHERE NOT EXISTS (SELECT 1 FROM Pathway_2_hasEvent h2 JOIN ReactionlikeEvent r2 ON r2.DB_ID = h2.hasEvent WHERE h2.DB_ID = he.DB_ID AND NOT EXISTS (SELECT 1 FROM ReactionlikeEvent_2_compartment rc JOIN memb m ON m.cmp = rc.compartment WHERE rc.DB_ID = h2.hasEvent));",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (p)-[:hasEvent]->(:ReactionLikeEvent) }\n  AND NOT EXISTS {\n    MATCH (p)-[:hasEvent]->(r:ReactionLikeEvent)\n    WHERE NOT EXISTS { (r)-[:compartment]->()-[:instanceOf*]->(:GO_CellularComponent {accession:'0016020'}) }\n  }\nRETURN count(DISTINCT p)"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (p)-[:hasEvent]->(:ReactionLikeEvent) }\n  AND NOT EXISTS {\n    MATCH (p)-[:hasEvent]->(r:ReactionLikeEvent)\n    WHERE NOT EXISTS { (r)-[:compartment]->()-[:instanceOf*]->(:GO_CellularComponent {accession:'0016020'}) }\n  }\nRETURN count(DISTINCT p)",
+        "typeql": "with\nfun membrane-derived() -> { go-cellular-component }:\n  match\n    { ontology-parenthood (ontology-child: $c, ontology-parent: $g);\n      $g isa go-cellular-component, has accession \"0016020\"; } or\n    { ontology-parenthood (ontology-child: $c, ontology-parent: $m);\n      let $m in membrane-derived(); };\n  return { $c };\nmatch\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  event-containment (containing-pathway: $p, contained-event: $r);\n  $r isa reaction-like-event;\n  not {\n    event-containment (containing-pathway: $p, contained-event: $bad);\n    $bad isa reaction-like-event;\n    not {\n      compartment-assignment (localised-thing: $bad, compartment: $c);\n      let $m in membrane-derived();\n      $c is $m;\n    };\n  };\nselect $p;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -63,7 +69,8 @@
       "expected": 1896,
       "queries": {
         "sql": "WITH RECURSIVE a AS (SELECT he.hasEvent AS ev FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM a JOIN Pathway_2_hasEvent he ON he.DB_ID = a.ev), b AS (SELECT he.hasEvent AS ev FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-392499' UNION SELECT he.hasEvent FROM b JOIN Pathway_2_hasEvent he ON he.DB_ID = b.ev) SELECT COUNT(*) FROM a JOIN ReactionlikeEvent r ON r.DB_ID = a.ev WHERE a.ev NOT IN (SELECT ev FROM b);",
-        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent*]->(e:ReactionLikeEvent)\nWHERE NOT EXISTS { (:Pathway {stId:'R-HSA-392499'})-[:hasEvent*]->(e) }\nRETURN count(DISTINCT e)"
+        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent*]->(e:ReactionLikeEvent)\nWHERE NOT EXISTS { (:Pathway {stId:'R-HSA-392499'})-[:hasEvent*]->(e) }\nRETURN count(DISTINCT e)",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $a isa pathway, has st-id \"R-HSA-168256\";\n  let $e in sub-events($a);\n  $e isa reaction-like-event;\n  not {\n    $b isa pathway, has st-id \"R-HSA-392499\";\n    let $e2 in sub-events($b);\n    $e2 is $e;\n  };\nselect $e;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -72,7 +79,8 @@
       "expected": 411,
       "queries": {
         "sql": "WITH RECURSIVE regcx AS (SELECT rb.DB_ID AS ev, g.regulator AS cx FROM ReactionlikeEvent_2_regulatedBy rb JOIN Regulation g ON g.DB_ID = rb.regulatedBy JOIN Complex c ON c.DB_ID = g.regulator), parts AS (SELECT r.ev, hc.hasComponent AS ent FROM regcx r JOIN Complex_2_hasComponent hc ON hc.DB_ID = r.cx UNION SELECT p.ev, hc.hasComponent FROM parts p JOIN Complex_2_hasComponent hc ON hc.DB_ID = p.ent UNION SELECT p.ev, hm.hasMember FROM parts p JOIN EntitySet_2_hasMember hm ON hm.DB_ID = p.ent) SELECT COUNT(DISTINCT p.ev) FROM parts p JOIN ReactionlikeEvent_2_catalystActivity rc ON rc.DB_ID = p.ev JOIN CatalystActivity ca ON ca.DB_ID = rc.catalystActivity AND ca.physicalEntity = p.ent;",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:regulatedBy]->(:Regulation)-[:regulator]->(cx:Complex)\nMATCH (r)-[:catalystActivity]->(:CatalystActivity)-[:physicalEntity]->(pe)\nWHERE (cx)-[:hasComponent|hasMember*]->(pe)\nRETURN count(DISTINCT r)"
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:regulatedBy]->(:Regulation)-[:regulator]->(cx:Complex)\nMATCH (r)-[:catalystActivity]->(:CatalystActivity)-[:physicalEntity]->(pe)\nWHERE (cx)-[:hasComponent|hasMember*]->(pe)\nRETURN count(DISTINCT r)",
+        "typeql": "with\nfun parts-of($w: physical-entity) -> { physical-entity }:\n  match\n    { composition (whole: $w, part: $x); } or\n    { composition (whole: $w, part: $m); let $x in parts-of($m); };\n  return { $x };\nmatch\n  $r isa reaction-like-event;\n  regulation (regulated-event: $r, regulator: $cx);\n  $cx isa complex;\n  catalysis (catalysed-reaction: $r, catalyst: $pe);\n  let $p in parts-of($cx);\n  $p is $pe;\nselect $r;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -81,7 +89,8 @@
       "expected": 4822,
       "queries": {
         "sql": "SELECT COUNT(*) FROM (SELECT hc.DB_ID FROM Complex_2_hasComponent hc JOIN Complex_2_species cs ON cs.DB_ID = hc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = cs.species AND sp._displayName = 'Homo sapiens' LEFT JOIN EntityWithAccessionedSequence e ON e.DB_ID = hc.hasComponent GROUP BY hc.DB_ID HAVING COUNT(DISTINCT hc.hasComponent) = COUNT(DISTINCT e.DB_ID)) t;",
-        "cypher": "MATCH (c:Complex)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (c)-[:hasComponent]->() }\n  AND NOT EXISTS { MATCH (c)-[:hasComponent]->(x) WHERE NOT x:EntityWithAccessionedSequence }\nRETURN count(DISTINCT c)"
+        "cypher": "MATCH (c:Complex)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (c)-[:hasComponent]->() }\n  AND NOT EXISTS { MATCH (c)-[:hasComponent]->(x) WHERE NOT x:EntityWithAccessionedSequence }\nRETURN count(DISTINCT c)",
+        "typeql": "match\n  $c isa complex;\n  species-assignment (classified-thing: $c, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  complex-composition (containing-complex: $c, component: $any);\n  not {\n    complex-composition (containing-complex: $c, component: $bad);\n    not { $bad isa entity-with-accessioned-sequence; };\n  };\nselect $c;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -116,7 +125,8 @@
       ],
       "queries": {
         "sql": "WITH RECURSIVE t AS (SELECT he.DB_ID AS root, he.hasEvent AS ev FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' UNION SELECT t.root, he.hasEvent FROM t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), rle AS (SELECT DISTINCT t.root, t.ev FROM t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev), agg AS (SELECT root, COUNT(*) AS n, SUM(CASE WHEN EXISTS (SELECT 1 FROM ReactionlikeEvent_2_catalystActivity c WHERE c.DB_ID = rle.ev) THEN 1 ELSE 0 END) AS wc FROM rle GROUP BY root) SELECT d._displayName AS pathway, a.n AS events, ROUND(100 * a.wc / a.n, 1) AS pct FROM agg a JOIN DatabaseObject d ON d.DB_ID = a.root ORDER BY a.n DESC, pathway LIMIT 5;",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH p, count(DISTINCT e) AS events,\n     count(DISTINCT CASE WHEN EXISTS { (e)-[:catalystActivity]->() } THEN e END) AS wc\nRETURN p.displayName AS pathway, events, round(100.0 * wc / events, 1) AS pct\nORDER BY events DESC, pathway LIMIT 5"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH p, count(DISTINCT e) AS events,\n     count(DISTINCT CASE WHEN EXISTS { (e)-[:catalystActivity]->() } THEN e END) AS wc\nRETURN p.displayName AS pathway, events, round(100.0 * wc / events, 1) AS pct\nORDER BY events DESC, pathway LIMIT 5",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  let $e in sub-events($p);\n  $e isa reaction-like-event;\nselect $p, $e;\ndistinct;\nreduce $events = count($e) groupby $p;\nsort $events desc;\nlimit 5;\nmatch $p has display-name $pathway;\nselect $pathway, $events;"
       },
       "ordered": true
     },
@@ -126,7 +136,8 @@
       "expected": 4451,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT a.DB_ID) FROM ReactionlikeEvent_2_regulatedBy a JOIN PositiveRegulation pr ON pr.DB_ID = a.regulatedBy WHERE NOT EXISTS (SELECT 1 FROM ReactionlikeEvent_2_regulatedBy b JOIN NegativeRegulation nr ON nr.DB_ID = b.regulatedBy WHERE b.DB_ID = a.DB_ID);",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:regulatedBy]->(:PositiveRegulation)\nWHERE NOT EXISTS { (r)-[:regulatedBy]->(:NegativeRegulation) }\nRETURN count(DISTINCT r)"
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:regulatedBy]->(:PositiveRegulation)\nWHERE NOT EXISTS { (r)-[:regulatedBy]->(:NegativeRegulation) }\nRETURN count(DISTINCT r)",
+        "typeql": "match\n  $r isa reaction-like-event;\n  positive-regulation (regulated-event: $r, regulator: $pos);\n  not { negative-regulation (regulated-event: $r, regulator: $neg); };\nselect $r;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -135,7 +146,8 @@
       "expected": 501,
       "queries": {
         "sql": "WITH RECURSIVE t AS (SELECT he.DB_ID AS root, he.hasEvent AS ev FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' UNION SELECT t.root, he.hasEvent FROM t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), agg AS (SELECT t.root, COUNT(DISTINCT t.ev) AS n FROM t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev GROUP BY t.root) SELECT COUNT(*) FROM agg WHERE n > (SELECT AVG(n) FROM agg);",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH p, count(DISTINCT e) AS n\nWITH collect(n) AS ns\nWITH ns, reduce(s = 0.0, x IN ns | s + x) / size(ns) AS mean\nRETURN size([x IN ns WHERE x > mean])"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH p, count(DISTINCT e) AS n\nWITH collect(n) AS ns\nWITH ns, reduce(s = 0.0, x IN ns | s + x) / size(ns) AS mean\nRETURN size([x IN ns WHERE x > mean])",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  let $e in sub-events($p);\n  $e isa reaction-like-event;\nselect $p, $e;\ndistinct;\nreduce $n = count($e) groupby $p;\nreduce $mean = mean($n);\nmatch\n  $p2 isa pathway;\n  species-assignment (classified-thing: $p2, species: $sp2);\n  $sp2 has display-name \"Homo sapiens\";\n  let $e2 in sub-events($p2);\n  $e2 isa reaction-like-event;\nselect $p2, $e2;\ndistinct;\nreduce $n2 = count($e2) groupby $p2;\nmatch $n2 > $mean;\nreduce $count = count;"
       }
     },
     {
@@ -144,7 +156,8 @@
       "expected": 62.4,
       "queries": {
         "sql": "SELECT ROUND(100 * SUM(pos_only) / COUNT(*), 1) FROM (SELECT rb.DB_ID AS ev, MAX(CASE WHEN EXISTS (SELECT 1 FROM ReactionlikeEvent_2_regulatedBy b JOIN NegativeRegulation nr ON nr.DB_ID = b.regulatedBy WHERE b.DB_ID = rb.DB_ID) THEN 0 ELSE 1 END) AS pos_only FROM ReactionlikeEvent_2_regulatedBy rb JOIN Event_2_species es ON es.DB_ID = rb.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' GROUP BY rb.DB_ID) t;",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (r)-[:regulatedBy]->() }\nWITH DISTINCT r\nWITH count(r) AS total,\n     sum(CASE WHEN NOT EXISTS { (r)-[:regulatedBy]->(:NegativeRegulation) } THEN 1 ELSE 0 END) AS pos\nRETURN round(100.0 * pos / total, 1)"
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (r)-[:regulatedBy]->() }\nWITH DISTINCT r\nWITH count(r) AS total,\n     sum(CASE WHEN NOT EXISTS { (r)-[:regulatedBy]->(:NegativeRegulation) } THEN 1 ELSE 0 END) AS pos\nRETURN round(100.0 * pos / total, 1)",
+        "typeql": "match\n  $r isa reaction-like-event;\n  species-assignment (classified-thing: $r, species: $sp); $sp has display-name \"Homo sapiens\";\n  regulation (regulated-event: $r, regulator: $any);\nselect $r;\ndistinct;\nreduce $total = count;\nmatch\n  $r2 isa reaction-like-event;\n  species-assignment (classified-thing: $r2, species: $sp2);\n  $sp2 has display-name \"Homo sapiens\";\n  regulation (regulated-event: $r2, regulator: $any2);\n  not { negative-regulation (regulated-event: $r2, regulator: $neg); };\nselect $r2;\ndistinct;\nreduce $pos = count;\nmatch let $pct = round(100.0 * $pos / $total, 1);\nselect $pct;"
       }
     },
     {
@@ -153,7 +166,8 @@
       "expected": 1048,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT e.referenceEntity) FROM ReactionlikeEvent_2_catalystActivity rc JOIN CatalystActivity ca ON ca.DB_ID = rc.catalystActivity JOIN EntityWithAccessionedSequence e ON e.DB_ID = ca.physicalEntity JOIN ReferenceSequence rs ON rs.DB_ID = e.referenceEntity JOIN DatabaseObject d ON d.DB_ID = rs.species AND d._displayName = 'Homo sapiens';",
-        "cypher": "MATCH (:ReactionLikeEvent)-[:catalystActivity]->(:CatalystActivity)-[:physicalEntity]->(e:EntityWithAccessionedSequence)\nMATCH (e)-[:referenceEntity]->(rs)-[:species]->(:Species {displayName:'Homo sapiens'})\nRETURN count(DISTINCT rs)"
+        "cypher": "MATCH (:ReactionLikeEvent)-[:catalystActivity]->(:CatalystActivity)-[:physicalEntity]->(e:EntityWithAccessionedSequence)\nMATCH (e)-[:referenceEntity]->(rs)-[:species]->(:Species {displayName:'Homo sapiens'})\nRETURN count(DISTINCT rs)",
+        "typeql": "match\n  catalysis (catalysed-reaction: $r, catalyst: $e);\n  $e isa entity-with-accessioned-sequence;\n  reference-assignment (instance-entity: $e, reference: $rs);\n  species-assignment (classified-thing: $rs, species: $sp);\n  $sp has display-name \"Homo sapiens\";\nselect $rs;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -162,7 +176,8 @@
       "expected": 236,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT pw.DB_ID) FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_revised rv ON rv.DB_ID = pw.DB_ID WHERE NOT EXISTS (SELECT 1 FROM Event_2_internalReviewed ir WHERE ir.DB_ID = pw.DB_ID);",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (p)<-[:revised]-(:InstanceEdit) }\n  AND NOT EXISTS { (p)-[:internalReviewed]->(:InstanceEdit) }\nRETURN count(DISTINCT p)"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (p)<-[:revised]-(:InstanceEdit) }\n  AND NOT EXISTS { (p)-[:internalReviewed]->(:InstanceEdit) }\nRETURN count(DISTINCT p)",
+        "typeql": "match\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  revision (curated-object: $p, edit: $ie);\n  not { internal-review (curated-object: $p, edit: $ir); };\nselect $p;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -171,7 +186,8 @@
       "expected": 1573,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT rs.DB_ID) FROM Event_2_relatedSpecies rs WHERE NOT EXISTS (SELECT 1 FROM Event_2_species es WHERE es.DB_ID = rs.DB_ID AND es.species = rs.relatedSpecies);",
-        "cypher": "MATCH (e:Event)-[:relatedSpecies]->(rs:Species)\nWHERE NOT (e)-[:species]->(rs)\nRETURN count(DISTINCT e)"
+        "cypher": "MATCH (e:Event)-[:relatedSpecies]->(rs:Species)\nWHERE NOT (e)-[:species]->(rs)\nRETURN count(DISTINCT e)",
+        "typeql": "match\n  $e isa event;\n  related-species-assignment (classified-thing: $e, related-species: $rs);\n  not { species-assignment (classified-thing: $e, species: $rs); };\nselect $e;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -180,7 +196,8 @@
       "expected": 2256,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT inf.DB_ID) FROM Event_2_inferredFrom inf JOIN ReactionlikeEvent r ON r.DB_ID = inf.DB_ID JOIN Event_2_species hs ON hs.DB_ID = inf.DB_ID JOIN DatabaseObject h ON h.DB_ID = hs.species AND h._displayName = 'Homo sapiens' WHERE EXISTS (SELECT 1 FROM Event_2_species es2 JOIN DatabaseObject d2 ON d2.DB_ID = es2.species WHERE es2.DB_ID = inf.inferredFrom AND d2._displayName <> 'Homo sapiens');",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (src:Event)-[:inferredTo]->(r)\nMATCH (src)-[:species]->(s:Species) WHERE s.displayName <> 'Homo sapiens'\nRETURN count(DISTINCT r)"
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (src:Event)-[:inferredTo]->(r)\nMATCH (src)-[:species]->(s:Species) WHERE s.displayName <> 'Homo sapiens'\nRETURN count(DISTINCT r)",
+        "typeql": "match\n  $r isa reaction-like-event;\n  species-assignment (classified-thing: $r, species: $sp); $sp has display-name \"Homo sapiens\";\n  event-inference (inferred-event: $r, source-event: $src);\n  species-assignment (classified-thing: $src, species: $ss);\n  $ss has display-name $sn;\n  $sn != \"Homo sapiens\";\nselect $r;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -189,7 +206,8 @@
       "expected": 5591,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT il.DB_ID) FROM Complex_2_includedLocation il WHERE NOT EXISTS (SELECT 1 FROM Complex_2_compartment cc WHERE cc.DB_ID = il.DB_ID AND cc.compartment = il.includedLocation);",
-        "cypher": "MATCH (c:Complex)-[:includedLocation]->(loc)\nWHERE NOT (c)-[:compartment]->(loc)\nRETURN count(DISTINCT c)"
+        "cypher": "MATCH (c:Complex)-[:includedLocation]->(loc)\nWHERE NOT (c)-[:compartment]->(loc)\nRETURN count(DISTINCT c)",
+        "typeql": "match\n  $c isa complex;\n  included-location (localised-thing: $c, location: $loc);\n  not { compartment-assignment (localised-thing: $c, compartment: $loc); };\nselect $c;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -213,7 +231,8 @@
       "expected": 23715,
       "queries": {
         "sql": "SELECT COUNT(*) FROM (SELECT DISTINCT rc.DB_ID, rc.compartment FROM ReactionlikeEvent_2_compartment rc JOIN Event_2_species es ON es.DB_ID = rc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens') t;",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (r)-[:compartment]->(c)\nRETURN count(DISTINCT [elementId(r), elementId(c)])"
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (r)-[:compartment]->(c)\nRETURN count(DISTINCT [elementId(r), elementId(c)])",
+        "typeql": "match\n  $r isa reaction-like-event;\n  species-assignment (classified-thing: $r, species: $sp); $sp has display-name \"Homo sapiens\";\n  compartment-assignment (localised-thing: $r, compartment: $c);\nselect $r, $c;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -274,7 +293,8 @@
       ],
       "queries": {
         "sql": "SELECT d._displayName AS species, COUNT(DISTINCT r.DB_ID) AS reactions, COUNT(DISTINCT pw.DB_ID) AS pathways FROM Event_2_species es JOIN DatabaseObject d ON d.DB_ID = es.species LEFT JOIN ReactionlikeEvent r ON r.DB_ID = es.DB_ID LEFT JOIN Pathway pw ON pw.DB_ID = es.DB_ID GROUP BY es.species, d._displayName ORDER BY reactions DESC, species LIMIT 10;",
-        "cypher": "MATCH (s:Species)\nOPTIONAL MATCH (r:ReactionLikeEvent)-[:species]->(s)\nWITH s, count(DISTINCT r) AS reactions\nOPTIONAL MATCH (p:Pathway)-[:species]->(s)\nWITH s, reactions, count(DISTINCT p) AS pathways\nRETURN s.displayName AS species, reactions, pathways\nORDER BY reactions DESC, species LIMIT 10"
+        "cypher": "MATCH (s:Species)\nOPTIONAL MATCH (r:ReactionLikeEvent)-[:species]->(s)\nWITH s, count(DISTINCT r) AS reactions\nOPTIONAL MATCH (p:Pathway)-[:species]->(s)\nWITH s, reactions, count(DISTINCT p) AS pathways\nRETURN s.displayName AS species, reactions, pathways\nORDER BY reactions DESC, species LIMIT 10",
+        "typeql": "match\n  $s isa species;\n  species-assignment (classified-thing: $r, species: $s);\n  $r isa reaction-like-event;\nselect $s, $r;\ndistinct;\nreduce $reactions = count($r) groupby $s;\nsort $reactions desc;\nlimit 10;\nmatch $s has display-name $species;\nselect $species, $reactions;"
       }
     },
     {
@@ -283,7 +303,8 @@
       "expected": 124393,
       "queries": {
         "sql": "SELECT COUNT(*) FROM InstanceEdit ie WHERE NOT EXISTS (SELECT 1 FROM Pathway pw JOIN DatabaseObject p ON p.DB_ID = pw.DB_ID AND p.created = ie.DB_ID);",
-        "cypher": "MATCH (ie:InstanceEdit)\nWHERE NOT EXISTS { (ie)-[:created]->(:Pathway) }\nRETURN count(ie)"
+        "cypher": "MATCH (ie:InstanceEdit)\nWHERE NOT EXISTS { (ie)-[:created]->(:Pathway) }\nRETURN count(ie)",
+        "typeql": "match\n  $ie isa instance-edit;\n  not { creation (curated-object: $p, edit: $ie); $p isa pathway; };\nselect $ie;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -292,7 +313,8 @@
       "expected": 125,
       "queries": {
         "sql": "WITH RECURSIVE lv AS (SELECT he.hasEvent AS ev, 1 AS d FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent, lv.d + 1 FROM lv JOIN Pathway_2_hasEvent he ON he.DB_ID = lv.ev) SELECT COUNT(*) FROM (SELECT ev FROM lv GROUP BY ev HAVING COUNT(DISTINCT d) > 1) t;",
-        "cypher": "MATCH path = (:Pathway {stId:'R-HSA-168256'})-[:hasEvent*]->(e)\nWITH e, count(DISTINCT length(path)) AS depths\nWHERE depths > 1\nRETURN count(*)"
+        "cypher": "MATCH path = (:Pathway {stId:'R-HSA-168256'})-[:hasEvent*]->(e)\nWITH e, count(DISTINCT length(path)) AS depths\nWHERE depths > 1\nRETURN count(*)",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $root isa pathway, has st-id \"R-HSA-168256\";\n  let $e in sub-events($root);\nselect $e;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -321,7 +343,8 @@
       ],
       "queries": {
         "sql": "WITH RECURSIVE roots AS (SELECT he.hasEvent AS root FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256'), tree AS (SELECT root, root AS ev FROM roots UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), rset AS (SELECT DISTINCT t.root, t.ev FROM tree t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev), sizes AS (SELECT root, COUNT(*) AS n FROM rset GROUP BY root), inter AS (SELECT a.root AS ra, b.root AS rb, COUNT(*) AS k FROM rset a JOIN rset b ON b.ev = a.ev AND b.root > a.root GROUP BY a.root, b.root) SELECT da._displayName AS pathway_a, db2._displayName AS pathway_b, i.k AS shared, ROUND(i.k / (sa.n + sb.n - i.k), 4) AS jaccard FROM inter i JOIN sizes sa ON sa.root = i.ra JOIN sizes sb ON sb.root = i.rb JOIN DatabaseObject da ON da.DB_ID = i.ra JOIN DatabaseObject db2 ON db2.DB_ID = i.rb ORDER BY jaccard DESC, pathway_a, pathway_b;",
-        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)\nMATCH (child)-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH child, collect(DISTINCT e) AS es\nWITH collect({c: child, es: es}) AS rows\nUNWIND rows AS a\nUNWIND rows AS b\nWITH a, b WHERE a.c.dbId < b.c.dbId\nWITH a, b, size([x IN a.es WHERE x IN b.es]) AS shared\nRETURN a.c.displayName AS pathway_a, b.c.displayName AS pathway_b, shared,\n       round(1.0 * shared / (size(a.es) + size(b.es) - shared), 4) AS jaccard\nORDER BY jaccard DESC, pathway_a, pathway_b"
+        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)\nMATCH (child)-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH child, collect(DISTINCT e) AS es\nWITH collect({c: child, es: es}) AS rows\nUNWIND rows AS a\nUNWIND rows AS b\nWITH a, b WHERE a.c.dbId < b.c.dbId\nWITH a, b, size([x IN a.es WHERE x IN b.es]) AS shared\nRETURN a.c.displayName AS pathway_a, b.c.displayName AS pathway_b, shared,\n       round(1.0 * shared / (size(a.es) + size(b.es) - shared), 4) AS jaccard\nORDER BY jaccard DESC, pathway_a, pathway_b",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $root isa pathway, has st-id \"R-HSA-168256\";\n  event-containment (containing-pathway: $root, contained-event: $a);\n  event-containment (containing-pathway: $root, contained-event: $b);\n  $a has db-id $ad; $b has db-id $bd; $ad < $bd;\n  let $ea in sub-events($a);\n  let $eb in sub-events($b);\n  $ea isa reaction-like-event;\n  $ea is $eb;\nselect $a, $b, $ea;\ndistinct;\nreduce $shared = count($ea) groupby $a, $b;\nmatch $a has display-name $pathway_a; $b has display-name $pathway_b;\nselect $pathway_a, $pathway_b, $shared;"
       }
     },
     {
@@ -347,7 +370,8 @@
       ],
       "queries": {
         "sql": "WITH sp3 AS (SELECT es.species AS sp, COUNT(DISTINCT es.DB_ID) AS n FROM Event_2_species es JOIN ReactionlikeEvent r ON r.DB_ID = es.DB_ID GROUP BY es.species ORDER BY n DESC LIMIT 3), cnt AS (SELECT es.species AS sp, he.DB_ID AS pw, COUNT(DISTINCT he.hasEvent) AS n FROM Pathway_2_hasEvent he JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent JOIN Event_2_species es ON es.DB_ID = he.hasEvent WHERE es.species IN (SELECT sp FROM sp3) GROUP BY es.species, he.DB_ID), rk AS (SELECT c.sp, c.pw, c.n, ROW_NUMBER() OVER (PARTITION BY c.sp ORDER BY c.n DESC, c.pw) AS r FROM cnt c) SELECT ds._displayName AS species, dp._displayName AS pathway, rk.n AS reactions FROM rk JOIN DatabaseObject ds ON ds.DB_ID = rk.sp JOIN DatabaseObject dp ON dp.DB_ID = rk.pw WHERE rk.r = 1 ORDER BY rk.n DESC, species;",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(s:Species)\nWITH s, count(DISTINCT r) AS total ORDER BY total DESC LIMIT 3\nMATCH (p:Pathway)-[:hasEvent]->(e:ReactionLikeEvent)-[:species]->(s)\nWITH s, p, count(DISTINCT e) AS n\nORDER BY n DESC, p.dbId\nWITH s, collect({p: p, n: n})[0] AS best\nRETURN s.displayName AS species, best.p.displayName AS pathway, best.n AS reactions\nORDER BY reactions DESC, species"
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(s:Species)\nWITH s, count(DISTINCT r) AS total ORDER BY total DESC LIMIT 3\nMATCH (p:Pathway)-[:hasEvent]->(e:ReactionLikeEvent)-[:species]->(s)\nWITH s, p, count(DISTINCT e) AS n\nORDER BY n DESC, p.dbId\nWITH s, collect({p: p, n: n})[0] AS best\nRETURN s.displayName AS species, best.p.displayName AS pathway, best.n AS reactions\nORDER BY reactions DESC, species",
+        "typeql": "match\n  $s isa species;\n  species-assignment (classified-thing: $r, species: $s);\n  $r isa reaction-like-event;\nselect $s, $r;\ndistinct;\nreduce $total = count($r) groupby $s;\nsort $total desc;\nlimit 3;\nmatch\n  event-containment (containing-pathway: $p, contained-event: $e);\n  $e isa reaction-like-event;\n  species-assignment (classified-thing: $e, species: $s);\nselect $s, $p, $e;\ndistinct;\nreduce $reactions = count($e) groupby $s, $p;\nsort $reactions desc;\nmatch $s has display-name $species; $p has display-name $pathway;\nselect $species, $pathway, $reactions;"
       }
     },
     {
@@ -356,7 +380,8 @@
       "expected": 9081,
       "queries": {
         "sql": "SELECT COUNT(*) FROM InstanceEdit ie JOIN InstanceEdit_2_author ia ON ia.DB_ID = ie.DB_ID JOIN Person pe ON pe.DB_ID = ia.author AND pe.surname = 'D''Eustachio' AND pe.firstname = 'Peter' WHERE NOT EXISTS (SELECT 1 FROM Pathway pw JOIN DatabaseObject o ON o.DB_ID = pw.DB_ID AND o.created = ie.DB_ID);",
-        "cypher": "MATCH (ie:InstanceEdit)<-[:author]-(pe:Person)\nWHERE pe.surname = \"D'Eustachio\" AND pe.firstname = 'Peter'\n  AND NOT EXISTS { (ie)-[:created]->(:Pathway) }\nRETURN count(DISTINCT ie)"
+        "cypher": "MATCH (ie:InstanceEdit)<-[:author]-(pe:Person)\nWHERE pe.surname = \"D'Eustachio\" AND pe.firstname = 'Peter'\n  AND NOT EXISTS { (ie)-[:created]->(:Pathway) }\nRETURN count(DISTINCT ie)",
+        "typeql": "match\n  $ie isa instance-edit;\n  edit-authorship (authored-edit: $ie, edit-author: $person);\n  $person has surname \"D'Eustachio\", has first-name \"Peter\";\n  not { creation (curated-object: $p, edit: $ie); $p isa pathway; };\nselect $ie;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -365,7 +390,8 @@
       "expected": "Jassal, Bijay",
       "queries": {
         "sql": "SELECT CONCAT(pe.surname, ', ', pe.firstname) FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_authored au ON au.DB_ID = pw.DB_ID JOIN InstanceEdit_2_author ia ON ia.DB_ID = au.authored JOIN Person pe ON pe.DB_ID = ia.author GROUP BY ia.author, pe.surname, pe.firstname ORDER BY COUNT(DISTINCT pw.DB_ID) DESC LIMIT 1;",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)<-[:authored]-(:InstanceEdit)<-[:author]-(person:Person)\nWITH person, count(DISTINCT p) AS n\nRETURN person.surname + ', ' + person.firstname ORDER BY n DESC LIMIT 1"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)<-[:authored]-(:InstanceEdit)<-[:author]-(person:Person)\nWITH person, count(DISTINCT p) AS n\nRETURN person.surname + ', ' + person.firstname ORDER BY n DESC LIMIT 1",
+        "typeql": "match\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  authoring (curated-object: $p, edit: $ie);\n  edit-authorship (authored-edit: $ie, edit-author: $person);\nselect $p, $person;\ndistinct;\nreduce $n = count($p) groupby $person;\nsort $n desc;\nlimit 1;\nmatch $person has surname $sn, has first-name $fn;\nlet $name = concat($sn, \", \", $fn);\nselect $name;"
       }
     },
     {
@@ -374,7 +400,8 @@
       "expected": 22,
       "queries": {
         "sql": "WITH RECURSIVE roots AS (SELECT he.hasEvent AS root FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256'), tree AS (SELECT root, root AS ev FROM roots UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), ent AS (SELECT DISTINCT t.root, i.input AS e FROM tree t JOIN ReactionlikeEvent_2_input i ON i.DB_ID = t.ev) SELECT COUNT(*) FROM (SELECT e FROM ent GROUP BY e HAVING COUNT(DISTINCT root) = (SELECT COUNT(*) FROM roots)) x;",
-        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)\nWITH collect(DISTINCT child) AS children, count(DISTINCT child) AS total\nUNWIND children AS child\nMATCH (child)-[:hasEvent*0..]->(:ReactionLikeEvent)-[:input]->(e)\nWITH total, e, count(DISTINCT child) AS hits\nWHERE hits = total\nRETURN count(DISTINCT e)"
+        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)\nWITH collect(DISTINCT child) AS children, count(DISTINCT child) AS total\nUNWIND children AS child\nMATCH (child)-[:hasEvent*0..]->(:ReactionLikeEvent)-[:input]->(e)\nWITH total, e, count(DISTINCT child) AS hits\nWHERE hits = total\nRETURN count(DISTINCT e)",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $root isa pathway, has st-id \"R-HSA-168256\";\n  event-containment (containing-pathway: $root, contained-event: $child);\n  { $ev is $child; } or { let $ev in sub-events($child); };\n  $ev isa reaction-like-event;\n  reaction-input (reaction: $ev, consumed-entity: $e);\nselect $child, $e;\ndistinct;\nreduce $roots = count($child) groupby $e;\nmatch $roots == 3;\nreduce $count = count;"
       }
     },
     {
@@ -383,7 +410,8 @@
       "expected": 59,
       "queries": {
         "sql": "SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent WHERE NOT EXISTS (SELECT 1 FROM Pathway_2_hasEvent h2 JOIN ReactionlikeEvent r2 ON r2.DB_ID = h2.hasEvent WHERE h2.DB_ID = he.DB_ID AND (NOT EXISTS (SELECT 1 FROM ReactionlikeEvent_2_input i WHERE i.DB_ID = h2.hasEvent) OR EXISTS (SELECT 1 FROM ReactionlikeEvent_2_input i WHERE i.DB_ID = h2.hasEvent AND NOT EXISTS (SELECT 1 FROM Complex cx WHERE cx.DB_ID = i.input))));",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (p)-[:hasEvent]->(:ReactionLikeEvent) }\n  AND NOT EXISTS {\n    MATCH (p)-[:hasEvent]->(r:ReactionLikeEvent)\n    WHERE NOT EXISTS { (r)-[:input]->() }\n       OR EXISTS { MATCH (r)-[:input]->(x) WHERE NOT x:Complex }\n  }\nRETURN count(DISTINCT p)"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (p)-[:hasEvent]->(:ReactionLikeEvent) }\n  AND NOT EXISTS {\n    MATCH (p)-[:hasEvent]->(r:ReactionLikeEvent)\n    WHERE NOT EXISTS { (r)-[:input]->() }\n       OR EXISTS { MATCH (r)-[:input]->(x) WHERE NOT x:Complex }\n  }\nRETURN count(DISTINCT p)",
+        "typeql": "match\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  event-containment (containing-pathway: $p, contained-event: $r);\n  $r isa reaction-like-event;\n  not {\n    event-containment (containing-pathway: $p, contained-event: $bad);\n    $bad isa reaction-like-event;\n    { not { reaction-input (reaction: $bad, consumed-entity: $any); }; } or\n    { reaction-input (reaction: $bad, consumed-entity: $x); not { $x isa complex; }; };\n  };\nselect $p;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -392,7 +420,8 @@
       "expected": 720,
       "queries": {
         "sql": "WITH RECURSIVE t AS (SELECT he.DB_ID AS root, he.hasEvent AS ev FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' UNION SELECT t.root, he.hasEvent FROM t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), agg AS (SELECT t.root, COUNT(DISTINCT t.ev) AS n FROM t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev GROUP BY t.root), q AS (SELECT root, n, NTILE(4) OVER (ORDER BY n) AS tile FROM agg) SELECT COUNT(*) FROM q WHERE tile = 4;",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:hasEvent*]->(:ReactionLikeEvent)\nWITH count(DISTINCT p) AS total\nRETURN total / 4"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:hasEvent*]->(:ReactionLikeEvent)\nWITH count(DISTINCT p) AS total\nRETURN total / 4",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  let $e in sub-events($p);\n  $e isa reaction-like-event;\nselect $p;\ndistinct;\nreduce $total = count;\nmatch let $quarter = $total / 4;\nselect $quarter;"
       }
     },
     {
@@ -401,7 +430,8 @@
       "expected": 3453,
       "queries": {
         "sql": "WITH RECURSIVE reach AS (SELECT he.hasEvent AS ev FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM reach r JOIN Pathway_2_hasEvent he ON he.DB_ID = r.ev UNION SELECT p.precedingEvent FROM reach r JOIN Event_2_precedingEvent p ON p.DB_ID = r.ev) SELECT COUNT(*) FROM reach JOIN ReactionlikeEvent x ON x.DB_ID = reach.ev;",
-        "cypher": "MATCH (start:Pathway {stId:'R-HSA-168256'})-[:hasEvent|precedingEvent*]->(e:ReactionLikeEvent)\nRETURN count(DISTINCT e)"
+        "cypher": "MATCH (start:Pathway {stId:'R-HSA-168256'})-[:hasEvent|precedingEvent*]->(e:ReactionLikeEvent)\nRETURN count(DISTINCT e)",
+        "typeql": "with\nfun reachable($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-precedence (preceding-event: $e, following-event: $p); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n       let $e in reachable($m); } or\n    { event-precedence (preceding-event: $m2, following-event: $p);\n       let $e in reachable($m2); };\n  return { $e };\nmatch\n  $root isa pathway, has st-id \"R-HSA-168256\";\n  let $e in reachable($root);\n  $e isa reaction-like-event;\nselect $e;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -410,7 +440,8 @@
       "expected": 31,
       "queries": {
         "sql": "WITH RECURSIVE tree AS (SELECT s.identifier AS root, he.hasEvent AS ev FROM StableIdentifier s JOIN DatabaseObject o ON o.stableIdentifier = s.DB_ID JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier IN ('R-HSA-168249','R-HSA-1280218','R-HSA-1280215') UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), ent AS (SELECT DISTINCT t.root, i.input AS e FROM tree t JOIN ReactionlikeEvent_2_input i ON i.DB_ID = t.ev) SELECT COUNT(*) FROM (SELECT e FROM ent WHERE root = 'R-HSA-168249') a JOIN (SELECT e FROM ent WHERE root = 'R-HSA-1280218') b ON b.e = a.e WHERE a.e NOT IN (SELECT e FROM ent WHERE root = 'R-HSA-1280215');",
-        "cypher": "MATCH (root:Pathway) WHERE root.stId IN ['R-HSA-168249','R-HSA-1280218','R-HSA-1280215']\nMATCH (root)-[:hasEvent*]->(:ReactionLikeEvent)-[:input]->(e)\nWITH root.stId AS root, collect(DISTINCT e) AS es\nWITH collect({r: root, es: es}) AS rows\nWITH [x IN rows WHERE x.r = 'R-HSA-168249'][0].es AS a,\n     [x IN rows WHERE x.r = 'R-HSA-1280218'][0].es AS b,\n     [x IN rows WHERE x.r = 'R-HSA-1280215'][0].es AS c\nRETURN size([x IN a WHERE x IN b AND NOT x IN c])"
+        "cypher": "MATCH (root:Pathway) WHERE root.stId IN ['R-HSA-168249','R-HSA-1280218','R-HSA-1280215']\nMATCH (root)-[:hasEvent*]->(:ReactionLikeEvent)-[:input]->(e)\nWITH root.stId AS root, collect(DISTINCT e) AS es\nWITH collect({r: root, es: es}) AS rows\nWITH [x IN rows WHERE x.r = 'R-HSA-168249'][0].es AS a,\n     [x IN rows WHERE x.r = 'R-HSA-1280218'][0].es AS b,\n     [x IN rows WHERE x.r = 'R-HSA-1280215'][0].es AS c\nRETURN size([x IN a WHERE x IN b AND NOT x IN c])",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $a isa pathway, has st-id \"R-HSA-168249\";\n  let $ea in sub-events($a);\n  $ea isa reaction-like-event;\n  reaction-input (reaction: $ea, consumed-entity: $e);\n  $b isa pathway, has st-id \"R-HSA-1280218\";\n  let $eb in sub-events($b);\n  $eb isa reaction-like-event;\n  reaction-input (reaction: $eb, consumed-entity: $e);\n  not {\n    $c isa pathway, has st-id \"R-HSA-1280215\";\n    let $ec in sub-events($c);\n    $ec isa reaction-like-event;\n    reaction-input (reaction: $ec, consumed-entity: $e);\n  };\nselect $e;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -419,7 +450,8 @@
       "expected": 2362,
       "queries": {
         "sql": "WITH RECURSIVE cp AS (SELECT c.DB_ID AS p, c.hasEvent AS ch FROM Pathway_2_hasEvent c JOIN Pathway x ON x.DB_ID = c.hasEvent), desc_ AS (SELECT cp.p, cp.ch AS node FROM cp UNION SELECT d.p, he.hasEvent FROM desc_ d JOIN Pathway_2_hasEvent he ON he.DB_ID = d.node) SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN Event_2_species es ON es.DB_ID = he.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent WHERE NOT EXISTS (SELECT 1 FROM desc_ d WHERE d.p = he.DB_ID AND d.node = he.hasEvent);",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:hasEvent]->(r:ReactionLikeEvent)\nWHERE NOT EXISTS { MATCH (p)-[:hasEvent]->(sub:Pathway)-[:hasEvent*]->(r) }\nRETURN count(DISTINCT p)"
+        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)-[:hasEvent]->(r:ReactionLikeEvent)\nWHERE NOT EXISTS { MATCH (p)-[:hasEvent]->(sub:Pathway)-[:hasEvent*]->(r) }\nRETURN count(DISTINCT p)",
+        "typeql": "with\nfun sub-events($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e in sub-events($m); };\n  return { $e };\nmatch\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  event-containment (containing-pathway: $p, contained-event: $r);\n  $r isa reaction-like-event;\n  not {\n    event-containment (containing-pathway: $p, contained-event: $sub);\n    $sub isa pathway;\n    let $under in sub-events($sub);\n    $under is $r;\n  };\nselect $p;\ndistinct;\nreduce $count = count;"
       }
     },
     {
@@ -428,7 +460,8 @@
       "expected": 4.3942,
       "queries": {
         "sql": "WITH RECURSIVE lv AS (SELECT he.hasEvent AS ev, 1 AS d FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent, lv.d + 1 FROM lv JOIN Pathway_2_hasEvent he ON he.DB_ID = lv.ev) SELECT ROUND(AVG(md), 4) FROM (SELECT lv.ev, MIN(lv.d) AS md FROM lv JOIN ReactionlikeEvent r ON r.DB_ID = lv.ev GROUP BY lv.ev) t;",
-        "cypher": "MATCH path = (:Pathway {stId:'R-HSA-168256'})-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH e, min(length(path)) AS d\nRETURN round(avg(d), 4)"
+        "cypher": "MATCH path = (:Pathway {stId:'R-HSA-168256'})-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH e, min(length(path)) AS d\nRETURN round(avg(d), 4)",
+        "typeql": "with\nfun depth-of($p: event, $e: event) -> { integer }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e);\n       let $d = 1; } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n       let $inner in depth-of($m, $e);\n       let $d = $inner + 1; };\n  return { $d };\nmatch\n  $root isa pathway, has st-id \"R-HSA-168256\";\n  $e isa reaction-like-event;\n  let $d in depth-of($root, $e);\nselect $e, $d;\ndistinct;\nreduce $min_depth = min($d) groupby $e;\nreduce $mean = mean($min_depth);\nselect $mean;"
       }
     },
     {
@@ -437,7 +470,8 @@
       "expected": 1881,
       "queries": {
         "sql": "WITH RECURSIVE con AS (SELECT he.hasEvent AS ev FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent FROM con c JOIN Pathway_2_hasEvent he ON he.DB_ID = c.ev WHERE EXISTS (SELECT 1 FROM Event_2_reviewed rv WHERE rv.DB_ID = c.ev)) SELECT COUNT(*) FROM con c JOIN ReactionlikeEvent r ON r.DB_ID = c.ev;",
-        "cypher": "MATCH (start:Pathway {stId:'R-HSA-168256'})\n      ((a)-[:hasEvent]->(b) WHERE EXISTS { (a)<-[:reviewed]-(:InstanceEdit) })+ (e:ReactionLikeEvent)\nRETURN count(DISTINCT e)"
+        "cypher": "MATCH (start:Pathway {stId:'R-HSA-168256'})\n      ((a)-[:hasEvent]->(b) WHERE EXISTS { (a)<-[:reviewed]-(:InstanceEdit) })+ (e:ReactionLikeEvent)\nRETURN count(DISTINCT e)",
+        "typeql": "with\nfun reviewed-descendants($p: event) -> { event }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n       review (curated-object: $m, edit: $ie);\n       let $e in reviewed-descendants($m); };\n  return { $e };\nmatch\n  $root isa pathway, has st-id \"R-HSA-168256\";\n  let $e in reviewed-descendants($root);\n  $e isa reaction-like-event;\nselect $e;\ndistinct;\nreduce $count = count;"
       }
     }
   ]

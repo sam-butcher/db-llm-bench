@@ -1,0 +1,8 @@
+given
+    $modified_entity: integer,
+    $residue: integer;
+match
+$p0 isa database-object, has db-id == $modified_entity;
+$p1 isa database-object, has db-id == $residue;
+insert
+$x isa modified-residue-assignment, links (modified-entity: $p0, residue: $p1);

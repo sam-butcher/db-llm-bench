@@ -2,7 +2,7 @@ given
     $sub_taxon: integer,
     $super_taxon: integer;
 match
-$a isa taxon, has db-id == $sub_taxon;
-$b isa taxon, has db-id == $super_taxon;
+$p0 isa database-object, has db-id == $sub_taxon;
+$p1 isa database-object, has db-id == $super_taxon;
 insert
-$_ isa taxonomy-parenthood, links (sub-taxon: $a, super-taxon: $b);
+$x isa taxonomy-parenthood, links (sub-taxon: $p0, super-taxon: $p1);

@@ -158,13 +158,11 @@ entity database-identifier sub database-object,
   plays cross-reference:external-identifier,
   plays database-of:external-thing;
 entity defined-set sub entity-set;
-entity deletable sub database-object;
 entity deleted sub meta-database-object;
 entity deleted-controlled-vocabulary sub controlled-vocabulary;
 entity deleted-instance sub meta-database-object;
 entity depolymerisation sub reaction-like-event;
 entity disease sub external-ontology;
-entity drug-action-type sub controlled-vocabulary;
 entity genome-encoded-entity sub physical-entity;
 entity entity-with-accessioned-sequence sub genome-encoded-entity,
   plays modified-residue-assignment:modified-entity;
@@ -259,10 +257,7 @@ entity summation sub database-object,
   plays summarisation:summation,
   plays literature-citation:citing-thing;
 entity top-level-pathway sub pathway;
-entity trackable sub database-object;
-entity transcriptional-modification sub abstract-modified-residue;
 entity url sub publication;
-entity undirected-interaction sub database-object;
 entity update-tracker sub meta-database-object,
   owns action-name @card(0..);
 

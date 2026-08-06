@@ -1,0 +1,8 @@
+given
+    $localised_thing: integer,
+    $location: integer;
+match
+$p0 isa database-object, has db-id == $localised_thing;
+$p1 isa database-object, has db-id == $location;
+insert
+$x isa included-location, links (localised-thing: $p0, location: $p1);

@@ -4,13 +4,11 @@ given
     $schema_class: string?,
     $st_id: string?,
     $old_st_id: string?,
-    $tax_id: string?,
-    $abbreviation: string?;
+    $variant_identifier: string?;
 insert
-$x isa taxon, has db-id == $db_id;
+$x isa reference-isoform, has db-id == $db_id;
 try { $x has display-name == $display_name; };
 try { $x has schema-class == $schema_class; };
 try { $x has st-id == $st_id; };
 try { $x has old-st-id == $old_st_id; };
-try { $x has tax-id == $tax_id; };
-try { $x has abbreviation == $abbreviation; };
+try { $x has variant-identifier == $variant_identifier; };

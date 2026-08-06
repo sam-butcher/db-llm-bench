@@ -1,0 +1,8 @@
+given
+    $regulated_event: integer,
+    $regulator: integer;
+match
+$p0 isa database-object, has db-id == $regulated_event;
+$p1 isa database-object, has db-id == $regulator;
+insert
+$x isa negative-regulation, links (regulated-event: $p0, regulator: $p1);

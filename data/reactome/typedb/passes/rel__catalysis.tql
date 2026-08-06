@@ -1,0 +1,10 @@
+given
+    $catalysed_reaction: integer,
+    $catalyst: integer,
+    $catalytic_activity: integer;
+match
+$p0 isa database-object, has db-id == $catalysed_reaction;
+$p1 isa database-object, has db-id == $catalyst;
+$p2 isa database-object, has db-id == $catalytic_activity;
+insert
+$x isa catalysis, links (catalysed-reaction: $p0, catalyst: $p1, catalytic-activity: $p2);

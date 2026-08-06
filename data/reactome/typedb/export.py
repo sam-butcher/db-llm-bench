@@ -136,6 +136,28 @@ BINARY = [
      "(a)-[r:internalReviewed]->(b:InstanceEdit)", []),
 ]
 
+# Roles that may be absent. A relation instance either has a role player or it
+# does not, so rows are grouped by which optionals are present and each group
+# gets its own pass — cleaner than trying to make one insert conditional.
+OPTIONAL_COLS = {
+    "catalysis": ["catalytic_activity"],
+    "regulation": ["regulatory_activity"],
+    "entity-functional-status": ["normal_entity"],
+    "negative-precedence": ["exclusion_reason"],
+    "event-containment": ["ordering"],
+    "reaction-input": ["ordering", "stoichiometry"],
+    "reaction-output": ["ordering", "stoichiometry"],
+    "complex-composition": ["ordering", "stoichiometry"],
+    "set-membership": ["ordering"],
+    "publication-authorship": ["ordering"],
+    "edit-authorship": ["ordering"],
+}
+
+# `regulation` rows carry the concrete subtype in a `subtype` column; each
+# becomes its own pass, which is what makes requirement load as a
+# positive-regulation without any extra statement.
+SUBTYPE_COL = {"regulation": "subtype"}
+
 # N-ary relations reassembled by joining through Reactome's reified nodes.
 NARY = {
     "catalysis": """
@@ -152,8 +174,13 @@ MATCH (reg)-[:regulator]->(who)
 OPTIONAL MATCH (reg)-[:activity]->(act)
 RETURN rle.dbId AS regulated_event, who.dbId AS regulator,
        act.dbId AS regulatory_activity,
-       [l IN labels(reg) WHERE l IN ['Requirement','PositiveGeneExpressionRegulation',
-         'NegativeGeneExpressionRegulation','PositiveRegulation','NegativeRegulation']][0] AS subtype""",
+       CASE
+         WHEN reg:Requirement THEN 'Requirement'
+         WHEN reg:PositiveGeneExpressionRegulation THEN 'PositiveGeneExpressionRegulation'
+         WHEN reg:NegativeGeneExpressionRegulation THEN 'NegativeGeneExpressionRegulation'
+         WHEN reg:PositiveRegulation THEN 'PositiveRegulation'
+         WHEN reg:NegativeRegulation THEN 'NegativeRegulation'
+       END AS subtype""",
     "entity-functional-status": """
 MATCH (rle:ReactionLikeEvent)-[:entityFunctionalStatus]->(efs:EntityFunctionalStatus)
 MATCH (efs)-[:diseaseEntity]->(de)
@@ -208,7 +235,7 @@ def concrete_entity_types() -> dict[str, str]:
     parent = _bs.read_hierarchy()
     out = {}
     for label in parent:
-        if label in _bs.AS_RELATIONS:
+        if label in _bs.AS_RELATIONS or label in _bs.MIXINS or label in _bs.COEXTENSIVE_LOSERS:
             continue
         out[_bs.RENAMES.get(label, _bs.kebab(label))] = label
     return out
@@ -242,6 +269,38 @@ def export_entities(outdir: pathlib.Path, only: set[str] | None) -> None:
         print(f"  {tql_label:<38} {max(len(rows) - 1, 0):>9} rows")
 
 
+def write_relation(outdir: pathlib.Path, name: str, rows: list[list[str]]) -> None:
+    """Write one CSV per (subtype, present-optional-roles) group.
+
+    Splitting here keeps every pass a plain unconditional insert: the loader
+    has no way to omit a role player per row, so rows that differ in which
+    roles they carry cannot share a pass.
+    """
+    if len(rows) < 2:
+        print(f"  {name:<38} {'0':>9} rows")
+        return
+    header, data = rows[0], rows[1:]
+    idx = {c: i for i, c in enumerate(header)}
+    opt = [c for c in OPTIONAL_COLS.get(name, []) if c in idx]
+    sub = SUBTYPE_COL.get(name)
+    groups: dict[tuple, list[list[str]]] = {}
+    for row in data:
+        present = tuple(c for c in opt if row[idx[c]] != "")
+        subtype = row[idx[sub]] if sub else None
+        groups.setdefault((subtype, present), []).append(row)
+    for (subtype, present), rs in sorted(groups.items(), key=lambda kv: str(kv[0])):
+        cols = [c for c in header if c != sub and (c not in opt or c in present)]
+        keep = [idx[c] for c in cols]
+        stem = _bs.kebab(subtype) if subtype else name
+        suffix = "" if len(groups) == 1 else "__" + ("none" if not present else "_".join(present))
+        path = outdir / f"rel__{stem}{suffix}.csv"
+        with path.open("w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(cols)
+            w.writerows([[r[i] for i in keep] for r in rs])
+        print(f"  {path.stem:<38} {len(rs):>9} rows")
+
+
 def export_binary(outdir: pathlib.Path, only: set[str] | None) -> None:
     for name, role_a, role_b, pattern, extra in BINARY:
         if only and name not in only:
@@ -249,22 +308,14 @@ def export_binary(outdir: pathlib.Path, only: set[str] | None) -> None:
         cols = [f"a.dbId AS {var(role_a)}", f"b.dbId AS {var(role_b)}"]
         cols += [f"{src} AS {var(dst)}" for dst, src in extra]
         q = f"MATCH {pattern} RETURN " + ", ".join(cols)
-        rows = cypher(q)
-        path = outdir / f"rel__{name}.csv"
-        with path.open("w", newline="") as fh:
-            csv.writer(fh).writerows(rows)
-        print(f"  {name:<38} {max(len(rows) - 1, 0):>9} rows")
+        write_relation(outdir, name, cypher(q))
 
 
 def export_nary(outdir: pathlib.Path, only: set[str] | None) -> None:
     for name, query in sorted(NARY.items()):
         if only and name not in only:
             continue
-        rows = cypher(query.strip())
-        path = outdir / f"rel__{name}.csv"
-        with path.open("w", newline="") as fh:
-            csv.writer(fh).writerows(rows)
-        print(f"  {name:<38} {max(len(rows) - 1, 0):>9} rows  (n-ary)")
+        write_relation(outdir, name, cypher(query.strip()))
 
 
 def main() -> None:

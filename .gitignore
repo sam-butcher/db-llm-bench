@@ -20,3 +20,7 @@ __pycache__/
 # small and belongs in the repo, keeps being tracked.
 /data/reactome/sql/gk_current.sql
 /data/reactome/neo4j/reactome.graphdb.dump
+
+# TypeDB load: exported CSVs and per-pass loader output, both regenerable
+/data/reactome/typedb/work/
+/data/reactome/typedb/loader-output/

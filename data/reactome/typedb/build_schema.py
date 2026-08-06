@@ -431,6 +431,10 @@ AS_RELATIONS = {
     "CatalystActivity", "EntityFunctionalStatus", "NegativePrecedingEvent",
 }
 
+# Where two labels are co-extensive the data cannot tell them apart, so only
+# one is kept as a type; keeping both would let a node belong to two types.
+COEXTENSIVE_LOSERS = {"UndirectedInteraction", "DrugActionType", "TranscriptionalModification"}
+
 # Reactome class names that collide with a TypeQL keyword or a role label.
 RENAMES = {"Release": "release-"}
 
@@ -458,7 +462,7 @@ def main() -> None:
         order.append(name)
 
     for name in sorted(parent):
-        if name in AS_RELATIONS:
+        if name in AS_RELATIONS or name in MIXINS or name in COEXTENSIVE_LOSERS:
             continue
         emit(name)
 

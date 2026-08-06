@@ -1,0 +1,10 @@
+given
+    $excluded_preceding_event: integer,
+    $following_event: integer,
+    $exclusion_reason: integer;
+match
+$p0 isa database-object, has db-id == $excluded_preceding_event;
+$p1 isa database-object, has db-id == $following_event;
+$p2 isa database-object, has db-id == $exclusion_reason;
+insert
+$x isa negative-precedence, links (excluded-preceding-event: $p0, following-event: $p1, exclusion-reason: $p2);

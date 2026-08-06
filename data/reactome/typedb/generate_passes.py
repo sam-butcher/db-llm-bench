@@ -49,21 +49,31 @@ def role_player_types() -> dict[str, str]:
     """
     parent = _bs.read_hierarchy()
     out = {}
-    for entity, roles in _bs.hoist_roles(_bs.PLAYS, parent).items():
+    for entity, roles in _bs.hoist_roles(_bs._merge_specialised(dict(_bs.PLAYS)), parent).items():
         for role in roles:
-            out[role.split(":", 1)[1]] = entity
+            # Keyed by the FULL relation:role. Role names repeat across
+            # relations with different players — `localised-thing` belongs to
+            # both compartment-assignment (any database-object) and
+            # included-location (physical-entity only) — and keying on the bare
+            # name let one silently overwrite the other, which does not reject:
+            # the pass just matches nothing and inserts nothing.
+            out[role] = entity
     # A specialised role (`relates candidate as member`) is played by whatever
     # plays the role it overrides, and `plays` is only ever declared on the
     # base. Resolve each override to its base, repeatedly, since the chains
     # nest (candidate -> member -> part).
+    by_name = {}
+    for full, entity in out.items():
+        by_name.setdefault(full.split(":", 1)[1], entity)
     overrides = dict(re.findall(r"relates ([\w-]+) as ([\w-]+)", _bs.RELATIONS))
     for _ in range(len(overrides) + 1):
         for child, base in overrides.items():
-            if child not in out and base in out:
-                out[child] = out[base]
-    missing = sorted(set(overrides) - set(out))
+            if child not in by_name and base in by_name:
+                by_name[child] = by_name[base]
+    missing = sorted(set(overrides) - set(by_name))
     if missing:
         raise SystemExit(f"no player type resolved for roles: {missing}")
+    out.update({k: v for k, v in by_name.items() if k not in out})
     return out
 
 
@@ -104,7 +114,7 @@ def main() -> None:
             lines.append("match")
             for i, role in enumerate(roles):
                 role_label = role.replace("_", "-")
-                player = players.get(role_label, "database-object")
+                player = players.get(f"{relation}:{role_label}") or players.get(role_label, "database-object")
                 lines.append(f"$p{i} isa {player}, has db-id == ${role};")
             lines.append("insert")
             links = ", ".join(f"{r.replace('_', '-')}: $p{i}" for i, r in enumerate(roles))

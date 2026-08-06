@@ -148,9 +148,13 @@ services:
     ports:
       - "1729:1729"
     volumes:
+      # Mounted at .../data, not its parent: the image declares
+      # `VOLUME /var/lib/typedb/data`, so Docker creates an anonymous volume
+      # there that shadows anything mounted higher up — the store would go to
+      # the anonymous volume and be lost when the container is recreated.
       # Unlike the candidates stack, which reseeds on every `up`, the Reactome
-      # load takes ~25 minutes, so the store is kept on a named volume.
-      - typedb_data:/var/lib/typedb
+      # load takes ~25 minutes, so it must survive.
+      - typedb_data:/var/lib/typedb/data
     healthcheck:
       test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/1729'"]
       interval: 5s

@@ -12,12 +12,13 @@
 # finished, so `--wait` is the reliable way to block on readiness.
 #
 # A separate project name keeps this isolated from the other compose stacks.
-# They expose the same Neo4j ports, so run one dataset at a time.
+# They expose the same Neo4j and TypeDB ports, so run one dataset at a time.
 name: reactome
 
 volumes:
   mysql_data:
   neo4j_data:
+  typedb_data:
 
 services:
   # Self-seeding: files in /docker-entrypoint-initdb.d run once, on first init,
@@ -137,3 +138,49 @@ services:
       timeout: 10s
       retries: 30
       start_period: 5m
+
+  typedb:
+    # Must match the loader image's TYPEDB_VERSION: loader and server share a
+    # protocol and a mismatch panics the server on the handshake.
+    image: typedb/typedb:3.12.1
+    command:
+      - "--development-mode.enabled=true"
+    ports:
+      - "1729:1729"
+    volumes:
+      # Unlike the candidates stack, which reseeds on every `up`, the Reactome
+      # load takes ~25 minutes, so the store is kept on a named volume.
+      - typedb_data:/var/lib/typedb
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/1729'"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 2m
+
+  # One-shot: export from Neo4j, regenerate the loader passes, then load.
+  # Depends on Neo4j because the export reads from it — the TypeQL schema was
+  # derived from the same class hierarchy the graph exposes, so the graph is
+  # the source that needs no reconciliation.
+  typedb-load:
+    build: ./loader
+    depends_on:
+      typedb:
+        condition: service_healthy
+    # Deliberately NOT depends_on neo4j: that would re-trigger neo4j-load,
+    # whose `neo4j-admin database load` cannot overwrite a store while the
+    # server is running, so the whole run fails. Bring Neo4j up first
+    # (`docker compose up -d --wait neo4j`); seed.sh checks it is reachable
+    # and stops with a clear message if not.
+    volumes:
+      - ../../data/reactome:/reactome
+    environment:
+      ADDRESS: typedb:1729
+      DB: reactome
+      DB_USER: admin
+      DB_PASS: password
+      TYPEDB: /usr/local/bin/typedb
+      WORK: /reactome/typedb/work
+      NEO4J_HTTP: http://neo4j:7474/db/neo4j/tx/commit
+      NEO4J_USER: neo4j
+      NEO4J_PASS: password

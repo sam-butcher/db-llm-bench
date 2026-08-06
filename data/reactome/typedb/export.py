@@ -28,7 +28,6 @@ import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-COMPOSE_DIR = HERE.parents[2] / "databases" / "reactome"
 NEO4J_HTTP = os.environ.get("NEO4J_HTTP", "http://localhost:7474/db/neo4j/tx/commit")
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASS = os.environ.get("NEO4J_PASS", "password")

@@ -53,6 +53,14 @@ ENTITY_ATTRS = {
     "person": [("first-name", "firstname"), ("surname", "surname")],
 }
 
+# Multi-valued attributes. A node property that is a list cannot share the
+# entity's CSV — one cell cannot hold several values — so each gets its own
+# (db-id, value) file and its own pass.
+MULTI_ATTRS = [
+    # (typeql entity, typeql attribute, Reactome label, node property)
+    ("affiliation", "affiliation-name", "Affiliation", "name"),
+]
+
 # Binary relations: (typeql relation, role A, role B, cypher pattern, extra cols)
 # The pattern binds $a and $b; direction is written as it exists in the graph.
 BINARY = [
@@ -300,6 +308,19 @@ def write_relation(outdir: pathlib.Path, name: str, rows: list[list[str]]) -> No
         print(f"  {path.stem:<38} {len(rs):>9} rows")
 
 
+def export_multi(outdir: pathlib.Path, only: set[str] | None) -> None:
+    for entity, attr, label, prop in MULTI_ATTRS:
+        if only and attr not in only and entity not in only:
+            continue
+        q = (f"MATCH (n:{label}) WHERE n.{prop} IS NOT NULL "
+             f"UNWIND n.{prop} AS v RETURN n.dbId AS db_id, v AS {var(attr)}")
+        rows = cypher(q)
+        path = outdir / f"attr__{entity}__{attr}.csv"
+        with path.open("w", newline="") as fh:
+            csv.writer(fh).writerows(rows)
+        print(f"  {path.stem:<38} {max(len(rows) - 1, 0):>9} rows")
+
+
 def export_binary(outdir: pathlib.Path, only: set[str] | None) -> None:
     for name, role_a, role_b, pattern, extra in BINARY:
         if only and name not in only:
@@ -328,6 +349,8 @@ def main() -> None:
     print(f"exporting into {outdir}" + (f" (only: {sorted(only)})" if only else ""))
     print("entities:")
     export_entities(outdir, only)
+    print("multi-valued attributes:")
+    export_multi(outdir, only)
     print("binary relations:")
     export_binary(outdir, only)
     print("n-ary relations:")

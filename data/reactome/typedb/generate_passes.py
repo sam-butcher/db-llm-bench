@@ -93,7 +93,15 @@ def main() -> None:
         stem = csv_path.stem
         lines: list[str] = []
 
-        if stem.startswith("entity__"):
+        if stem.startswith("attr__"):
+            _, entity, attr = stem.split("__", 2)
+            lines.append(f"given\n    ${header[0]}: integer,\n    ${header[1]}: "
+                         f"{types.get(header[1], 'string')};")
+            lines.append("match")
+            lines.append(f"$x isa {entity}, has db-id == ${header[0]};")
+            lines.append("insert")
+            lines.append(f"$x has {attr} == ${header[1]};")
+        elif stem.startswith("entity__"):
             entity = stem[len("entity__"):]
             given = [f"    ${header[0]}: {types.get(header[0], 'string')}"]
             given += [f"    ${c}: {types.get(c, 'string')}?" for c in header[1:]]

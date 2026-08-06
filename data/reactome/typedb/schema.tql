@@ -53,8 +53,18 @@ entity database-object @abstract,
   owns schema-class,
   owns st-id @card(0..1),
   owns old-st-id @card(0..1),
+  plays compartment-assignment:localised-thing,
+  plays cross-reference:referring-thing,
   plays curation:curated-object,
-  plays release-record:tracked-object;
+  plays database-of:external-thing,
+  plays disease-annotation:diseased-thing,
+  plays literature-citation:citing-thing,
+  plays ontology-parenthood:ontology-child,
+  plays ontology-parenthood:ontology-parent,
+  plays related-species-assignment:classified-thing,
+  plays release-record:tracked-object,
+  plays species-assignment:classified-thing,
+  plays summarisation:summarised-thing;
 entity abstract-modified-residue sub database-object,
   owns coordinate @card(0..1),
   plays modified-residue-assignment:residue;
@@ -64,34 +74,25 @@ entity affiliation sub database-object,
 entity external-ontology sub database-object,
   owns identifier @card(0..1),
   owns definition @card(0..1),
-  plays ontology-parenthood:ontology-child,
-  plays ontology-parenthood:ontology-parent,
   plays disease-annotation:disease;
 entity anatomy sub external-ontology;
 entity event sub database-object,
   owns entity-name @card(0..),
   owns definition @card(0..1),
   plays event-containment:contained-event,
-  plays event-precedence:preceding-event,
-  plays event-precedence:following-event,
-  plays negative-precedence:excluded-preceding-event,
-  plays negative-precedence:following-event,
   plays event-inference:inferred-event,
   plays event-inference:source-event,
-  plays species-assignment:classified-thing,
-  plays related-species-assignment:classified-thing,
-  plays compartment-assignment:localised-thing,
-  plays disease-annotation:diseased-thing,
+  plays event-precedence:following-event,
+  plays event-precedence:preceding-event,
   plays go-annotation:annotated-event,
-  plays literature-citation:citing-thing,
-  plays summarisation:summarised-thing,
-  plays cross-reference:referring-thing;
+  plays negative-precedence:excluded-preceding-event,
+  plays negative-precedence:following-event;
 entity reaction-like-event sub event,
   owns is-chimeric @card(0..1),
-  plays reaction-participation:reaction,
   plays catalysis:catalysed-reaction,
-  plays regulation:regulated-event,
-  plays entity-functional-status:affected-event;
+  plays entity-functional-status:affected-event,
+  plays reaction-participation:reaction,
+  plays regulation:regulated-event;
 entity black-box-event sub reaction-like-event;
 entity publication sub database-object,
   plays literature-citation:cited-publication,
@@ -100,27 +101,27 @@ entity book sub publication;
 entity physical-entity sub database-object,
   owns entity-name @card(0..),
   owns definition @card(0..1),
-  plays reaction-participation:participant,
-  plays catalysis:catalyst,
+  plays candidate-membership:candidate,
   plays catalysis:active-unit,
-  plays regulation:regulator,
-  plays regulation:regulation-active-unit,
+  plays catalysis:catalyst,
+  plays complex-composition:component,
   plays composition:part,
-  plays species-assignment:classified-thing,
-  plays related-species-assignment:classified-thing,
-  plays compartment-assignment:localised-thing,
-  plays disease-annotation:diseased-thing,
-  plays entity-inference:inferred-entity,
-  plays entity-inference:source-entity,
   plays entity-functional-status:disease-entity,
   plays entity-functional-status:normal-entity,
-  plays literature-citation:citing-thing,
-  plays summarisation:summarised-thing,
-  plays cross-reference:referring-thing,
-  plays reference-assignment:instance-entity;
+  plays entity-inference:inferred-entity,
+  plays entity-inference:source-entity,
+  plays included-location:localised-thing,
+  plays polymer-repetition:repeated-unit,
+  plays reaction-input:consumed-entity,
+  plays reaction-output:produced-entity,
+  plays reaction-participation:participant,
+  plays reference-assignment:instance-entity,
+  plays regulation:regulation-active-unit,
+  plays regulation:regulator,
+  plays required-input-component:required-component,
+  plays set-membership:member;
 entity entity-set sub physical-entity,
-  plays set-membership:containing-set,
-  plays included-location:localised-thing;
+  plays set-membership:containing-set;
 entity candidate-set sub entity-set;
 entity control-reference sub database-object;
 entity catalyst-activity-reference sub control-reference;
@@ -138,13 +139,10 @@ entity go-term sub database-object,
   owns definition @card(0..1);
 entity go-cellular-component sub go-term,
   plays compartment-assignment:compartment,
-  plays included-location:location,
-  plays ontology-parenthood:ontology-child,
-  plays ontology-parenthood:ontology-parent;
+  plays included-location:location;
 entity compartment sub go-cellular-component;
 entity complex sub physical-entity,
-  plays complex-composition:containing-complex,
-  plays included-location:localised-thing;
+  plays complex-composition:containing-complex;
 entity controlled-vocabulary sub database-object;
 entity translational-modification sub abstract-modified-residue;
 entity crosslinked-residue sub translational-modification;
@@ -155,8 +153,7 @@ entity release- sub meta-database-object,
   plays release-record:tracking-release;
 entity dbinfo sub release-;
 entity database-identifier sub database-object,
-  plays cross-reference:external-identifier,
-  plays database-of:external-thing;
+  plays cross-reference:external-identifier;
 entity defined-set sub entity-set;
 entity deleted sub meta-database-object;
 entity deleted-controlled-vocabulary sub controlled-vocabulary;
@@ -206,9 +203,9 @@ entity other-entity sub physical-entity;
 entity person sub database-object,
   owns first-name @card(0..1),
   owns surname @card(0..1),
-  plays publication-authorship:publication-author,
   plays edit-authorship:edit-author,
-  plays person-affiliation:affiliated-person;
+  plays person-affiliation:affiliated-person,
+  plays publication-authorship:publication-author;
 entity polymer sub physical-entity,
   plays polymer-repetition:containing-polymer;
 entity polymerisation sub reaction-like-event;
@@ -220,10 +217,7 @@ entity reaction-type sub controlled-vocabulary;
 entity reference-entity sub database-object,
   owns identifier @card(0..1),
   owns entity-name @card(0..),
-  plays reference-assignment:reference,
-  plays cross-reference:referring-thing,
-  plays species-assignment:classified-thing,
-  plays database-of:external-thing;
+  plays reference-assignment:reference;
 entity reference-sequence sub reference-entity,
   owns gene-name @card(0..),
   owns sequence-length @card(0..1);
@@ -250,12 +244,11 @@ entity taxon sub database-object,
   plays taxonomy-parenthood:sub-taxon,
   plays taxonomy-parenthood:super-taxon;
 entity species sub taxon,
-  plays species-assignment:species,
-  plays related-species-assignment:related-species;
+  plays related-species-assignment:related-species,
+  plays species-assignment:species;
 entity summation sub database-object,
   owns summary-text @card(0..1),
-  plays summarisation:summation,
-  plays literature-citation:citing-thing;
+  plays summarisation:summation;
 entity top-level-pathway sub pathway;
 entity url sub publication;
 entity update-tracker sub meta-database-object,

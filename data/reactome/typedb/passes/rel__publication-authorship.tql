@@ -3,7 +3,7 @@ given
     $publication_author: integer,
     $ordering: integer;
 match
-$p0 isa database-object, has db-id == $publication;
-$p1 isa database-object, has db-id == $publication_author;
+$p0 isa publication, has db-id == $publication;
+$p1 isa person, has db-id == $publication_author;
 insert
 $x isa publication-authorship, links (publication: $p0, publication-author: $p1), has ordering == $ordering;

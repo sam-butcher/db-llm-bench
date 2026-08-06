@@ -3,8 +3,8 @@ given
     $disease_entity: integer,
     $functional_status: integer;
 match
-$p0 isa database-object, has db-id == $affected_event;
-$p1 isa database-object, has db-id == $disease_entity;
-$p2 isa database-object, has db-id == $functional_status;
+$p0 isa reaction-like-event, has db-id == $affected_event;
+$p1 isa physical-entity, has db-id == $disease_entity;
+$p2 isa functional-status, has db-id == $functional_status;
 insert
 $x isa entity-functional-status, links (affected-event: $p0, disease-entity: $p1, functional-status: $p2);

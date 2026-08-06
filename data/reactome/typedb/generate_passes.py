@@ -39,11 +39,40 @@ def value_types() -> dict[str, str]:
     return out
 
 
+def role_player_types() -> dict[str, str]:
+    """Role label -> the entity type a pass should match its player at.
+
+    TypeDB checks role compatibility when the query compiles, so matching a
+    player at a type that does not play the role rejects the whole pass. The
+    schema declares each role exactly once (see hoist_roles), and that type is
+    the one to match at.
+    """
+    parent = _bs.read_hierarchy()
+    out = {}
+    for entity, roles in _bs.hoist_roles(_bs.PLAYS, parent).items():
+        for role in roles:
+            out[role.split(":", 1)[1]] = entity
+    # A specialised role (`relates candidate as member`) is played by whatever
+    # plays the role it overrides, and `plays` is only ever declared on the
+    # base. Resolve each override to its base, repeatedly, since the chains
+    # nest (candidate -> member -> part).
+    overrides = dict(re.findall(r"relates ([\w-]+) as ([\w-]+)", _bs.RELATIONS))
+    for _ in range(len(overrides) + 1):
+        for child, base in overrides.items():
+            if child not in out and base in out:
+                out[child] = out[base]
+    missing = sorted(set(overrides) - set(out))
+    if missing:
+        raise SystemExit(f"no player type resolved for roles: {missing}")
+    return out
+
+
 def main() -> None:
     work = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "work"
     passes = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "passes"
     passes.mkdir(parents=True, exist_ok=True)
     types = value_types()
+    players = role_player_types()
     written = 0
 
     for csv_path in sorted(work.glob("*.csv")):
@@ -74,7 +103,9 @@ def main() -> None:
             lines.append("given\n" + ",\n".join(given) + ";")
             lines.append("match")
             for i, role in enumerate(roles):
-                lines.append(f"$p{i} isa database-object, has db-id == ${role};")
+                role_label = role.replace("_", "-")
+                player = players.get(role_label, "database-object")
+                lines.append(f"$p{i} isa {player}, has db-id == ${role};")
             lines.append("insert")
             links = ", ".join(f"{r.replace('_', '-')}: $p{i}" for i, r in enumerate(roles))
             has = "".join(f", has {a.replace('_', '-')} == ${a}" for a in attrs)

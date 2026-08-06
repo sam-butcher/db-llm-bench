@@ -2,7 +2,7 @@ given
     $annotated_event: integer,
     $biological_process: integer;
 match
-$p0 isa database-object, has db-id == $annotated_event;
-$p1 isa database-object, has db-id == $biological_process;
+$p0 isa event, has db-id == $annotated_event;
+$p1 isa go-biological-process, has db-id == $biological_process;
 insert
 $x isa go-annotation, links (annotated-event: $p0, biological-process: $p1);

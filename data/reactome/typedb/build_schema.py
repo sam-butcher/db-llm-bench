@@ -392,9 +392,17 @@ PLAYS = {
     "complex": ["complex-composition:containing-complex", "included-location:localised-thing"],
     "entity-set": ["set-membership:containing-set", "included-location:localised-thing"],
     "polymer": ["polymer-repetition:containing-polymer"],
+    # A specialised role is not covered by `plays` on the role it specialises:
+    # declaring `plays composition:part` does not let a physical entity play
+    # `candidate-membership:candidate`, so each specialisation is declared too.
+    "physical-entity+specialised": [
+        "complex-composition:component", "set-membership:member",
+        "candidate-membership:candidate", "polymer-repetition:repeated-unit",
+        "reaction-input:consumed-entity", "reaction-output:produced-entity",
+        "required-input-component:required-component",
+    ],
     "entity-with-accessioned-sequence": ["modified-residue-assignment:modified-entity"],
     "abstract-modified-residue": ["modified-residue-assignment:residue"],
-    "event-": ["regulation:regulator"],
     "catalyst-activity": [],
     "go-molecular-function": ["catalysis:catalytic-activity", "regulation:regulatory-activity"],
     "go-biological-process": ["go-annotation:biological-process"],
@@ -437,6 +445,49 @@ COEXTENSIVE_LOSERS = {"UndirectedInteraction", "DrugActionType", "Transcriptiona
 
 # Reactome class names that collide with a TypeQL keyword or a role label.
 RENAMES = {"Release": "release-"}
+
+
+def _merge_specialised(plays: dict[str, list[str]]) -> dict[str, list[str]]:
+    extra = plays.pop("physical-entity+specialised", [])
+    plays["physical-entity"] = sorted(set(plays.get("physical-entity", []) + extra))
+    return plays
+
+
+def hoist_roles(plays: dict[str, list[str]], parent: dict[str, str | None]) -> dict[str, list[str]]:
+    """Declare each role once, on the nearest common ancestor of its players.
+
+    TypeDB type-checks role compatibility when a query is compiled, not when a
+    row is inserted: a loader pass that matches its player at a type which does
+    not itself play the role is rejected wholesale, however correct the data.
+    Declaring `species-assignment:classified-thing` separately on event,
+    physical-entity and reference-entity therefore leaves no single type a pass
+    can match at, so the role moves up to the type that covers all three.
+    """
+    def label_of(name: str) -> str:
+        return RENAMES.get(name, kebab(name))
+
+    chain: dict[str, list[str]] = {}
+    for name in parent:
+        lbl, path, cur = label_of(name), [], name
+        while cur:
+            path.append(label_of(cur))
+            cur = parent.get(cur)
+        chain[lbl] = path                     # self first, root last
+
+    owners: dict[str, list[str]] = {}
+    for entity, roles in plays.items():
+        for role in roles:
+            owners.setdefault(role, []).append(entity)
+
+    hoisted: dict[str, list[str]] = {}
+    for role, ents in owners.items():
+        known = [e for e in ents if e in chain]
+        if not known:
+            continue
+        common = [t for t in chain[known[0]] if all(t in chain[e] for e in known)]
+        target = common[0] if common else "database-object"
+        hoisted.setdefault(target, []).append(role)
+    return {k: sorted(v) for k, v in hoisted.items()}
 
 
 def main() -> None:
@@ -483,6 +534,7 @@ def main() -> None:
     lines += [l for l in ATTRIBUTES.strip().splitlines()]
     lines += ["", "# --- entity hierarchy (mirrors Reactome's classes) ---", ""]
 
+    plays_map = hoist_roles(_merge_specialised(dict(PLAYS)), parent)
     for name in order:
         lbl = label(name)
         p = parent.get(name)
@@ -490,7 +542,7 @@ def main() -> None:
             p = parent.get(p)
         head = f"entity {lbl}" if not p else f"entity {lbl} sub {label(p)}"
         owns = OWNERSHIP.get(lbl, [])
-        plays = PLAYS.get(lbl, [])
+        plays = plays_map.get(lbl, [])
         parts = [head]
         if name == "DatabaseObject":
             parts[0] += " @abstract"

@@ -3,6 +3,6 @@ given
     $related_species: integer;
 match
 $p0 isa database-object, has db-id == $classified_thing;
-$p1 isa database-object, has db-id == $related_species;
+$p1 isa species, has db-id == $related_species;
 insert
 $x isa related-species-assignment, links (classified-thing: $p0, related-species: $p1);

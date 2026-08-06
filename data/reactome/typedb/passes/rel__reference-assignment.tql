@@ -2,7 +2,7 @@ given
     $instance_entity: integer,
     $reference: integer;
 match
-$p0 isa database-object, has db-id == $instance_entity;
-$p1 isa database-object, has db-id == $reference;
+$p0 isa physical-entity, has db-id == $instance_entity;
+$p1 isa reference-entity, has db-id == $reference;
 insert
 $x isa reference-assignment, links (instance-entity: $p0, reference: $p1);

@@ -3,6 +3,6 @@ given
     $cited_publication: integer;
 match
 $p0 isa database-object, has db-id == $citing_thing;
-$p1 isa database-object, has db-id == $cited_publication;
+$p1 isa publication, has db-id == $cited_publication;
 insert
 $x isa literature-citation, links (citing-thing: $p0, cited-publication: $p1);

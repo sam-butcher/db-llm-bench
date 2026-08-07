@@ -34,4 +34,33 @@ pub struct Question {
     /// Empty only for unanswerable questions.
     #[serde(default)]
     pub queries: BTreeMap<String, String>,
+    /// Expected values for stores whose data genuinely differs from the
+    /// baseline `expected`, keyed by the config's DB id (not the query
+    /// language: the divergence is a property of the store's contents, and
+    /// two stores can share a language).
+    ///
+    /// Reactome publishes its relational dump and its graph dump as separately
+    /// built artifacts of the same release, and they disagree — 126,230
+    /// `InstanceEdit` rows against 160,392 nodes — so a question that counts
+    /// them has no single true answer.
+    ///
+    /// Use this only for a divergence traced to the data and confirmed by an
+    /// independent count, and say which in the question's `divergence` note.
+    /// A reference query that disagrees with the others is overwhelmingly
+    /// likely to be wrong: the shared `expected` is what catches that, and an
+    /// override silences it. Keep the default path a single shared value.
+    #[serde(default)]
+    pub expected_by_db: BTreeMap<String, Value>,
+    /// Why this question's stores disagree. Required alongside
+    /// `expected_by_db`, and unused otherwise.
+    #[serde(default)]
+    pub divergence: Option<String>,
+}
+
+impl Question {
+    /// The value `db_id` is scored against: its override when the stores
+    /// disagree, otherwise the shared `expected`.
+    pub fn expected_for(&self, db_id: &str) -> Option<&Value> {
+        self.expected_by_db.get(db_id).or(self.expected.as_ref())
+    }
 }

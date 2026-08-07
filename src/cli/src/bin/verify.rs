@@ -60,8 +60,7 @@ async fn main() -> anyhow::Result<ExitCode> {
                 continue;
             };
             let expected = question
-                .expected
-                .as_ref()
+                .expected_for(db_id)
                 .expect("answerable question has an expected value (enforced at load)");
             checked += 1;
             match db.send_query(query).await {

@@ -15,9 +15,9 @@ pub const REPETITIONS: u32 = 3;
 
 /// Harness-level retries for transient provider errors (rate limits, network
 /// blips). These never count against the model's retry budget. Doubling from
-/// a 1s base gives ~31s of total patience — enough to ride out a real 429.
+/// a 10s base gives ~310s of total patience — enough to ride out transient errors.
 pub const TRANSIENT_RETRIES: u32 = 5;
-const TRANSIENT_BACKOFF: Duration = Duration::from_secs(1);
+const TRANSIENT_BACKOFF: Duration = Duration::from_secs(10);
 
 /// Harness-level retries for DB infrastructure errors (dropped connections,
 /// restarts) — the DB-side mirror of the transient provider policy.
@@ -144,6 +144,9 @@ pub fn assemble_prompt(
 
 pub struct BenchmarkRunner<'a> {
     pub db: &'a dyn Database,
+    /// The config's id for `db`, used to pick a question's per-store expected
+    /// value where the stores disagree.
+    pub db_id: &'a str,
     pub model: &'a dyn ModelProvider,
     pub prompt_template: String,
     pub schema: String,
@@ -379,8 +382,7 @@ impl BenchmarkRunner<'_> {
                     // An unanswerable question has no expected value, so any
                     // returned value is inaccurate.
                     let accurate = question
-                        .expected
-                        .as_ref()
+                        .expected_for(self.db_id)
                         .is_some_and(|expected| value.matches_question(expected, question.ordered));
                     return Ok(self.build_record(
                         repetition,
@@ -580,6 +582,8 @@ mod run_tests {
             expected: Some(expected),
             ordered: false,
             queries: BTreeMap::new(),
+            expected_by_db: BTreeMap::new(),
+            divergence: None,
         }
     }
 
@@ -591,6 +595,8 @@ mod run_tests {
             expected: None,
             ordered: false,
             queries: BTreeMap::new(),
+            expected_by_db: BTreeMap::new(),
+            divergence: None,
         }
     }
 
@@ -648,6 +654,7 @@ mod run_tests {
     ) -> BenchmarkRunner<'a> {
         BenchmarkRunner {
             db,
+            db_id: "dummy",
             model: provider,
             prompt_template: "{{schema}}\n{{examples}}\n{{skills}}\nQ: {{question}}".to_string(),
             schema: "cars have ages".to_string(),
@@ -1014,6 +1021,7 @@ mod run_tests {
         let provider = per_repetition("```\n3\n```");
         let failure = BenchmarkRunner {
             db: &db,
+            db_id: "dummy",
             model: &provider,
             prompt_template: "{{question}}".to_string(),
             schema: String::new(),

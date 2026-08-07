@@ -343,6 +343,7 @@ async fn run_benchmarks(
                     );
                     let runner = BenchmarkRunner {
                         db: prepared.db.as_ref(),
+                        db_id: prepared.id,
                         model: model.as_ref(),
                         prompt_template: prepared.assets.prompt_template.clone(),
                         schema: prepared.assets.schema.clone(),
@@ -456,6 +457,8 @@ mod tests {
                 expected: Some(Value::Int(3)),
                 ordered: false,
                 queries: BTreeMap::from([("sql".to_string(), "SELECT 1".to_string())]),
+                expected_by_db: BTreeMap::new(),
+                divergence: None,
             }],
         }
     }
@@ -622,6 +625,8 @@ mod tests {
                 expected: None,
                 ordered: false,
                 queries: BTreeMap::new(),
+                expected_by_db: BTreeMap::new(),
+                divergence: None,
             }],
         };
         assert!(

@@ -217,7 +217,11 @@ fn parse_questions(raw: &str, source_name: &str) -> Result<QuestionFile, ConfigE
     // question fails loudly instead of scoring nonsense.
     for question in &questions.questions {
         if question.unanswerable {
-            if question.expected.is_some() || !question.queries.is_empty() || question.ordered {
+            if question.expected.is_some()
+                || !question.queries.is_empty()
+                || question.ordered
+                || !question.expected_by_db.is_empty()
+            {
                 return Err(ConfigError::Invalid(format!(
                     "unanswerable question `{}` must not set expected, ordered, or queries",
                     question.question
@@ -226,6 +230,22 @@ fn parse_questions(raw: &str, source_name: &str) -> Result<QuestionFile, ConfigE
         } else if question.expected.is_none() {
             return Err(ConfigError::Invalid(format!(
                 "question `{}` has no expected value (set \"unanswerable\": true if it deliberately has no answer)",
+                question.question
+            )));
+        }
+        // A per-store override silences the cross-store agreement that would
+        // otherwise catch a wrong reference query, so it has to carry its
+        // justification — an unexplained override is indistinguishable from a
+        // bug someone papered over.
+        if !question.expected_by_db.is_empty() && question.divergence.is_none() {
+            return Err(ConfigError::Invalid(format!(
+                "question `{}` sets expected_by_db without a `divergence` note explaining why the stores disagree",
+                question.question
+            )));
+        }
+        if question.expected_by_db.is_empty() && question.divergence.is_some() {
+            return Err(ConfigError::Invalid(format!(
+                "question `{}` has a `divergence` note but no expected_by_db",
                 question.question
             )));
         }

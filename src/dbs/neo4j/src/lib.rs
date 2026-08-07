@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use bench_core::temporal::{canonical_date, canonical_datetime, canonical_datetime_utc};
 use bench_core::value::shape_rows;
 use bench_core::{Database, QueryError, Value};
-use neo4rs::{BoltType, Graph, Neo4jClientErrorKind, Neo4jErrorKind, Txn};
+use neo4rs::{BoltType, Graph, Txn};
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
@@ -251,30 +251,71 @@ fn bolt_kind(value: &BoltType) -> &'static str {
 fn map_neo4j_error(error: neo4rs::Error) -> QueryError {
     let display = error.to_string();
     match error {
-        neo4rs::Error::Neo4j(e) => classify_neo4j(e.kind(), e.code(), &display),
-        _ => QueryError::Infrastructure(display),
+        neo4rs::Error::Neo4j(e) => classify_neo4j(e.code(), &display),
+        // A failure that arrives mid-stream — during PULL, once rows are
+        // already flowing — is not surfaced as `Error::Neo4j`: neo4rs wraps it
+        // in `Error::UnexpectedMessage` with the Bolt map Debug-formatted into
+        // the string, so the code is only reachable as text. Without this, a
+        // query that dies partway through streaming (a transaction timeout is
+        // the common one, since the server kills it precisely when it has been
+        // producing rows for too long) looks like an unclassifiable transport
+        // fault and aborts the entire run instead of scoring as one bad query.
+        _ => match code_from_message(&display) {
+            Some(code) => classify_neo4j(code, &display),
+            None => QueryError::Infrastructure(display),
+        },
     }
+}
+
+/// Recover a `Neo.X.Y.Z` status code from an error rendered as text.
+fn code_from_message(display: &str) -> Option<&str> {
+    let rest = &display[display.find("Neo.")?..];
+    let end = rest
+        .find(|c: char| !c.is_ascii_alphanumeric() && c != '.')
+        .unwrap_or(rest.len());
+    let code = rest[..end].trim_end_matches('.');
+    // Four segments or it isn't a status code — guards against a stray "Neo."
+    // elsewhere in a message.
+    (code.split('.').count() == 4).then_some(code)
 }
 
 /// Client-error codes describe the query — the model's fault — except the
 /// security/session/protocol kinds, which are the harness's problem.
 /// Transient, database, and unknown errors are infrastructure. Server-side
 /// transaction timeouts are recognised by exact code.
-fn classify_neo4j(kind: Neo4jErrorKind, code: &str, display: &str) -> QueryError {
+///
+/// Classified from the code string rather than neo4rs's `Neo4jErrorKind`,
+/// which is `pub(crate)`-constructed and so unavailable on the mid-stream path
+/// above. One implementation for both paths is the point: the same failure has
+/// to score the same way whether it arrives before or during streaming.
+fn classify_neo4j(code: &str, display: &str) -> QueryError {
     if TIMEOUT_CODES.contains(&code) {
         return QueryError::Timeout;
     }
-    match kind {
-        Neo4jErrorKind::Client(client) => match client {
-            Neo4jClientErrorKind::Security(_)
-            | Neo4jClientErrorKind::SessionExpired
-            | Neo4jClientErrorKind::FatalDiscovery
-            | Neo4jClientErrorKind::TransactionTerminated
-            | Neo4jClientErrorKind::ProtocolViolation => {
-                QueryError::Infrastructure(display.to_string())
-            }
-            _ => QueryError::Syntax(display.to_string()),
-        },
+    // Mirrors neo4rs's own `adjust_code`: two transient transaction codes are
+    // rewritten to their client equivalents before classification.
+    let code = match code {
+        "Neo.TransientError.Transaction.LockClientStopped" => {
+            "Neo.ClientError.Transaction.LockClientStopped"
+        }
+        "Neo.TransientError.Transaction.Terminated" => "Neo.ClientError.Transaction.Terminated",
+        other => other,
+    };
+    let mut parts = code.split('.').skip(1);
+    let (class, subclass, kind) = (parts.next(), parts.next(), parts.next());
+    match (class, subclass, kind) {
+        // Security, ProtocolViolation, FatalDiscovery, TransactionTerminated
+        // and SessionExpired — the harness's problem, not the query's.
+        (Some("ClientError"), Some("Security"), _)
+        | (Some("ClientError"), Some("Request"), _)
+        | (Some("ClientError"), Some("Database"), Some("DatabaseNotFound"))
+        | (Some("ClientError"), Some("Transaction"), Some("Terminated"))
+        | (Some("ClientError"), Some("Cluster"), Some("NotALeader"))
+        | (Some("ClientError"), Some("General"), Some("ForbiddenOnReadOnlyDatabase")) => {
+            QueryError::Infrastructure(display.to_string())
+        }
+        // Every other client error describes the query itself.
+        (Some("ClientError"), Some(_), _) => QueryError::Syntax(display.to_string()),
         _ => QueryError::Infrastructure(display.to_string()),
     }
 }
@@ -319,52 +360,77 @@ mod tests {
     fn error_kinds_decide_fault_ownership() {
         // Statement errors (syntax, unknown labels) are the model's fault.
         assert!(matches!(
-            classify_neo4j(
-                Neo4jErrorKind::Client(Neo4jClientErrorKind::Other),
-                "Neo.ClientError.Statement.SyntaxError",
-                "Invalid input"
-            ),
+            classify_neo4j("Neo.ClientError.Statement.SyntaxError", "Invalid input"),
             QueryError::Syntax(_)
         ));
         // Auth failures are infrastructure, not the model's.
         assert!(matches!(
-            classify_neo4j(
-                Neo4jErrorKind::Client(Neo4jClientErrorKind::Security(
-                    neo4rs::Neo4jSecurityErrorKind::Authentication
-                )),
-                "Neo.ClientError.Security.Unauthorized",
-                "unauthorized"
-            ),
+            classify_neo4j("Neo.ClientError.Security.Unauthorized", "unauthorized"),
             QueryError::Infrastructure(_)
         ));
         // Transient server conditions are infrastructure (harness backoff).
         assert!(matches!(
             classify_neo4j(
-                Neo4jErrorKind::Transient,
                 "Neo.TransientError.General.MemoryPoolOutOfMemoryError",
                 "oom"
             ),
             QueryError::Infrastructure(_)
         ));
-        // Server-side transaction timeouts map to the model-fault timeout.
+        // Both server-side transaction timeout codes map to the model-fault
+        // timeout. The ClientConfiguration variant is what a query that
+        // outruns the transaction timeout actually returns.
+        for code in TIMEOUT_CODES {
+            assert!(matches!(
+                classify_neo4j(code, "timed out"),
+                QueryError::Timeout
+            ));
+        }
+        // Other timeout-ish codes are contention, not a pathological query.
         assert!(matches!(
             classify_neo4j(
-                Neo4jErrorKind::Client(Neo4jClientErrorKind::Other),
-                "Neo.ClientError.Transaction.TransactionTimedOut",
-                "timed out"
-            ),
-            QueryError::Timeout
-        ));
-        // Other timeout-ish codes are contention, not a pathological query:
-        // classified by kind, not blamed on the model.
-        assert!(matches!(
-            classify_neo4j(
-                Neo4jErrorKind::Transient,
                 "Neo.TransientError.Transaction.LockAcquisitionTimeout",
                 "lock timeout"
             ),
             QueryError::Infrastructure(_)
         ));
+        // A terminated transaction is the harness's problem even though the
+        // code lives under ClientError.
+        assert!(matches!(
+            classify_neo4j("Neo.TransientError.Transaction.Terminated", "terminated"),
+            QueryError::Infrastructure(_)
+        ));
+    }
+
+    /// The regression behind `aborted on DB neo4j: ... unexpected response for
+    /// PULL`: a timeout that lands mid-stream reaches us as text, and used to
+    /// abort the run rather than scoring as one timed-out query.
+    #[test]
+    fn mid_stream_failures_are_classified_from_the_rendered_code() {
+        let pull = "unexpected response for PULL: Ok(Failure(Failure { metadata: BoltMap { \
+             value: {BoltString { value: \"code\" }: String(BoltString { value: \
+             \"Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration\" }), \
+             BoltString { value: \"message\" }: String(BoltString { value: \"The transaction \
+             has been terminated.\" })} } }))";
+        assert_eq!(
+            code_from_message(pull),
+            Some("Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration")
+        );
+        assert!(matches!(
+            classify_neo4j(code_from_message(pull).unwrap(), pull),
+            QueryError::Timeout
+        ));
+        // A syntax error surfacing the same way is still the model's fault.
+        assert!(matches!(
+            classify_neo4j(
+                code_from_message("Failure { code: \"Neo.ClientError.Statement.SyntaxError\" }")
+                    .unwrap(),
+                "boom"
+            ),
+            QueryError::Syntax(_)
+        ));
+        // Nothing code-shaped in the text: genuinely a transport fault.
+        assert_eq!(code_from_message("connection reset by peer"), None);
+        assert_eq!(code_from_message("Neo.Client"), None);
     }
 
     #[test]

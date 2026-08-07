@@ -107,7 +107,7 @@ WHERE NOT EXISTS (
 **typeql**
 
 ```sql
-match $r isa reaction-like-event; species-assignment (classified-thing: $r, species: $sp); $sp has display-name "Homo sapiens"; reaction-input (reaction: $r, consumed-entity: $e); select $r, $e; distinct; reduce $n = count($e) groupby $r; match $n >= 4; reduce $count = count;
+with fun wide_events() -> { reaction-like-event }: match $r isa reaction-like-event; species-assignment (classified-thing: $r, species: $s); $s has display-name "Homo sapiens"; reaction-input (reaction: $r, consumed-entity: $e); select $r, $e; distinct; reduce $n = count($e) groupby $r; match $n >= 4; return { $r }; match let $a in wide_events(); reaction-input (reaction: $a, consumed-entity: $shared); reaction-input (reaction: $b, consumed-entity: $shared); $b isa reaction-like-event; species-assignment (classified-thing: $b, species: $sb); $sb has display-name "Homo sapiens"; $a has db-id $ad; $b has db-id $bd; $ad < $bd; not { reaction-input (reaction: $a, consumed-entity: $x); not { reaction-input (reaction: $b, consumed-entity: $x); }; }; not { reaction-input (reaction: $b, consumed-entity: $y); not { reaction-input (reaction: $a, consumed-entity: $y); }; }; select $a, $b; distinct; reduce $count = count;
 ```
 
 ## 3. argmax
@@ -154,7 +154,7 @@ WHERE t.n = (
 **typeql**
 
 ```sql
-match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; summarisation (summarised-thing: $p, summation: $s); literature-citation (citing-thing: $s, cited-publication: $lr); publication-authorship (publication: $lr, publication-author: $person); select $person, $lr; distinct; reduce $n = count($lr) groupby $person; sort $n desc; match $person has surname $sn, has first-name $fn; let $name = concat($sn, ", ", $fn); select $name, $n;
+with fun top_lit_count() -> integer: match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; summarisation (summarised-thing: $p, summation: $s); literature-citation (citing-thing: $s, cited-publication: $lr); publication-authorship (publication: $lr, publication-author: $person); select $person, $lr; distinct; reduce $n = count($lr) groupby $person; return max($n); match let $m = top_lit_count(); $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; summarisation (summarised-thing: $p, summation: $s); literature-citation (citing-thing: $s, cited-publication: $lr); publication-authorship (publication: $lr, publication-author: $person); select $m, $person, $lr; distinct; reduce $n = count($lr) groupby $person, $m; match $n == $m; $person has surname $sn, has first-name $fn; let $name = $sn + ", " + $fn; select $name;
 ```
 
 ## 4. expert
@@ -323,7 +323,7 @@ WHERE NOT EXISTS (
 **typeql**
 
 ```sql
-with fun membrane-derived() -> { go-cellular-component }: match { ontology-parenthood (ontology-child: $c, ontology-parent: $g); $g isa go-cellular-component, has accession "0016020"; } or { ontology-parenthood (ontology-child: $c, ontology-parent: $m); let $m in membrane-derived(); }; return { $c }; match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; event-containment (containing-pathway: $p, contained-event: $r); $r isa reaction-like-event; not { event-containment (containing-pathway: $p, contained-event: $bad); $bad isa reaction-like-event; not { compartment-assignment (localised-thing: $bad, compartment: $c); let $m in membrane-derived(); $c is $m; }; }; select $p; distinct; reduce $count = count;
+with fun membrane-derived() -> { go-cellular-component }: match { ontology-parenthood (ontology-child: $c, ontology-parent: $g); $c isa go-cellular-component; $g isa go-cellular-component, has accession "0016020"; } or { ontology-parenthood (ontology-child: $c, ontology-parent: $m); $c isa go-cellular-component; let $m in membrane-derived(); }; return { $c }; match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; event-containment (containing-pathway: $p, contained-event: $r); $r isa reaction-like-event; not { event-containment (containing-pathway: $p, contained-event: $bad); $bad isa reaction-like-event; not { compartment-assignment (localised-thing: $bad, compartment: $c); let $m in membrane-derived(); $c is $m; }; }; select $p; distinct; reduce $count = count;
 ```
 
 ## 7. recursion
@@ -434,11 +434,18 @@ with fun parts-of($w: physical-entity) -> { physical-entity }: match { compositi
 
 How many human complexes (species includes Homo sapiens) that have at least one direct component have every one of their direct components be an EntityWithAccessionedSequence?
 
-**Expected** (int):
+**Expected** — baseline (int):
 
 ```json
 4822
 ```
+
+**Stores that disagree:**
+
+- `neo4j`: 4821
+- `typedb`: 4821
+
+> The graph dump omits 19 Complex instances that the relational dump has (111,374 nodes against 111,393 rows); confirmed by looking the missing DB_IDs up directly — they have a DatabaseObject row with _class=Complex and no node in Neo4j at all. TypeDB is loaded from the graph, so it matches Neo4j.
 
 **cypher**
 
@@ -548,7 +555,7 @@ LIMIT 5;
 **typeql**
 
 ```sql
-with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; let $e in sub-events($p); $e isa reaction-like-event; select $p, $e; distinct; reduce $events = count($e) groupby $p; sort $events desc; limit 5; match $p has display-name $pathway; select $pathway, $events;
+with fun sub_events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub_events($m); }; return { $e }; with fun subtree_rle($p: pathway) -> integer: match let $e in sub_events($p); $e isa reaction-like-event; select $e; distinct; return count; with fun subtree_catalysed($p: pathway) -> integer: match let $e in sub_events($p); $e isa reaction-like-event; catalysis (catalysed-reaction: $e, catalyst: $cat); select $e; distinct; return count; match $p isa pathway, has display-name $pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; let $events = subtree_rle($p); $events > 0; let $withcat = subtree_catalysed($p); let $pct = round(100.0 * $withcat / $events * 10.0) / 10.0; select $pathway, $events, $pct; sort $events desc, $pathway asc; limit 5;
 ```
 
 ## 11. polymorphism
@@ -632,7 +639,7 @@ WHERE n > (
 **typeql**
 
 ```sql
-with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; let $e in sub-events($p); $e isa reaction-like-event; select $p, $e; distinct; reduce $n = count($e) groupby $p; reduce $mean = mean($n); match $p2 isa pathway; species-assignment (classified-thing: $p2, species: $sp2); $sp2 has display-name "Homo sapiens"; let $e2 in sub-events($p2); $e2 isa reaction-like-event; select $p2, $e2; distinct; reduce $n2 = count($e2) groupby $p2; match $n2 > $mean; reduce $count = count;
+with fun sub_events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub_events($m); }; return { $e }; with fun mean_subtree() -> double: match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; let $e in sub_events($p); $e isa reaction-like-event; select $p, $e; distinct; reduce $n = count($e) groupby $p; return mean($n); match let $avg = mean_subtree(); $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; let $e in sub_events($p); $e isa reaction-like-event; select $avg, $p, $e; distinct; reduce $n = count($e) groupby $p, $avg; match $n > $avg; reduce $count = count;
 ```
 
 ## 13. polymorphism
@@ -672,7 +679,7 @@ FROM (
 **typeql**
 
 ```sql
-match $r isa reaction-like-event; species-assignment (classified-thing: $r, species: $sp); $sp has display-name "Homo sapiens"; regulation (regulated-event: $r, regulator: $any); select $r; distinct; reduce $total = count; match $r2 isa reaction-like-event; species-assignment (classified-thing: $r2, species: $sp2); $sp2 has display-name "Homo sapiens"; regulation (regulated-event: $r2, regulator: $any2); not { negative-regulation (regulated-event: $r2, regulator: $neg); }; select $r2; distinct; reduce $pos = count; match let $pct = round(100.0 * $pos / $total, 1); select $pct;
+with fun regulated_total() -> integer: match $r isa reaction-like-event; species-assignment (classified-thing: $r, species: $sp); $sp has display-name "Homo sapiens"; regulation (regulated-event: $r, regulator: $any); select $r; distinct; return count; match $r isa reaction-like-event; species-assignment (classified-thing: $r, species: $sp); $sp has display-name "Homo sapiens"; regulation (regulated-event: $r, regulator: $any); not { negative-regulation (regulated-event: $r, regulator: $neg); }; select $r; distinct; reduce $pos = count; match let $total = regulated_total(); let $pct = round(100.0 * $pos / $total * 10.0) / 10.0; select $pct;
 ```
 
 ## 14. expert
@@ -827,11 +834,18 @@ match $r isa reaction-like-event; species-assignment (classified-thing: $r, spec
 
 How many distinct complexes record at least one included location that is not also one of that same complex's compartments?
 
-**Expected** (int):
+**Expected** — baseline (int):
 
 ```json
 5591
 ```
+
+**Stores that disagree:**
+
+- `neo4j`: 5589
+- `typedb`: 5589
+
+> The graph dump omits 19 Complex instances that the relational dump has (111,374 nodes against 111,393 rows); confirmed by looking the missing DB_IDs up directly — they have a DatabaseObject row with _class=Complex and no node in Neo4j at all. TypeDB is loaded from the graph, so it matches Neo4j.
 
 **cypher**
 
@@ -995,18 +1009,25 @@ LIMIT 10;
 **typeql**
 
 ```sql
-match $s isa species; species-assignment (classified-thing: $r, species: $s); $r isa reaction-like-event; select $s, $r; distinct; reduce $reactions = count($r) groupby $s; sort $reactions desc; limit 10; match $s has display-name $species; select $species, $reactions;
+with fun rle_count($s: species) -> integer: match species-assignment (classified-thing: $r, species: $s); $r isa reaction-like-event; select $r; distinct; return count; with fun pathway_count($s: species) -> integer: match species-assignment (classified-thing: $p, species: $s); $p isa pathway; select $p; distinct; return count; match $s isa species, has display-name $species; let $reactions = rle_count($s); let $pathways = pathway_count($s); select $species, $reactions, $pathways; sort $reactions desc, $species asc; limit 10;
 ```
 
 ## 24. expert
 
 How many InstanceEdit instances are not recorded as the creating edit of any pathway? Treat a pathway as an instance of Pathway or of any subclass of Pathway.
 
-**Expected** (int):
+**Expected** — baseline (int):
 
 ```json
 124393
 ```
+
+**Stores that disagree:**
+
+- `neo4j`: 158555
+- `typedb`: 158555
+
+> Reactome's relational and graph dumps of release 97 disagree on InstanceEdit: 126,230 rows against 160,392 nodes, counted directly rather than through this question's query. TypeDB is loaded from the graph, so it matches Neo4j.
 
 **cypher**
 
@@ -1074,7 +1095,7 @@ FROM (
 **typeql**
 
 ```sql
-with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; match $root isa pathway, has st-id "R-HSA-168256"; let $e in sub-events($root); select $e; distinct; reduce $count = count;
+with fun sub_depths($p: event) -> { event, integer }: match { event-containment (containing-pathway: $p, contained-event: $e); let $d = 1; } or { event-containment (containing-pathway: $p, contained-event: $m); let $e, $d0 in sub_depths($m); let $d = $d0 + 1; }; return { $e, $d }; match $root isa pathway, has st-id "R-HSA-168256"; let $e, $d in sub_depths($root); select $e, $d; distinct; reduce $k = count($d) groupby $e; match $k > 1; reduce $count = count;
 ```
 
 ## 26. expert
@@ -1157,7 +1178,7 @@ ORDER BY jaccard DESC, pathway_a, pathway_b;
 **typeql**
 
 ```sql
-with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; match $root isa pathway, has st-id "R-HSA-168256"; event-containment (containing-pathway: $root, contained-event: $a); event-containment (containing-pathway: $root, contained-event: $b); $a has db-id $ad; $b has db-id $bd; $ad < $bd; let $ea in sub-events($a); let $eb in sub-events($b); $ea isa reaction-like-event; $ea is $eb; select $a, $b, $ea; distinct; reduce $shared = count($ea) groupby $a, $b; match $a has display-name $pathway_a; $b has display-name $pathway_b; select $pathway_a, $pathway_b, $shared;
+with fun sub_events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub_events($m); }; return { $e }; with fun subtree_rle_count($p: event) -> integer: match let $e in sub_events($p); $e isa reaction-like-event; select $e; distinct; return count; match $root isa pathway, has st-id "R-HSA-168256"; event-containment (containing-pathway: $root, contained-event: $a); event-containment (containing-pathway: $root, contained-event: $b); $a has db-id $ad; $b has db-id $bd; $ad < $bd; let $ea in sub_events($a); let $eb in sub_events($b); $ea isa reaction-like-event; $ea is $eb; select $a, $b, $ea; distinct; reduce $shared = count($ea) groupby $a, $b; match let $na = subtree_rle_count($a); let $nb = subtree_rle_count($b); $a has display-name $pathway_a; $b has display-name $pathway_b; let $jaccard = round(10000.0 * $shared / ($na + $nb - $shared)) / 10000.0; select $pathway_a, $pathway_b, $shared, $jaccard; sort $jaccard desc, $pathway_a asc, $pathway_b asc;
 ```
 
 ## 27. expert
@@ -1230,18 +1251,25 @@ ORDER BY rk.n DESC, species;
 **typeql**
 
 ```sql
-match $s isa species; species-assignment (classified-thing: $r, species: $s); $r isa reaction-like-event; select $s, $r; distinct; reduce $total = count($r) groupby $s; sort $total desc; limit 3; match event-containment (containing-pathway: $p, contained-event: $e); $e isa reaction-like-event; species-assignment (classified-thing: $e, species: $s); select $s, $p, $e; distinct; reduce $reactions = count($e) groupby $s, $p; sort $reactions desc; match $s has display-name $species; $p has display-name $pathway; select $species, $pathway, $reactions;
+with fun rle_count($s: species) -> integer: match species-assignment (classified-thing: $r, species: $s); $r isa reaction-like-event; select $r; distinct; return count; with fun best_pathway_count($s: species) -> integer: match event-containment (containing-pathway: $p, contained-event: $e); $e isa reaction-like-event; species-assignment (classified-thing: $e, species: $s); select $p, $e; distinct; reduce $n = count($e) groupby $p; return max($n); match $s isa species, has display-name $species; let $total = rle_count($s); sort $total desc; limit 3; match let $best = best_pathway_count($s); event-containment (containing-pathway: $p, contained-event: $e); $e isa reaction-like-event; species-assignment (classified-thing: $e, species: $s); select $species, $best, $p, $e; distinct; reduce $reactions = count($e) groupby $species, $best, $p; match $reactions == $best; $p has display-name $pathway; select $species, $pathway, $reactions; sort $reactions desc, $species asc;
 ```
 
 ## 28. expert
 
 How many InstanceEdit instances that have the person with surname D'Eustachio and first name Peter as one of their authors are not recorded as the creating edit of any pathway?
 
-**Expected** (int):
+**Expected** — baseline (int):
 
 ```json
 9081
 ```
+
+**Stores that disagree:**
+
+- `neo4j`: 5400
+- `typedb`: 5400
+
+> Reactome's relational and graph dumps of release 97 disagree on InstanceEdit: 126,230 rows against 160,392 nodes, counted directly rather than through this question's query. TypeDB is loaded from the graph, so it matches Neo4j.
 
 **cypher**
 
@@ -1311,7 +1339,7 @@ LIMIT 1;
 **typeql**
 
 ```sql
-match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; authoring (curated-object: $p, edit: $ie); edit-authorship (authored-edit: $ie, edit-author: $person); select $p, $person; distinct; reduce $n = count($p) groupby $person; sort $n desc; limit 1; match $person has surname $sn, has first-name $fn; let $name = concat($sn, ", ", $fn); select $name;
+match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; authoring (curated-object: $p, edit: $ie); edit-authorship (authored-edit: $ie, edit-author: $person); select $p, $person; distinct; reduce $n = count($p) groupby $person; sort $n desc; limit 1; match $person has surname $sn, has first-name $fn; let $name = $sn + ", " + $fn; select $name;
 ```
 
 ## 30. expert
@@ -1468,7 +1496,7 @@ WHERE tile = 4;
 **typeql**
 
 ```sql
-with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; let $e in sub-events($p); $e isa reaction-like-event; select $p; distinct; reduce $total = count; match let $quarter = $total / 4; select $quarter;
+with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; let $e in sub-events($p); $e isa reaction-like-event; select $p; distinct; reduce $total = count; match let $quarter = floor($total / 4.0); select $quarter;
 ```
 
 ## 33. recursion
@@ -1512,7 +1540,7 @@ JOIN ReactionlikeEvent x ON x.DB_ID = reach.ev;
 **typeql**
 
 ```sql
-with fun reachable($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-precedence (preceding-event: $e, following-event: $p); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in reachable($m); } or { event-precedence (preceding-event: $m2, following-event: $p); let $e in reachable($m2); }; return { $e }; match $root isa pathway, has st-id "R-HSA-168256"; let $e in reachable($root); $e isa reaction-like-event; select $e; distinct; reduce $count = count;
+with fun outward($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-precedence (preceding-event: $e, following-event: $p); }; return { $e }; with fun reachable($p: event) -> { event }: match { let $e in outward($p); } or { let $m in outward($p); let $e in reachable($m); }; return { $e }; match $root isa pathway, has st-id "R-HSA-168256"; let $e in reachable($root); $e isa reaction-like-event; select $e; distinct; reduce $count = count;
 ```
 
 ## 34. expert
@@ -1665,7 +1693,7 @@ FROM (
 **typeql**
 
 ```sql
-with fun depth-of($p: event, $e: event) -> { integer }: match { event-containment (containing-pathway: $p, contained-event: $e); let $d = 1; } or { event-containment (containing-pathway: $p, contained-event: $m); let $inner in depth-of($m, $e); let $d = $inner + 1; }; return { $d }; match $root isa pathway, has st-id "R-HSA-168256"; $e isa reaction-like-event; let $d in depth-of($root, $e); select $e, $d; distinct; reduce $min_depth = min($d) groupby $e; reduce $mean = mean($min_depth); select $mean;
+with fun sub_depths($p: event) -> { event, integer }: match { event-containment (containing-pathway: $p, contained-event: $e); let $d = 1; } or { event-containment (containing-pathway: $p, contained-event: $m); let $e, $d0 in sub_depths($m); let $d = $d0 + 1; }; return { $e, $d }; match $root isa pathway, has st-id "R-HSA-168256"; let $e, $d in sub_depths($root); $e isa reaction-like-event; select $e, $d; distinct; reduce $shallowest = min($d) groupby $e; reduce $avg = mean($shallowest); match let $rounded = round($avg * 10000.0) / 10000.0; select $rounded;
 ```
 
 ## 37. recursion

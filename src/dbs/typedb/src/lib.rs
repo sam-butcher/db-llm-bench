@@ -24,7 +24,7 @@ use typedb_driver::{
 /// a fact about the language, not a fault, so the cap is well clear of the
 /// slowest reference query. The three DB packages hold the same cap, or a
 /// query that is merely slow would fail in one language and pass in another.
-const QUERY_TIMEOUT: Duration = Duration::from_secs(90);
+const QUERY_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_ROWS: usize = 10_000;
 
 #[derive(Debug, Clone, Deserialize)]

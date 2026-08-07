@@ -98,12 +98,25 @@ def main() -> None:
             lines += ["**Unanswerable** — the only correct response is the UNANSWERABLE token.", ""]
             continue
         shape = "ordered list" if q.get("ordered") else type(q["expected"]).__name__
-        lines.append(f"**Expected** ({shape}):")
+        by_db = q.get("expected_by_db") or {}
+        # A per-store override means the reference queries no longer agree on
+        # one number, so the reviewer needs to see which store expects what and
+        # why — that disagreement is exactly what normally signals a bad query.
+        label = "**Expected** — baseline" if by_db else "**Expected**"
+        lines.append(f"{label} ({shape}):")
         lines.append("")
         lines.append("```json")
         lines.append(json.dumps(q["expected"], indent=2, ensure_ascii=False))
         lines.append("```")
         lines.append("")
+        if by_db:
+            lines.append("**Stores that disagree:**")
+            lines.append("")
+            for db, value in sorted(by_db.items()):
+                lines.append(f"- `{db}`: {json.dumps(value, ensure_ascii=False)}")
+            lines.append("")
+            lines.append(f"> {q.get('divergence', '(no divergence note recorded)')}")
+            lines.append("")
         for lang, sql in sorted(q.get("queries", {}).items()):
             lines.append(f"**{lang}**")
             lines.append("")

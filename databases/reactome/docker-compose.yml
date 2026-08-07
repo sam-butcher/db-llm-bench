@@ -145,6 +145,15 @@ services:
     image: typedb/typedb:3.12.1
     command:
       - "--development-mode.enabled=true"
+    environment:
+      # Reactome's pathway hierarchy is deep enough that the recursive queries
+      # overflow a tokio worker's default 2MB stack: the server aborts with
+      # `thread 'tokio-rt-worker' has overflowed its stack` (exit 133) and
+      # every later query in the run fails on a dead connection. It is
+      # scheduling-dependent, so the same query crashes on one run and passes
+      # on the next. Tokio takes its worker stack size from RUST_MIN_STACK
+      # when the runtime does not set one explicitly.
+      RUST_MIN_STACK: "134217728"
     ports:
       - "1729:1729"
     volumes:

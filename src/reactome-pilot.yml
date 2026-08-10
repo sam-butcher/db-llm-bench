@@ -1,0 +1,109 @@
+# Reactome model-selection pilot.
+#
+# Purpose: decide which models are worth a full run. Five candidates over eight
+# questions; keep the three that land at genuinely different points on the
+# SQL -> Cypher -> TypeQL gradient, and drop anything that scores zero
+# everywhere (no signal) or matches another candidate (no spread).
+#
+# This is NOT a results config. It shares the DB block with reactome.yml but
+# runs a subset of questions and a single attempt per question, so its numbers
+# are for ranking candidates against each other, not for reporting.
+#
+# Prereqs:
+#   1. Seed the Reactome stack:  cd databases/reactome && docker compose up -d --wait
+#   2. Regenerate the subset:    python3 analysis/make_pilot.py
+#   3. Export one API key per model — see the models block below.
+#
+# Run:  cargo run -p bench-cli -- src/reactome-pilot.yml results-pilot.json
+#
+# Cost: 8 questions x 3 DBs x 3 repetitions = 72 calls per model, at ~37k input
+# tokens each (the Neo4j schema alone is ~23k). Roughly 2.7M input tokens per
+# model, so single-digit dollars for most of these.
+dbs:
+  - typedb:
+      prompts: data/prompts/typedb.txt
+      url: http://localhost:1729
+      database: reactome
+      auth:
+        username: admin
+        password: password
+        tls: false
+      schema: data/reactome/typedb/schema.tql
+  - neo4j:
+      prompts: data/prompts/neo4j.txt
+      url: bolt://localhost:7687
+      auth:
+        username: neo4j
+        password: password
+      schema: data/reactome/neo4j/schema.txt
+  - sql:
+      # The shared data/prompts/sql.txt names PostgreSQL; this dataset runs on
+      # MySQL, so it uses the MySQL-worded variant of the same template.
+      prompts: data/prompts/sql-mysql.txt
+      url: mysql://bench_ro:bench_ro@localhost/reactome
+      schema: data/reactome/sql/schema.sql
+
+# Every label carries the serving provider, not just the model name: the same
+# open weights served by two providers can differ in quantization and in the
+# context actually served, so "GLM-5.2" alone does not identify a run.
+#
+# max_tokens is set per model rather than left at the 4096 default. Several of
+# these emit long reasoning traces before the answer — GLM-5.2 is reported at
+# ~43k output tokens per task, and Kimi K2.7-Code enforces thinking mode — and
+# a model that spends its budget thinking and never emits a fenced query scores
+# as a capability failure when it is really a configuration one.
+models:
+  # Closed cheap tier, and the only entry needing no new integration. Also the
+  # ladder against the existing Opus and Sonnet runs on the full question set.
+  - claude:
+      model: claude-haiku-4-5-20251001
+      max_tokens: 8192
+
+  # Open-weights flagship (753B MoE, ~40B active, MIT). Expected upper anchor:
+  # it may well match the frontier models rather than fail, which is itself
+  # worth knowing about the question set.
+  - openai-compatible:
+      model: glm-5.2
+      base_url: https://api.z.ai/api/paas/v4
+      label: glm-5.2@z.ai
+      api_key_env: ZAI_API_KEY
+      max_tokens: 32768
+
+  # Mid-tier open weights (284B total / 13B active, MIT, 1M context). The
+  # 0731 build is the agent-tuned GA release.
+  - openai-compatible:
+      model: deepseek-v4-flash
+      base_url: https://api.deepseek.com/v1
+      label: deepseek-v4-flash@deepseek
+      api_key_env: DEEPSEEK_API_KEY
+      max_tokens: 16384
+
+  # Small active footprint (80B total / 3B active) and coding-agent tuned.
+  # Expected lower anchor, and the successor to the qwen3-coder:30b already run
+  # locally, so it is the closest thing to a continuous data point.
+  - openai-compatible:
+      model: qwen3-coder-next
+      base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      label: qwen3-coder-next@dashscope
+      api_key_env: DASHSCOPE_API_KEY
+      max_tokens: 8192
+
+  # Agentic generalist rather than a code specialist (1T total / 32B active).
+  # Thinking mode is enforced, hence the larger budget.
+  - openai-compatible:
+      model: kimi-k2.7-code
+      base_url: https://api.moonshot.ai/v1
+      label: kimi-k2.7-code@moonshot
+      api_key_env: MOONSHOT_API_KEY
+      max_tokens: 32768
+
+questionsPath: data/reactome/questions-pilot.json
+# No few-shot examples ship with this dataset, so the only valid count is 0.
+exampleCounts:
+  - 0
+# Single attempt. Only the highest level actually runs, and retry behaviour is
+# not what the pilot is choosing on — allowing retries would multiply the calls
+# on exactly the models that fail most, which is backwards for a cost-capped
+# ranking run. Raise this for the real run.
+maxRetryCounts:
+  - 0

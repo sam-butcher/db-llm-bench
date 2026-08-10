@@ -14,11 +14,17 @@ Restrict to human reaction-like events (species includes Homo sapiens) that have
 
 **cypher**
 
-```sql
-MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'}) MATCH (r)-[:input]->(e) WITH DISTINCT r, e WITH r, e
-ORDER BY e.dbId WITH r, collect(e.dbId) AS sig
-WHERE size(sig) >= 4 WITH sig, count(*) AS k
-WHERE k > 1 RETURN sum(k * (k - 1) / 2)
+```cypher
+MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})
+MATCH (r)-[:input]->(e)
+WITH DISTINCT r, e
+WITH r, e
+ORDER BY e.dbId
+WITH r, collect(e.dbId) AS sig
+WHERE size(sig) >= 4
+WITH sig, count(*) AS k
+WHERE k > 1
+RETURN sum(k * (k - 1) / 2)
 ```
 
 **sql**
@@ -52,8 +58,41 @@ WHERE NOT EXISTS (
 
 **typeql**
 
-```sql
-with fun wide_events() -> { reaction-like-event }: match $r isa reaction-like-event; species-assignment (classified-thing: $r, species: $s); $s has display-name "Homo sapiens"; reaction-input (reaction: $r, consumed-entity: $e); select $r, $e; distinct; reduce $n = count($e) groupby $r; match $n >= 4; return { $r }; match let $a in wide_events(); reaction-input (reaction: $a, consumed-entity: $shared); reaction-input (reaction: $b, consumed-entity: $shared); $b isa reaction-like-event; species-assignment (classified-thing: $b, species: $sb); $sb has display-name "Homo sapiens"; $a has db-id $ad; $b has db-id $bd; $ad < $bd; not { reaction-input (reaction: $a, consumed-entity: $x); not { reaction-input (reaction: $b, consumed-entity: $x); }; }; not { reaction-input (reaction: $b, consumed-entity: $y); not { reaction-input (reaction: $a, consumed-entity: $y); }; }; select $a, $b; distinct; reduce $count = count;
+```typeql
+with
+fun wide_events() -> { reaction-like-event }:
+    match
+        $r isa reaction-like-event;
+        species-assignment (classified-thing: $r, species: $s);
+        $s has display-name "Homo sapiens";
+        reaction-input (reaction: $r, consumed-entity: $e);
+    select $r, $e;
+    distinct;
+    reduce $n = count($e) groupby $r;
+    match
+        $n >= 4;
+    return { $r };
+match
+    let $a in wide_events();
+    reaction-input (reaction: $a, consumed-entity: $shared);
+    reaction-input (reaction: $b, consumed-entity: $shared);
+    $b isa reaction-like-event;
+    species-assignment (classified-thing: $b, species: $sb);
+    $sb has display-name "Homo sapiens";
+    $a has db-id $ad;
+    $b has db-id $bd;
+    $ad < $bd;
+    not { reaction-input (reaction: $a, consumed-entity: $x);
+        not { reaction-input (reaction: $b, consumed-entity: $x);
+        };
+    };
+    not { reaction-input (reaction: $b, consumed-entity: $y);
+        not { reaction-input (reaction: $a, consumed-entity: $y);
+        };
+    };
+select $a, $b;
+distinct;
+reduce $count = count;
 ```
 
 ## 2. argmax
@@ -71,9 +110,16 @@ Human pathways (species includes Homo sapiens) carry summations, and those summa
 
 **cypher**
 
-```sql
-MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'}) MATCH (p)-[:summation]->(:Summation)-[:literatureReference]->(lr) MATCH (lr)<-[:author]-(person:Person) WITH person, count(DISTINCT lr) AS n WITH collect({person: person, n: n}) AS rows, max(n) AS top UNWIND rows AS row WITH row
-WHERE row.n = top RETURN row.person.surname + ', ' + row.person.firstname
+```cypher
+MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})
+MATCH (p)-[:summation]->(:Summation)-[:literatureReference]->(lr)
+MATCH (lr)<-[:author]-(person:Person)
+WITH person, count(DISTINCT lr) AS n
+WITH collect({person: person, n: n}) AS rows, max(n) AS top
+UNWIND rows AS row
+WITH row
+WHERE row.n = top
+RETURN row.person.surname + ', ' + row.person.firstname
 ```
 
 **sql**
@@ -99,8 +145,36 @@ WHERE t.n = (
 
 **typeql**
 
-```sql
-with fun top_lit_count() -> integer: match $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; summarisation (summarised-thing: $p, summation: $s); literature-citation (citing-thing: $s, cited-publication: $lr); publication-authorship (publication: $lr, publication-author: $person); select $person, $lr; distinct; reduce $n = count($lr) groupby $person; return max($n); match let $m = top_lit_count(); $p isa pathway; species-assignment (classified-thing: $p, species: $sp); $sp has display-name "Homo sapiens"; summarisation (summarised-thing: $p, summation: $s); literature-citation (citing-thing: $s, cited-publication: $lr); publication-authorship (publication: $lr, publication-author: $person); select $m, $person, $lr; distinct; reduce $n = count($lr) groupby $person, $m; match $n == $m; $person has surname $sn, has first-name $fn; let $name = $sn + ", " + $fn; select $name;
+```typeql
+with
+fun top_lit_count() -> integer:
+    match
+        $p isa pathway;
+        species-assignment (classified-thing: $p, species: $sp);
+        $sp has display-name "Homo sapiens";
+        summarisation (summarised-thing: $p, summation: $s);
+        literature-citation (citing-thing: $s, cited-publication: $lr);
+        publication-authorship (publication: $lr, publication-author: $person);
+    select $person, $lr;
+    distinct;
+    reduce $n = count($lr) groupby $person;
+    return max($n);
+match
+    let $m = top_lit_count();
+    $p isa pathway;
+    species-assignment (classified-thing: $p, species: $sp);
+    $sp has display-name "Homo sapiens";
+    summarisation (summarised-thing: $p, summation: $s);
+    literature-citation (citing-thing: $s, cited-publication: $lr);
+    publication-authorship (publication: $lr, publication-author: $person);
+select $m, $person, $lr;
+distinct;
+reduce $n = count($lr) groupby $person, $m;
+match
+    $n == $m;
+    $person has surname $sn, has first-name $fn;
+    let $name = $sn + ", " + $fn;
+select $name;
 ```
 
 ## 3. expert
@@ -115,8 +189,14 @@ Consider the pathways that are direct hasEvent children of the pathway with stab
 
 **cypher**
 
-```sql
-MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child) MATCH (child)-[:hasEvent*0..]->(ev:ReactionLikeEvent) MATCH (ev)-[:input|output]->(part) MATCH (part)-[:hasComponent|hasMember*0..]->(x:EntityWithAccessionedSequence) MATCH (x)-[:referenceEntity]->(rgp:ReferenceGeneProduct) WITH child, count(DISTINCT rgp) AS n RETURN child.displayName
+```cypher
+MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)
+MATCH (child)-[:hasEvent*0..]->(ev:ReactionLikeEvent)
+MATCH (ev)-[:input|output]->(part)
+MATCH (part)-[:hasComponent|hasMember*0..]->(x:EntityWithAccessionedSequence)
+MATCH (x)-[:referenceEntity]->(rgp:ReferenceGeneProduct)
+WITH child, count(DISTINCT rgp) AS n
+RETURN child.displayName
 ORDER BY n DESC
 LIMIT 1
 ```
@@ -165,8 +245,45 @@ LIMIT 1;
 
 **typeql**
 
-```sql
-with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; with fun parts-of($w: physical-entity) -> { physical-entity }: match { composition (whole: $w, part: $x); } or { composition (whole: $w, part: $m); let $x in parts-of($m); }; return { $x }; match $root isa pathway, has st-id "R-HSA-168256"; event-containment (containing-pathway: $root, contained-event: $child); { $ev is $child; } or { let $ev in sub-events($child); }; $ev isa reaction-like-event; reaction-participation (reaction: $ev, participant: $part); { $x is $part; } or { let $x in parts-of($part); }; $x isa entity-with-accessioned-sequence; reference-assignment (instance-entity: $x, reference: $rgp); $rgp isa reference-gene-product; select $child, $rgp; distinct; reduce $n = count($rgp) groupby $child; sort $n desc; limit 1; match $child has display-name $name; select $name;
+```typeql
+with
+fun sub-events($p: event) -> { event }:
+    match
+        { event-containment (containing-pathway: $p, contained-event: $e);
+        } or { event-containment (containing-pathway: $p, contained-event: $m);
+            let $e in sub-events($m);
+        };
+    return { $e };
+with
+fun parts-of($w: physical-entity) -> { physical-entity }:
+    match
+        { composition (whole: $w, part: $x);
+        } or { composition (whole: $w, part: $m);
+            let $x in parts-of($m);
+        };
+    return { $x };
+match
+    $root isa pathway, has st-id "R-HSA-168256";
+    event-containment (containing-pathway: $root, contained-event: $child);
+    { $ev is $child;
+    } or { let $ev in sub-events($child);
+    };
+    $ev isa reaction-like-event;
+    reaction-participation (reaction: $ev, participant: $part);
+    { $x is $part;
+    } or { let $x in parts-of($part);
+    };
+    $x isa entity-with-accessioned-sequence;
+    reference-assignment (instance-entity: $x, reference: $rgp);
+    $rgp isa reference-gene-product;
+select $child, $rgp;
+distinct;
+reduce $n = count($rgp) groupby $child;
+sort $n desc;
+limit 1;
+match
+    $child has display-name $name;
+select $name;
 ```
 
 ## 4. polymorphism
@@ -181,9 +298,10 @@ How many distinct reaction-like events are regulated by at least one regulation 
 
 **cypher**
 
-```sql
+```cypher
 MATCH (r:ReactionLikeEvent)-[:regulatedBy]->(:PositiveRegulation)
-WHERE NOT EXISTS { (r)-[:regulatedBy]->(:NegativeRegulation) } RETURN count(DISTINCT r)
+WHERE NOT EXISTS { (r)-[:regulatedBy]->(:NegativeRegulation) }
+RETURN count(DISTINCT r)
 ```
 
 **sql**
@@ -201,8 +319,15 @@ WHERE NOT EXISTS (
 
 **typeql**
 
-```sql
-match $r isa reaction-like-event; positive-regulation (regulated-event: $r, regulator: $pos); not { negative-regulation (regulated-event: $r, regulator: $neg); }; select $r; distinct; reduce $count = count;
+```typeql
+match
+    $r isa reaction-like-event;
+    positive-regulation (regulated-event: $r, regulator: $pos);
+    not { negative-regulation (regulated-event: $r, regulator: $neg);
+    };
+select $r;
+distinct;
+reduce $count = count;
 ```
 
 ## 5. polymorphism
@@ -217,9 +342,12 @@ Consider human reaction-like events (species includes Homo sapiens) that carry a
 
 **cypher**
 
-```sql
+```cypher
 MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})
-WHERE EXISTS { (r)-[:regulatedBy]->() } WITH DISTINCT r WITH count(r) AS total, sum(CASE WHEN NOT EXISTS { (r)-[:regulatedBy]->(:NegativeRegulation) } THEN 1 ELSE 0 END) AS pos RETURN round(100.0 * pos / total, 1)
+WHERE EXISTS { (r)-[:regulatedBy]->() }
+WITH DISTINCT r
+WITH count(r) AS total, sum(CASE WHEN NOT EXISTS { (r)-[:regulatedBy]->(:NegativeRegulation) } THEN 1 ELSE 0 END) AS pos
+RETURN round(100.0 * pos / total, 1)
 ```
 
 **sql**
@@ -241,8 +369,31 @@ FROM (
 
 **typeql**
 
-```sql
-with fun regulated_total() -> integer: match $r isa reaction-like-event; species-assignment (classified-thing: $r, species: $sp); $sp has display-name "Homo sapiens"; regulation (regulated-event: $r, regulator: $any); select $r; distinct; return count; match $r isa reaction-like-event; species-assignment (classified-thing: $r, species: $sp); $sp has display-name "Homo sapiens"; regulation (regulated-event: $r, regulator: $any); not { negative-regulation (regulated-event: $r, regulator: $neg); }; select $r; distinct; reduce $pos = count; match let $total = regulated_total(); let $pct = round(100.0 * $pos / $total * 10.0) / 10.0; select $pct;
+```typeql
+with
+fun regulated_total() -> integer:
+    match
+        $r isa reaction-like-event;
+        species-assignment (classified-thing: $r, species: $sp);
+        $sp has display-name "Homo sapiens";
+        regulation (regulated-event: $r, regulator: $any);
+    select $r;
+    distinct;
+    return count;
+match
+    $r isa reaction-like-event;
+    species-assignment (classified-thing: $r, species: $sp);
+    $sp has display-name "Homo sapiens";
+    regulation (regulated-event: $r, regulator: $any);
+    not { negative-regulation (regulated-event: $r, regulator: $neg);
+    };
+select $r;
+distinct;
+reduce $pos = count;
+match
+    let $total = regulated_total();
+    let $pct = round(100.0 * $pos / $total * 10.0) / 10.0;
+select $pct;
 ```
 
 ## 6. unanswerable
@@ -270,9 +421,10 @@ How many InstanceEdit instances are not recorded as the creating edit of any pat
 
 **cypher**
 
-```sql
+```cypher
 MATCH (ie:InstanceEdit)
-WHERE NOT EXISTS { (ie)-[:created]->(:Pathway) } RETURN count(ie)
+WHERE NOT EXISTS { (ie)-[:created]->(:Pathway) }
+RETURN count(ie)
 ```
 
 **sql**
@@ -289,8 +441,15 @@ WHERE NOT EXISTS (
 
 **typeql**
 
-```sql
-match $ie isa instance-edit; not { creation (curated-object: $p, edit: $ie); $p isa pathway; }; select $ie; distinct; reduce $count = count;
+```typeql
+match
+    $ie isa instance-edit;
+    not { creation (curated-object: $p, edit: $ie);
+        $p isa pathway;
+    };
+select $ie;
+distinct;
+reduce $count = count;
 ```
 
 ## 8. recursion
@@ -305,8 +464,9 @@ Starting from the pathway with stable identifier R-HSA-168256, repeatedly follow
 
 **cypher**
 
-```sql
-MATCH (start:Pathway {stId:'R-HSA-168256'})-[:hasEvent|precedingEvent*]->(e:ReactionLikeEvent) RETURN count(DISTINCT e)
+```cypher
+MATCH (start:Pathway {stId:'R-HSA-168256'})-[:hasEvent|precedingEvent*]->(e:ReactionLikeEvent)
+RETURN count(DISTINCT e)
 ```
 
 **sql**
@@ -333,7 +493,28 @@ JOIN ReactionlikeEvent x ON x.DB_ID = reach.ev;
 
 **typeql**
 
-```sql
-with fun outward($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-precedence (preceding-event: $e, following-event: $p); }; return { $e }; with fun reachable($p: event) -> { event }: match { let $e in outward($p); } or { let $m in outward($p); let $e in reachable($m); }; return { $e }; match $root isa pathway, has st-id "R-HSA-168256"; let $e in reachable($root); $e isa reaction-like-event; select $e; distinct; reduce $count = count;
+```typeql
+with
+fun outward($p: event) -> { event }:
+    match
+        { event-containment (containing-pathway: $p, contained-event: $e);
+        } or { event-precedence (preceding-event: $e, following-event: $p);
+        };
+    return { $e };
+with
+fun reachable($p: event) -> { event }:
+    match
+        { let $e in outward($p);
+        } or { let $m in outward($p);
+            let $e in reachable($m);
+        };
+    return { $e };
+match
+    $root isa pathway, has st-id "R-HSA-168256";
+    let $e in reachable($root);
+    $e isa reaction-like-event;
+select $e;
+distinct;
+reduce $count = count;
 ```
 

@@ -135,21 +135,16 @@ WHERE NOT EXISTS (
 **typeql**
 
 ```typeql
-with
-fun wide_events() -> { reaction-like-event }:
-    match
-        $r isa reaction-like-event;
-        species-assignment (classified-thing: $r, species: $s);
-        $s has display-name "Homo sapiens";
-        reaction-input (reaction: $r, consumed-entity: $e);
-    select $r, $e;
-    distinct;
-    reduce $n = count($e) groupby $r;
-    match
-        $n >= 4;
-    return { $r };
 match
-    let $a in wide_events();
+    $a isa reaction-like-event;
+    species-assignment (classified-thing: $a, species: $sa);
+    $sa has display-name "Homo sapiens";
+    reaction-input (reaction: $a, consumed-entity: $e);
+select $a, $e;
+distinct;
+reduce $n = count($e) groupby $a;
+match
+    $n >= 4;
     reaction-input (reaction: $a, consumed-entity: $shared);
     reaction-input (reaction: $b, consumed-entity: $shared);
     $b isa reaction-like-event;
@@ -222,21 +217,18 @@ WHERE t.n = (
 **typeql**
 
 ```typeql
-with
-fun top_lit_count() -> integer:
-    match
-        $p isa pathway;
-        species-assignment (classified-thing: $p, species: $sp);
-        $sp has display-name "Homo sapiens";
-        summarisation (summarised-thing: $p, summation: $s);
-        literature-citation (citing-thing: $s, cited-publication: $lr);
-        publication-authorship (publication: $lr, publication-author: $person);
-    select $person, $lr;
-    distinct;
-    reduce $n = count($lr) groupby $person;
-    return max($n);
 match
-    let $m = top_lit_count();
+    $p isa pathway;
+    species-assignment (classified-thing: $p, species: $sp);
+    $sp has display-name "Homo sapiens";
+    summarisation (summarised-thing: $p, summation: $s);
+    literature-citation (citing-thing: $s, cited-publication: $lr);
+    publication-authorship (publication: $lr, publication-author: $person);
+select $person, $lr;
+distinct;
+reduce $n = count($lr) groupby $person;
+reduce $m = max($n);
+match
     $p isa pathway;
     species-assignment (classified-thing: $p, species: $sp);
     $sp has display-name "Homo sapiens";
@@ -794,37 +786,31 @@ LIMIT 5;
 
 ```typeql
 with
-fun sub_events($p: event) -> { event }:
+fun sub-events($p: event) -> { event }:
     match
         { event-containment (containing-pathway: $p, contained-event: $e);
         } or { event-containment (containing-pathway: $p, contained-event: $m);
-            let $e in sub_events($m);
+            let $e in sub-events($m);
         };
     return { $e };
-with
-fun subtree_rle($p: pathway) -> integer:
-    match
-        let $e in sub_events($p);
-        $e isa reaction-like-event;
-    select $e;
-    distinct;
-    return count;
-with
-fun subtree_catalysed($p: pathway) -> integer:
-    match
-        let $e in sub_events($p);
-        $e isa reaction-like-event;
-        catalysis (catalysed-reaction: $e, catalyst: $cat);
-    select $e;
-    distinct;
-    return count;
 match
     $p isa pathway, has display-name $pathway;
     species-assignment (classified-thing: $p, species: $sp);
     $sp has display-name "Homo sapiens";
-    let $events = subtree_rle($p);
+    let $e in sub-events($p);
+    $e isa reaction-like-event;
+select $p, $pathway, $e;
+distinct;
+reduce $events = count($e) groupby $p, $pathway;
+match
     $events > 0;
-    let $withcat = subtree_catalysed($p);
+    let $e in sub-events($p);
+    $e isa reaction-like-event;
+    catalysis (catalysed-reaction: $e, catalyst: $cat);
+select $p, $pathway, $events, $e;
+distinct;
+reduce $withcat = count($e) groupby $p, $pathway, $events;
+match
     let $pct = round(100.0 * $withcat / $events * 10.0) / 10.0;
 select $pathway, $events, $pct;
 sort $events desc, $pathway asc;
@@ -926,31 +912,28 @@ WHERE n > (
 
 ```typeql
 with
-fun sub_events($p: event) -> { event }:
+fun sub-events($p: event) -> { event }:
     match
         { event-containment (containing-pathway: $p, contained-event: $e);
         } or { event-containment (containing-pathway: $p, contained-event: $m);
-            let $e in sub_events($m);
+            let $e in sub-events($m);
         };
     return { $e };
-with
-fun mean_subtree() -> double:
-    match
-        $p isa pathway;
-        species-assignment (classified-thing: $p, species: $sp);
-        $sp has display-name "Homo sapiens";
-        let $e in sub_events($p);
-        $e isa reaction-like-event;
-    select $p, $e;
-    distinct;
-    reduce $n = count($e) groupby $p;
-    return mean($n);
 match
-    let $avg = mean_subtree();
     $p isa pathway;
     species-assignment (classified-thing: $p, species: $sp);
     $sp has display-name "Homo sapiens";
-    let $e in sub_events($p);
+    let $e in sub-events($p);
+    $e isa reaction-like-event;
+select $p, $e;
+distinct;
+reduce $n = count($e) groupby $p;
+reduce $avg = mean($n);
+match
+    $p isa pathway;
+    species-assignment (classified-thing: $p, species: $sp);
+    $sp has display-name "Homo sapiens";
+    let $e in sub-events($p);
     $e isa reaction-like-event;
 select $avg, $p, $e;
 distinct;
@@ -1000,16 +983,14 @@ FROM (
 **typeql**
 
 ```typeql
-with
-fun regulated_total() -> integer:
-    match
-        $r isa reaction-like-event;
-        species-assignment (classified-thing: $r, species: $sp);
-        $sp has display-name "Homo sapiens";
-        regulation (regulated-event: $r, regulator: $any);
-    select $r;
-    distinct;
-    return count;
+match
+    $r isa reaction-like-event;
+    species-assignment (classified-thing: $r, species: $sp);
+    $sp has display-name "Homo sapiens";
+    regulation (regulated-event: $r, regulator: $any);
+select $r;
+distinct;
+reduce $total = count;
 match
     $r isa reaction-like-event;
     species-assignment (classified-thing: $r, species: $sp);
@@ -1017,11 +998,10 @@ match
     regulation (regulated-event: $r, regulator: $any);
     not { negative-regulation (regulated-event: $r, regulator: $neg);
     };
-select $r;
+select $total, $r;
 distinct;
-reduce $pos = count;
+reduce $pos = count groupby $total;
 match
-    let $total = regulated_total();
     let $pct = round(100.0 * $pos / $total * 10.0) / 10.0;
 select $pct;
 ```
@@ -1416,26 +1396,20 @@ LIMIT 10;
 **typeql**
 
 ```typeql
-with
-fun rle_count($s: species) -> integer:
-    match
-        species-assignment (classified-thing: $r, species: $s);
-        $r isa reaction-like-event;
-    select $r;
-    distinct;
-    return count;
-with
-fun pathway_count($s: species) -> integer:
-    match
-        species-assignment (classified-thing: $p, species: $s);
-        $p isa pathway;
-    select $p;
-    distinct;
-    return count;
 match
-    $s isa species, has display-name $species;
-    let $reactions = rle_count($s);
-    let $pathways = pathway_count($s);
+    species-assignment (classified-thing: $r, species: $s);
+    $r isa reaction-like-event;
+select $s, $r;
+distinct;
+reduce $reactions = count($r) groupby $s;
+match
+    species-assignment (classified-thing: $p, species: $s);
+    $p isa pathway;
+select $s, $reactions, $p;
+distinct;
+reduce $pathways = count($p) groupby $s, $reactions;
+match
+    $s has display-name $species;
 select $species, $reactions, $pathways;
 sort $reactions desc, $species asc;
 limit 10;
@@ -1535,18 +1509,18 @@ FROM (
 
 ```typeql
 with
-fun sub_depths($p: event) -> { event, integer }:
+fun sub-depths($p: event) -> { event, integer }:
     match
         { event-containment (containing-pathway: $p, contained-event: $e);
             let $d = 1;
         } or { event-containment (containing-pathway: $p, contained-event: $m);
-            let $e, $d0 in sub_depths($m);
+            let $e, $d0 in sub-depths($m);
             let $d = $d0 + 1;
         };
     return { $e, $d };
 match
     $root isa pathway, has st-id "R-HSA-168256";
-    let $e, $d in sub_depths($root);
+    let $e, $d in sub-depths($root);
 select $e, $d;
 distinct;
 reduce $k = count($d) groupby $e;
@@ -1644,21 +1618,13 @@ ORDER BY jaccard DESC, pathway_a, pathway_b;
 
 ```typeql
 with
-fun sub_events($p: event) -> { event }:
+fun sub-events($p: event) -> { event }:
     match
         { event-containment (containing-pathway: $p, contained-event: $e);
         } or { event-containment (containing-pathway: $p, contained-event: $m);
-            let $e in sub_events($m);
+            let $e in sub-events($m);
         };
     return { $e };
-with
-fun subtree_rle_count($p: event) -> integer:
-    match
-        let $e in sub_events($p);
-        $e isa reaction-like-event;
-    select $e;
-    distinct;
-    return count;
 match
     $root isa pathway, has st-id "R-HSA-168256";
     event-containment (containing-pathway: $root, contained-event: $a);
@@ -1666,16 +1632,26 @@ match
     $a has db-id $ad;
     $b has db-id $bd;
     $ad < $bd;
-    let $ea in sub_events($a);
-    let $eb in sub_events($b);
+    let $ea in sub-events($a);
+    let $eb in sub-events($b);
     $ea isa reaction-like-event;
     $ea is $eb;
 select $a, $b, $ea;
 distinct;
 reduce $shared = count($ea) groupby $a, $b;
 match
-    let $na = subtree_rle_count($a);
-    let $nb = subtree_rle_count($b);
+    let $ea in sub-events($a);
+    $ea isa reaction-like-event;
+select $a, $b, $shared, $ea;
+distinct;
+reduce $na = count($ea) groupby $a, $b, $shared;
+match
+    let $eb in sub-events($b);
+    $eb isa reaction-like-event;
+select $a, $b, $shared, $na, $eb;
+distinct;
+reduce $nb = count($eb) groupby $a, $b, $shared, $na;
+match
     $a has display-name $pathway_a;
     $b has display-name $pathway_b;
     let $jaccard = round(10000.0 * $shared / ($na + $nb - $shared)) / 10000.0;
@@ -1758,39 +1734,32 @@ ORDER BY rk.n DESC, species;
 **typeql**
 
 ```typeql
-with
-fun rle_count($s: species) -> integer:
-    match
-        species-assignment (classified-thing: $r, species: $s);
-        $r isa reaction-like-event;
-    select $r;
-    distinct;
-    return count;
-with
-fun best_pathway_count($s: species) -> integer:
-    match
-        event-containment (containing-pathway: $p, contained-event: $e);
-        $e isa reaction-like-event;
-        species-assignment (classified-thing: $e, species: $s);
-    select $p, $e;
-    distinct;
-    reduce $n = count($e) groupby $p;
-    return max($n);
 match
-    $s isa species, has display-name $species;
-    let $total = rle_count($s);
+    species-assignment (classified-thing: $r, species: $s);
+    $r isa reaction-like-event;
+select $s, $r;
+distinct;
+reduce $total = count($r) groupby $s;
 sort $total desc;
 limit 3;
 match
-    let $best = best_pathway_count($s);
     event-containment (containing-pathway: $p, contained-event: $e);
     $e isa reaction-like-event;
     species-assignment (classified-thing: $e, species: $s);
-select $species, $best, $p, $e;
+select $s, $total, $p, $e;
 distinct;
-reduce $reactions = count($e) groupby $species, $best, $p;
+reduce $reactions = count($e) groupby $s, $total, $p;
+reduce $best = max($reactions) groupby $s, $total;
+match
+    event-containment (containing-pathway: $p, contained-event: $e);
+    $e isa reaction-like-event;
+    species-assignment (classified-thing: $e, species: $s);
+select $s, $total, $best, $p, $e;
+distinct;
+reduce $reactions = count($e) groupby $s, $total, $best, $p;
 match
     $reactions == $best;
+    $s has display-name $species;
     $p has display-name $pathway;
 select $species, $pathway, $reactions;
 sort $reactions desc, $species asc;
@@ -2408,18 +2377,18 @@ FROM (
 
 ```typeql
 with
-fun sub_depths($p: event) -> { event, integer }:
+fun sub-depths($p: event) -> { event, integer }:
     match
         { event-containment (containing-pathway: $p, contained-event: $e);
             let $d = 1;
         } or { event-containment (containing-pathway: $p, contained-event: $m);
-            let $e, $d0 in sub_depths($m);
+            let $e, $d0 in sub-depths($m);
             let $d = $d0 + 1;
         };
     return { $e, $d };
 match
     $root isa pathway, has st-id "R-HSA-168256";
-    let $e, $d in sub_depths($root);
+    let $e, $d in sub-depths($root);
     $e isa reaction-like-event;
 select $e, $d;
 distinct;

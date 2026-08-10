@@ -59,21 +59,16 @@ WHERE NOT EXISTS (
 **typeql**
 
 ```typeql
-with
-fun wide_events() -> { reaction-like-event }:
-    match
-        $r isa reaction-like-event;
-        species-assignment (classified-thing: $r, species: $s);
-        $s has display-name "Homo sapiens";
-        reaction-input (reaction: $r, consumed-entity: $e);
-    select $r, $e;
-    distinct;
-    reduce $n = count($e) groupby $r;
-    match
-        $n >= 4;
-    return { $r };
 match
-    let $a in wide_events();
+    $a isa reaction-like-event;
+    species-assignment (classified-thing: $a, species: $sa);
+    $sa has display-name "Homo sapiens";
+    reaction-input (reaction: $a, consumed-entity: $e);
+select $a, $e;
+distinct;
+reduce $n = count($e) groupby $a;
+match
+    $n >= 4;
     reaction-input (reaction: $a, consumed-entity: $shared);
     reaction-input (reaction: $b, consumed-entity: $shared);
     $b isa reaction-like-event;
@@ -146,21 +141,18 @@ WHERE t.n = (
 **typeql**
 
 ```typeql
-with
-fun top_lit_count() -> integer:
-    match
-        $p isa pathway;
-        species-assignment (classified-thing: $p, species: $sp);
-        $sp has display-name "Homo sapiens";
-        summarisation (summarised-thing: $p, summation: $s);
-        literature-citation (citing-thing: $s, cited-publication: $lr);
-        publication-authorship (publication: $lr, publication-author: $person);
-    select $person, $lr;
-    distinct;
-    reduce $n = count($lr) groupby $person;
-    return max($n);
 match
-    let $m = top_lit_count();
+    $p isa pathway;
+    species-assignment (classified-thing: $p, species: $sp);
+    $sp has display-name "Homo sapiens";
+    summarisation (summarised-thing: $p, summation: $s);
+    literature-citation (citing-thing: $s, cited-publication: $lr);
+    publication-authorship (publication: $lr, publication-author: $person);
+select $person, $lr;
+distinct;
+reduce $n = count($lr) groupby $person;
+reduce $m = max($n);
+match
     $p isa pathway;
     species-assignment (classified-thing: $p, species: $sp);
     $sp has display-name "Homo sapiens";
@@ -370,16 +362,14 @@ FROM (
 **typeql**
 
 ```typeql
-with
-fun regulated_total() -> integer:
-    match
-        $r isa reaction-like-event;
-        species-assignment (classified-thing: $r, species: $sp);
-        $sp has display-name "Homo sapiens";
-        regulation (regulated-event: $r, regulator: $any);
-    select $r;
-    distinct;
-    return count;
+match
+    $r isa reaction-like-event;
+    species-assignment (classified-thing: $r, species: $sp);
+    $sp has display-name "Homo sapiens";
+    regulation (regulated-event: $r, regulator: $any);
+select $r;
+distinct;
+reduce $total = count;
 match
     $r isa reaction-like-event;
     species-assignment (classified-thing: $r, species: $sp);
@@ -387,11 +377,10 @@ match
     regulation (regulated-event: $r, regulator: $any);
     not { negative-regulation (regulated-event: $r, regulator: $neg);
     };
-select $r;
+select $total, $r;
 distinct;
-reduce $pos = count;
+reduce $pos = count groupby $total;
 match
-    let $total = regulated_total();
     let $pct = round(100.0 * $pos / $total * 10.0) / 10.0;
 select $pct;
 ```

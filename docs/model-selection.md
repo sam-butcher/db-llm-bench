@@ -105,10 +105,3 @@ hypotheses the pilot tests, not conclusions.
 - **Avoid aggregator routing** (e.g. OpenRouter) for the real run: it routes
   across sub-providers with differing quantization and context caps, so runs
   are not reproducible unless the upstream is pinned. Acceptable for a pilot.
-
-## Known gap
-
-Model identifiers here were gathered by web search, and one candidate in an
-earlier draft ("Qwen4-Coder") turned out not to exist — a single unsourced blog
-had garbled Qwen3-Coder-Next. Confirm exact model strings, pricing, and served
-context against provider documentation before wiring anything up.

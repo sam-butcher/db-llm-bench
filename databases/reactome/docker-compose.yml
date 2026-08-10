@@ -156,6 +156,7 @@ services:
       RUST_MIN_STACK: "134217728"
     ports:
       - "1729:1729"
+      - "8000:8000" # HTTP API, for TypeDB Studio and ad-hoc queries over REST
     volumes:
       # Mounted at .../data, not its parent: the image declares
       # `VOLUME /var/lib/typedb/data`, so Docker creates an anonymous volume

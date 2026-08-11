@@ -398,4 +398,26 @@ mod tests {
             vec!["max_tokens", "messages", "model"]
         );
     }
+
+    /// The config reaches this struct as JSON transcoded from the run's YAML,
+    /// and `deny_unknown_fields` means a field this provider does not know
+    /// aborts the run — but only once models are built, long after `verify`
+    /// has pronounced the config fine. Pin the shape the pilot actually ships.
+    #[test]
+    fn deserializes_the_pilot_entry_including_extra_body() {
+        let entry = serde_json::json!({
+            "model": "glm-5.2",
+            "base_url": "https://api.z.ai/api/paas/v4",
+            "label": "glm-5.2@z.ai",
+            "api_key_env": "ZAI_API_KEY",
+            "max_tokens": 32768,
+            "extra_body": {"reasoning_effort": "high"},
+        });
+        let cfg: OpenAiCompatibleConfig = serde_json::from_value(entry).unwrap();
+        assert_eq!(cfg.extra_body["reasoning_effort"], "high");
+        let provider = OpenAiCompatible::new(cfg, None).unwrap();
+        let body = serde_json::to_value(provider.build_request(&[Message::user("q")])).unwrap();
+        assert_eq!(body["reasoning_effort"], "high");
+        assert_eq!(body["max_tokens"], 32768);
+    }
 }

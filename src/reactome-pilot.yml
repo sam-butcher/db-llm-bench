@@ -18,9 +18,17 @@
 #
 # Run:  cargo run -p bench-cli -- src/reactome-pilot.yml results-pilot.json
 #
-# Cost: 8 questions x 3 DBs x 3 repetitions = 72 calls per model, at ~37k input
-# tokens each (the Neo4j schema alone is ~23k). Roughly 2.7M input tokens per
-# model, so single-digit dollars for most of these.
+# Cost: 8 questions x 3 DBs x 3 repetitions = 72 calls per model. Prompt size
+# is set by the DB's schema, so it varies a lot — ~27k tokens for Neo4j, ~18k
+# for MySQL, ~5k for TypeDB — totalling ~1.2M input tokens per model.
+#
+# Of that, only ~56k is unique: the template and schema are identical across a
+# DB's 24 calls, so ~1.15M is a repeated prefix. Where the provider caches
+# prefixes automatically that input costs 2-20% of list, which is why the whole
+# pilot lands under a dollar per provider rather than the tens of dollars a
+# naive 1.2M x list-price estimate suggests. Output dominates instead, and only
+# for the models that emit reasoning traces — hence the per-model max_tokens
+# above being the real cost lever.
 dbs:
   - typedb:
       prompts: data/prompts/typedb.txt

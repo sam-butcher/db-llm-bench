@@ -1,6 +1,6 @@
 # Reactome model-selection pilot.
 #
-# Purpose: decide which models are worth a full run. Five candidates over eight
+# Purpose: decide which models are worth a full run. Six candidates over eight
 # questions; keep the three that land at genuinely different points on the
 # SQL -> Cypher -> TypeQL gradient, and drop anything that scores zero
 # everywhere (no signal) or matches another candidate (no spread).
@@ -12,7 +12,9 @@
 # Prereqs:
 #   1. Seed the Reactome stack:  cd databases/reactome && docker compose up -d --wait
 #   2. Regenerate the subset:    python3 analysis/make_pilot.py
-#   3. Export one API key per model — see the models block below.
+#   3. Export one API key per hosted model — see the models block below.
+#   4. For the one local model:  OLLAMA_CONTEXT_LENGTH=65536 ollama serve
+#      then  ollama pull muse-glimmer:30b-mlx
 #
 # Run:  cargo run -p bench-cli -- src/reactome-pilot.yml results-pilot.json
 #
@@ -96,6 +98,30 @@ models:
       label: kimi-k2.7-code@moonshot
       api_key_env: MOONSHOT_API_KEY
       max_tokens: 32768
+
+  # The only DENSE model in the slate: 30B parameters, all of them active,
+  # against 3B active for Qwen and 13B for DeepSeek. That contrast is the
+  # reason it is here — it separates per-token compute from language coverage
+  # as an explanation for where models fail.
+  #
+  # Local-only; Meta ships no hosted API, so this runs through Ollama's MLX
+  # build on Apple Silicon. Two consequences, both of which make its numbers
+  # weaker evidence than the hosted entries':
+  #
+  #   1. REQUIRES `OLLAMA_CONTEXT_LENGTH=65536` in the server's environment.
+  #      Ollama defaults to ~4k and silently truncates beyond it — the prompt
+  #      here is ~37k, and this exact failure once made a local model answer
+  #      UNANSWERABLE to every question while looking like a capability
+  #      result. Run the context canary against this endpoint before trusting
+  #      a single score.
+  #   2. The `-mlx` tag is quantized (21GB for a 30B model), so it is not the
+  #      same artifact as the FP8-ish hosted models. Treat its timings and
+  #      accuracy as indicative, not directly comparable.
+  - openai-compatible:
+      model: muse-glimmer:30b-mlx
+      base_url: http://localhost:11434/v1
+      label: muse-glimmer-30b@ollama-mlx
+      max_tokens: 16384
 
 questionsPath: data/reactome/questions-pilot.json
 # No few-shot examples ship with this dataset, so the only valid count is 0.

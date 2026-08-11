@@ -1,6 +1,6 @@
 # Model selection
 
-How the benchmark's models are chosen, and why the current five are in the
+How the benchmark's models are chosen, and why the current six are in the
 pilot. Companion to the dataset-selection docs; unlike those, this one records
 a decision in progress — the final three come from pilot results, not from the
 reasoning below.
@@ -56,6 +56,7 @@ schema.
 | Qwen3-Coder-Next | open | 80B / 3B active, 256K; coding-agent tuned |
 | gpt-oss-120b | open, Apache-2.0 | Trivial to self-host |
 | Devstral | open | Agentic SWE, narrower reasoning |
+| Muse Glimmer 30B | open, Apache-2.0 | Dense 30B (all active), ~131k context, agentic; local-only, no hosted API |
 
 Two findings changed the shape of the decision:
 
@@ -70,7 +71,7 @@ Two findings changed the shape of the decision:
 
 ## The pilot
 
-Five candidates, eight questions, single attempt: `src/reactome-pilot.yml`.
+Six candidates, eight questions, single attempt: `src/reactome-pilot.yml`.
 
 | Model | Role |
 | --- | --- |
@@ -79,6 +80,7 @@ Five candidates, eight questions, single attempt: `src/reactome-pilot.yml`.
 | DeepSeek V4-Flash | Mid-tier open, agent-tuned |
 | Qwen3-Coder-Next | 3B active; expected lower anchor |
 | Kimi K2.7-Code | Agentic generalist rather than code specialist |
+| Muse Glimmer 30B | The only dense model; separates per-token compute from language coverage |
 
 The eight questions (`analysis/make_pilot.py`) span every difficulty category
 plus an unanswerable, absolute complexity from the shortest reference SQL to
@@ -97,12 +99,17 @@ hypotheses the pilot tests, not conclusions.
   by two providers can differ in quantization and served context, so the model
   name alone does not identify a run.
 - **`max_tokens` is set per model** — 32k for GLM-5.2 and Kimi (thinking
-  enforced), 16k for DeepSeek, 8k for Haiku and Qwen. At the 4096 default a
+  enforced), 16k for DeepSeek and Muse Glimmer, 8k for Haiku and Qwen. At the 4096 default a
   reasoning model exhausts its budget mid-thought and never emits a query,
   which scores as a capability failure but is a configuration one.
 - **Retries off for the pilot.** Retries multiply calls on exactly the models
   that fail most, which is backwards for a cost-capped ranking run. Raise
   `maxRetryCounts` for the real run.
+- **The local entry is weaker evidence.** Muse Glimmer has no hosted API, so
+  it runs quantized through Ollama — a different artifact from the FP8-ish
+  hosted models, and exposed to silent prompt truncation unless
+  `OLLAMA_CONTEXT_LENGTH` is raised well above the ~37k prompt. Read its
+  numbers as indicative.
 - **Avoid aggregator routing** (e.g. OpenRouter) for the real run: it routes
   across sub-providers with differing quantization and context caps, so runs
   are not reproducible unless the upstream is pinned. Acceptable for a pilot.

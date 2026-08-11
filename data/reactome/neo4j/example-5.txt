@@ -1,0 +1,7 @@
+Question: Treating the direct hasEvent children of the pathway with stable identifier R-HSA-168256 as depth 1, how many distinct events below that pathway are reachable at two or more different depths?
+```
+MATCH path = (:Pathway {stId:'R-HSA-168256'})-[:hasEvent*]->(e)
+WITH e, count(DISTINCT length(path)) AS depths
+WHERE depths > 1
+RETURN count(*)
+```

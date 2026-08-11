@@ -1,0 +1,4 @@
+Question: How many human complexes (species includes Homo sapiens) that have at least one direct component have every one of their direct components be an EntityWithAccessionedSequence?
+```
+SELECT COUNT(*) FROM (SELECT hc.DB_ID FROM Complex_2_hasComponent hc JOIN Complex_2_species cs ON cs.DB_ID = hc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = cs.species AND sp._displayName = 'Homo sapiens' LEFT JOIN EntityWithAccessionedSequence e ON e.DB_ID = hc.hasComponent GROUP BY hc.DB_ID HAVING COUNT(DISTINCT hc.hasComponent) = COUNT(DISTINCT e.DB_ID)) t;
+```

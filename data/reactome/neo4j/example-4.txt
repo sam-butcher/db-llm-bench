@@ -1,0 +1,7 @@
+Question: Human pathways (species includes Homo sapiens) record an authored InstanceEdit, and each InstanceEdit records its own authors. Which person is an author of the authored InstanceEdit of the greatest number of distinct human pathways? Give their surname, then a comma and a space, then their first name.
+```
+MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})
+MATCH (p)<-[:authored]-(:InstanceEdit)<-[:author]-(person:Person)
+WITH person, count(DISTINCT p) AS n
+RETURN person.surname + ', ' + person.firstname ORDER BY n DESC LIMIT 1
+```

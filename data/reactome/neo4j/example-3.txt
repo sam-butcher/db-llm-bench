@@ -1,0 +1,7 @@
+Question: How many human complexes (species includes Homo sapiens) that have at least one direct component have every one of their direct components be an EntityWithAccessionedSequence?
+```
+MATCH (c:Complex)-[:species]->(:Species {displayName:'Homo sapiens'})
+WHERE EXISTS { (c)-[:hasComponent]->() }
+  AND NOT EXISTS { MATCH (c)-[:hasComponent]->(x) WHERE NOT x:EntityWithAccessionedSequence }
+RETURN count(DISTINCT c)
+```

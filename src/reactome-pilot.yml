@@ -63,30 +63,6 @@ dbs:
 # a model that spends its budget thinking and never emits a fenced query scores
 # as a capability failure when it is really a configuration one.
 models:
-  # The only DENSE model in the slate: 30B parameters, all of them active,
-  # against 3B active for Qwen and 13B for DeepSeek. That contrast is the
-  # reason it is here — it separates per-token compute from language coverage
-  # as an explanation for where models fail.
-  #
-  # Local-only; Meta ships no hosted API, so this runs through Ollama's MLX
-  # build on Apple Silicon. Two consequences, both of which make its numbers
-  # weaker evidence than the hosted entries':
-  #
-  #   1. REQUIRES `OLLAMA_CONTEXT_LENGTH=65536` in the server's environment.
-  #      Ollama defaults to ~4k and silently truncates beyond it — the prompt
-  #      here is ~37k, and this exact failure once made a local model answer
-  #      UNANSWERABLE to every question while looking like a capability
-  #      result. Run the context canary against this endpoint before trusting
-  #      a single score.
-  #   2. The `-mlx` tag is quantized (21GB for a 30B model), so it is not the
-  #      same artifact as the FP8-ish hosted models. Treat its timings and
-  #      accuracy as indicative, not directly comparable.
-  - openai-compatible:
-      model: muse-glimmer:30b-mlx
-      base_url: http://localhost:11434/v1
-      label: muse-glimmer-30b@ollama-mlx
-      max_tokens: 16384
-
   # Small active footprint (80B total / 3B active) and coding-agent tuned.
   # Expected lower anchor, and the successor to the qwen3-coder:30b already run
   # locally, so it is the closest thing to a continuous data point.
@@ -153,6 +129,30 @@ models:
       base_url: https://api.deepseek.com/v1
       label: deepseek-v4-flash@deepseek
       api_key_env: DEEPSEEK_API_KEY
+      max_tokens: 16384
+
+  # The only DENSE model in the slate: 30B parameters, all of them active,
+  # against 3B active for Qwen and 13B for DeepSeek. That contrast is the
+  # reason it is here — it separates per-token compute from language coverage
+  # as an explanation for where models fail.
+  #
+  # Local-only; Meta ships no hosted API, so this runs through Ollama's MLX
+  # build on Apple Silicon. Two consequences, both of which make its numbers
+  # weaker evidence than the hosted entries':
+  #
+  #   1. REQUIRES `OLLAMA_CONTEXT_LENGTH=65536` in the server's environment.
+  #      Ollama defaults to ~4k and silently truncates beyond it — the prompt
+  #      here is ~37k, and this exact failure once made a local model answer
+  #      UNANSWERABLE to every question while looking like a capability
+  #      result. Run the context canary against this endpoint before trusting
+  #      a single score.
+  #   2. The `-mlx` tag is quantized (21GB for a 30B model), so it is not the
+  #      same artifact as the FP8-ish hosted models. Treat its timings and
+  #      accuracy as indicative, not directly comparable.
+  - openai-compatible:
+      model: muse-glimmer:30b-mlx
+      base_url: http://localhost:11434/v1
+      label: muse-glimmer-30b@ollama-mlx
       max_tokens: 16384
 
   # Agentic generalist rather than a code specialist (1T total / 32B active).

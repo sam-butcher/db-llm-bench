@@ -63,57 +63,57 @@ dbs:
 # a model that spends its budget thinking and never emits a fenced query scores
 # as a capability failure when it is really a configuration one.
 models:
-#  # The only DENSE model in the slate: 30B parameters, all of them active,
-#  # against 3B active for Qwen and 13B for DeepSeek. That contrast is the
-#  # reason it is here — it separates per-token compute from language coverage
-#  # as an explanation for where models fail.
-#  #
-#  # Local-only; Meta ships no hosted API, so this runs through Ollama's MLX
-#  # build on Apple Silicon. Two consequences, both of which make its numbers
-#  # weaker evidence than the hosted entries':
-#  #
-#  #   1. REQUIRES `OLLAMA_CONTEXT_LENGTH=65536` in the server's environment.
-#  #      Ollama defaults to ~4k and silently truncates beyond it — the prompt
-#  #      here is ~37k, and this exact failure once made a local model answer
-#  #      UNANSWERABLE to every question while looking like a capability
-#  #      result. Run the context canary against this endpoint before trusting
-#  #      a single score.
-#  #   2. The `-mlx` tag is quantized (21GB for a 30B model), so it is not the
-#  #      same artifact as the FP8-ish hosted models. Treat its timings and
-#  #      accuracy as indicative, not directly comparable.
-#  - openai-compatible:
-#      model: muse-glimmer:30b-mlx
-#      base_url: http://localhost:11434/v1
-#      label: muse-glimmer-30b@ollama-mlx
-#      max_tokens: 16384
-#
-#  # Small active footprint (80B total / 3B active) and coding-agent tuned.
-#  # Expected lower anchor, and the successor to the qwen3-coder:30b already run
-#  # locally, so it is the closest thing to a continuous data point.
-#  #
-#  # QwenCloud is Alibaba's first-party portal for these models, but it is where
-#  # the API key is issued rather than an endpoint of its own: its own model page
-#  # documents this DashScope URL and DASHSCOPE_API_KEY, so this is the canonical
-#  # route despite the domain not saying "qwen".
-#  #
-#  # Note that Model Studio is moving off the shared dashscope-intl domain to
-#  # workspace-specific ones — https://{WorkspaceId}.ap-southeast-1.maas
-#  # .aliyuncs.com/compatible-mode/v1 for Singapore, dashscope-us.aliyuncs.com
-#  # for US (Virginia) — which it says are faster and more stable. The shared
-#  # domain below still works; switch to the workspace domain from the Model
-#  # Studio console if this endpoint starts underperforming.
-#  - openai-compatible:
-#      model: qwen3-coder-next
-#      base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
-#      label: qwen3-coder-next@dashscope
-#      api_key_env: DASHSCOPE_API_KEY
-#      max_tokens: 8192
-#
-#  # Closed cheap tier, and the only entry needing no new integration. Also the
-#  # ladder against the existing Opus and Sonnet runs on the full question set.
-#  - claude:
-#      model: claude-haiku-4-5-20251001
-#      max_tokens: 8192
+  # The only DENSE model in the slate: 30B parameters, all of them active,
+  # against 3B active for Qwen and 13B for DeepSeek. That contrast is the
+  # reason it is here — it separates per-token compute from language coverage
+  # as an explanation for where models fail.
+  #
+  # Local-only; Meta ships no hosted API, so this runs through Ollama's MLX
+  # build on Apple Silicon. Two consequences, both of which make its numbers
+  # weaker evidence than the hosted entries':
+  #
+  #   1. REQUIRES `OLLAMA_CONTEXT_LENGTH=65536` in the server's environment.
+  #      Ollama defaults to ~4k and silently truncates beyond it — the prompt
+  #      here is ~37k, and this exact failure once made a local model answer
+  #      UNANSWERABLE to every question while looking like a capability
+  #      result. Run the context canary against this endpoint before trusting
+  #      a single score.
+  #   2. The `-mlx` tag is quantized (21GB for a 30B model), so it is not the
+  #      same artifact as the FP8-ish hosted models. Treat its timings and
+  #      accuracy as indicative, not directly comparable.
+  - openai-compatible:
+      model: muse-glimmer:30b-mlx
+      base_url: http://localhost:11434/v1
+      label: muse-glimmer-30b@ollama-mlx
+      max_tokens: 16384
+
+  # Small active footprint (80B total / 3B active) and coding-agent tuned.
+  # Expected lower anchor, and the successor to the qwen3-coder:30b already run
+  # locally, so it is the closest thing to a continuous data point.
+  #
+  # QwenCloud is Alibaba's first-party portal for these models, but it is where
+  # the API key is issued rather than an endpoint of its own: its own model page
+  # documents this DashScope URL and DASHSCOPE_API_KEY, so this is the canonical
+  # route despite the domain not saying "qwen".
+  #
+  # Note that Model Studio is moving off the shared dashscope-intl domain to
+  # workspace-specific ones — https://{WorkspaceId}.ap-southeast-1.maas
+  # .aliyuncs.com/compatible-mode/v1 for Singapore, dashscope-us.aliyuncs.com
+  # for US (Virginia) — which it says are faster and more stable. The shared
+  # domain below still works; switch to the workspace domain from the Model
+  # Studio console if this endpoint starts underperforming.
+  - openai-compatible:
+      model: qwen3-coder-next
+      base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      label: qwen3-coder-next@dashscope
+      api_key_env: DASHSCOPE_API_KEY
+      max_tokens: 8192
+
+  # Closed cheap tier, and the only entry needing no new integration. Also the
+  # ladder against the existing Opus and Sonnet runs on the full question set.
+  - claude:
+      model: claude-haiku-4-5-20251001
+      max_tokens: 8192
 
   # Open-weights flagship (753B MoE, ~40B active, MIT). Expected upper anchor:
   # it may well match the frontier models rather than fail, which is itself
@@ -146,23 +146,23 @@ models:
       extra_body:
         reasoning_effort: high
 
-#  # Mid-tier open weights (284B total / 13B active, MIT, 1M context). The
-#  # 0731 build is the agent-tuned GA release.
-#  - openai-compatible:
-#      model: deepseek-v4-flash
-#      base_url: https://api.deepseek.com/v1
-#      label: deepseek-v4-flash@deepseek
-#      api_key_env: DEEPSEEK_API_KEY
-#      max_tokens: 16384
-#
-#  # Agentic generalist rather than a code specialist (1T total / 32B active).
-#  # Thinking mode is enforced, hence the larger budget.
-#  - openai-compatible:
-#      model: kimi-k2.7-code
-#      base_url: https://api.moonshot.ai/v1
-#      label: kimi-k2.7-code@moonshot
-#      api_key_env: MOONSHOT_API_KEY
-#      max_tokens: 32768
+  # Mid-tier open weights (284B total / 13B active, MIT, 1M context). The
+  # 0731 build is the agent-tuned GA release.
+  - openai-compatible:
+      model: deepseek-v4-flash
+      base_url: https://api.deepseek.com/v1
+      label: deepseek-v4-flash@deepseek
+      api_key_env: DEEPSEEK_API_KEY
+      max_tokens: 16384
+
+  # Agentic generalist rather than a code specialist (1T total / 32B active).
+  # Thinking mode is enforced, hence the larger budget.
+  - openai-compatible:
+      model: kimi-k2.7-code
+      base_url: https://api.moonshot.ai/v1
+      label: kimi-k2.7-code@moonshot
+      api_key_env: MOONSHOT_API_KEY
+      max_tokens: 32768
 
 questionsPath: data/reactome/questions-pilot.json
 # No few-shot examples ship with this dataset, so the only valid count is 0.

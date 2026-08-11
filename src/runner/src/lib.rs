@@ -381,6 +381,8 @@ impl BenchmarkRunner<'_> {
                     .map(|fault| fault.message().to_string()),
             });
 
+            eprintln!("Outcome received");
+
             match outcome {
                 Ok(Success::Value(value)) => {
                     // An unanswerable question has no expected value, so any
@@ -415,6 +417,7 @@ impl BenchmarkRunner<'_> {
                             false,
                         ));
                     }
+                    eprintln!("Retrying...");
                     conversation.push(Message::assistant(response_text));
                     conversation.push(Message::user(retry_feedback(query.is_some(), &message)));
                 }
@@ -441,10 +444,14 @@ impl BenchmarkRunner<'_> {
         conversation: &[Message],
         unanswerable: bool,
     ) -> Result<AttemptOutcome, RunError> {
+        eprintln!("Sending conversation to model...");
         let (response, provider_latency_ms) = self.send_with_backoff(conversation).await?;
+        eprintln!("Extracting query...");
         let (query, db_latency_ms, outcome) = match extract_query(&response.text) {
             Extraction::Query(query) => {
+                eprintln!("Waiting for db...");
                 let (outcome, db_latency_ms) = self.query_with_backoff(&query).await?;
+                eprintln!("Done!");
                 (Some(query), db_latency_ms, outcome.map(Success::Value))
             }
             Extraction::Unanswerable if unanswerable => (None, 0, Ok(Success::Unanswerable)),

@@ -23,8 +23,15 @@ Three things this deliberately does NOT do:
 Compare the median, not the mean: one pathological query against a 120s cap
 drags a mean far more than it reflects typical behaviour.
 
-Usage: analysis/query_time.py [results.json]
+Pass a baseline written by `verify --timings <path>` to get a `vs ref` column:
+the median of each run's time divided by the reference query's time for the
+same question and DB. That ratio is the useful number — absolute milliseconds
+say more about the machine than about the model, whereas 3.2x says the model's
+query costs three times what a well-written one does.
+
+Usage: analysis/query_time.py [results.json] [baseline=timings.json]
 """
+import json
 import os
 import statistics
 import sys
@@ -34,7 +41,10 @@ import _common as C
 
 
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else "results-reactome.json"
+    args = [a for a in sys.argv[1:] if not a.startswith("baseline=")]
+    baseline_arg = next((a for a in sys.argv[1:] if a.startswith("baseline=")), None)
+    path = args[0] if args else "results-reactome.json"
+    baseline = json.load(open(baseline_arg.split("=", 1)[1])) if baseline_arg else {}
     records = C.load_records(path)
     if not records:
         sys.exit(f"no records in {path}")
@@ -54,16 +64,25 @@ def main():
         sys.exit(f"no accurate runs with query timings in {path}")
 
     groups = {}
+    ratios = {}
     for r in runs:
         # The last attempt is the one that succeeded.
-        groups.setdefault((r["model"], r["db"]), []).append(r["attemptDbLatencyMs"][-1])
+        took = r["attemptDbLatencyMs"][-1]
+        groups.setdefault((r["model"], r["db"]), []).append(took)
+        ref = baseline.get(r["db"], {}).get(r["question"])
+        # A reference that ran in under a millisecond makes the ratio
+        # meaningless, so those questions sit out rather than dividing by zero.
+        if ref:
+            ratios.setdefault((r["model"], r["db"]), []).append(took / ref)
 
     headers = ["model", "db", "runs", "median", "mean", "p90", "slowest"]
+    if baseline:
+        headers.append("vs ref")
     rows = []
     for key in sorted(groups):
         times = sorted(groups[key])
         p90 = times[min(len(times) - 1, int(round(0.9 * (len(times) - 1))))]
-        rows.append([
+        row = [
             key[0],
             key[1],
             str(len(times)),
@@ -71,7 +90,11 @@ def main():
             ms(statistics.mean(times)),
             ms(p90),
             ms(times[-1]),
-        ])
+        ]
+        if baseline:
+            got = ratios.get(key)
+            row.append(f"{statistics.median(got):.1f}x" if got else "-")
+        rows.append(row)
     print(C.render_table(headers, rows, label_cols=2))
 
     skipped = sum(

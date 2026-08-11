@@ -51,6 +51,7 @@ schema.
 | GPT-5-mini tier | closed, cheap | Naming least certain |
 | GLM-5.2 | open, MIT | 753B MoE / ~40B active, 1M context; reportedly leading open-weights |
 | Kimi K2.7-Code | open, mod. MIT | 1T / 32B active, 256K; thinking mode enforced |
+| Kimi K3 | open | 2.8T MoE, 1M context, multimodal; frontier-tier, ~10x the price of the rest, reasoning not disableable — duplicates GLM-5.2's role |
 | DeepSeek V4-Flash | open, MIT | 284B / 13B active, 1M context; agent-tuned GA build (`0731`) |
 | Qwen3-Coder-Next | open | 80B / 3B active, 256K; coding-agent tuned |
 | gpt-oss-120b | open, Apache-2.0 | Trivial to self-host |

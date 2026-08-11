@@ -35,10 +35,10 @@ dbs:
       url: mysql://bench_ro:bench_ro@localhost/reactome
       schema: data/reactome/sql/schema.sql
 models:
-  - claude:
-      model: claude-sonnet-5
-  - claude:
-      model: claude-haiku-4-5-20251001
+#  - claude:
+#      model: claude-sonnet-5
+#  - claude:
+#      model: claude-haiku-4-5-20251001
   - openai-compatible:
       model: qwen3-coder:30b
       base_url: http://localhost:11434/v1

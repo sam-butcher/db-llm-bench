@@ -55,6 +55,9 @@ pub struct ResultRecord {
     /// Totals across all attempts.
     pub tokens: TokenUsage,
     pub latency_ms: u64,
+    /// The DB's share of `latency_ms` — time the generated queries spent
+    /// executing. Subtract it from `latency_ms` for the model's share.
+    pub db_latency_ms: u64,
     pub result: RecordResult,
     pub accurate: bool,
 }
@@ -74,20 +77,28 @@ pub struct Attempt {
     pub response: Option<String>,
     pub tokens: TokenUsage,
     pub latency_ms: u64,
+    /// How long this attempt's query spent executing against the DB, part of
+    /// `latency_ms`. Zero when the attempt produced no query to run (a
+    /// malformed response or an UNANSWERABLE declaration), which is why an
+    /// average over query performance has to exclude records that never
+    /// executed rather than treating them as instant.
+    pub db_latency_ms: u64,
     /// None when this attempt succeeded (only ever the last attempt).
     pub error: Option<String>,
 }
 
 /// Sum token usage and latency across an attempt trace — the totals rule
 /// shared by the runner and retry-level derivation.
-pub fn attempt_totals(attempts: &[Attempt]) -> (TokenUsage, u64) {
+pub fn attempt_totals(attempts: &[Attempt]) -> (TokenUsage, u64, u64) {
     let mut tokens = TokenUsage::default();
     let mut latency_ms = 0;
+    let mut db_latency_ms = 0;
     for attempt in attempts {
         tokens.add(attempt.tokens);
         latency_ms += attempt.latency_ms;
+        db_latency_ms += attempt.db_latency_ms;
     }
-    (tokens, latency_ms)
+    (tokens, latency_ms, db_latency_ms)
 }
 
 #[derive(Debug, Clone)]

@@ -66,6 +66,13 @@ def load_records(path):
                     # Record-level token totals (already summed over this record's
                     # attempts by the runner). Used by token_usage.py.
                     "tokens": r.get("tokens") or {"input": 0, "output": 0},
+                    # Wall-clock the generated queries spent executing, and the
+                    # whole record's model+DB time. Used by query_time.py.
+                    "dbLatencyMs": r.get("dbLatencyMs", 0),
+                    "latencyMs": r.get("latencyMs", 0),
+                    # Per-attempt DB time, so a record that retried can be
+                    # reduced to the query that finally ran.
+                    "attemptDbLatencyMs": [a.get("dbLatencyMs", 0) for a in attempts],
                     # For per-run inspection (incorrect_queries.py); other scripts ignore these.
                     "generated": r.get("generated"),
                     "actual": r.get("result"),

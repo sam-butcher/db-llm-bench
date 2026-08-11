@@ -10,6 +10,7 @@ and defaults to `results-candidates.json`.
 | `accuracy_by_variation.py` | Accuracy per (model, db, skills, examples, retries) × difficulty — one row per variation, so you can see the effect of skill injection, few-shot count, and retry budget. |
 | `incorrect_queries.py` | Every failing run: the question, its config, the expected and generated queries, and the expected vs actual answer. For debugging *what* the model got wrong. Accepts `key=value` filters (`db=`, `difficulty=`, `model=`, `examples=`, `skills=on\|off`). |
 | `token_usage.py` | Total model tokens used (input/output), broken down by model and DB, plus run and call counts. |
+| `query_time.py` | How long the generated queries took to execute, by model and DB (median/mean/p90/slowest). Accurate runs only — a wrong query's execution time is meaningless — counting the final attempt of each. |
 | `format_questions.py` | Renders a *questions* file (not a results file) as Markdown for review, breaking the one-line reference queries across clause boundaries so the joins are actually checkable. Takes the questions path and an output path. |
 
 ```sh
@@ -17,6 +18,7 @@ analysis/accuracy_by_db.py results-candidates.json
 analysis/accuracy_by_variation.py results-candidates.json
 analysis/incorrect_queries.py results-candidates.json db=sql difficulty=hard
 analysis/token_usage.py results-candidates.json
+analysis/query_time.py results-reactome.json
 analysis/format_questions.py data/reactome/questions.json data/reactome/questions-review.md
 ```
 
@@ -35,5 +37,5 @@ Notes (see `_common.py`):
 - **Retry levels** are derived: the runner executes each run once at the highest
   configured retry level and truncates the attempt trace for the lower ones. So
   summing/averaging across levels double-counts — `accuracy_by_db` and
-  `token_usage` count at the highest level only; `accuracy_by_variation` groups
+  `token_usage`/`query_time` count at the highest level only; `accuracy_by_variation` groups
   by it; `incorrect_queries` reports the highest-level (final) outcome.

@@ -20,7 +20,7 @@ pub fn derive_retry_level(record: &ResultRecord, max_retries: u32) -> ResultReco
     // Only the last attempt of a run can succeed, so success survives the
     // cut iff it happened within the kept attempts.
     let succeeded = attempts.iter().any(|a| a.error.is_none());
-    let (tokens, latency_ms) = attempt_totals(&attempts);
+    let (tokens, latency_ms, db_latency_ms) = attempt_totals(&attempts);
     ResultRecord {
         model: record.model.clone(),
         max_retries,
@@ -35,6 +35,7 @@ pub fn derive_retry_level(record: &ResultRecord, max_retries: u32) -> ResultReco
             .unwrap_or_default(),
         tokens,
         latency_ms,
+        db_latency_ms,
         result: if succeeded {
             record.result.clone()
         } else {
@@ -65,6 +66,7 @@ mod tests {
                 output: 10,
             },
             latency_ms: 50,
+            db_latency_ms: 20,
             error: error.map(String::from),
         }
     }
@@ -89,6 +91,7 @@ mod tests {
                 output: 30,
             },
             latency_ms: 150,
+            db_latency_ms: 60,
             result: RecordResult::Value(Value::Int(3)),
             accurate: true,
         }
@@ -103,6 +106,10 @@ mod tests {
         assert_eq!(derived.generated, "first");
         assert_eq!(derived.tokens.input, 100);
         assert_eq!(derived.latency_ms, 50);
+        // The DB share is recut with the trace, not carried over whole from
+        // the full run — otherwise a cut record would report query time for
+        // attempts it no longer contains.
+        assert_eq!(derived.db_latency_ms, 20);
         assert!(matches!(derived.result, RecordResult::Error));
         assert!(!derived.accurate);
     }

@@ -219,6 +219,8 @@ struct AttemptOutcome {
     query: Option<String>,
     tokens: TokenUsage,
     latency_ms: u64,
+    /// The DB's share of `latency_ms`; zero when no query was executed.
+    db_latency_ms: u64,
     response_text: String,
     outcome: Result<Success, Fault>,
 }
@@ -363,6 +365,7 @@ impl BenchmarkRunner<'_> {
                 query,
                 tokens,
                 latency_ms,
+                db_latency_ms,
                 response_text,
                 outcome,
             } = self.attempt(&conversation, question.unanswerable).await?;
@@ -371,6 +374,7 @@ impl BenchmarkRunner<'_> {
                 response: query.is_none().then(|| response_text.clone()),
                 tokens,
                 latency_ms,
+                db_latency_ms,
                 error: outcome
                     .as_ref()
                     .err()
@@ -465,6 +469,7 @@ impl BenchmarkRunner<'_> {
             // Model+DB work only: harness backoff sleeps and failed
             // transport calls are infra noise and excluded.
             latency_ms: provider_latency_ms + db_latency_ms,
+            db_latency_ms,
             response_text: response.text,
             outcome,
         })
@@ -541,7 +546,7 @@ impl BenchmarkRunner<'_> {
         result: RecordResult,
         accurate: bool,
     ) -> ResultRecord {
-        let (tokens, latency_ms) = attempt_totals(&attempts);
+        let (tokens, latency_ms, db_latency_ms) = attempt_totals(&attempts);
         ResultRecord {
             model: self.model.model_id(),
             max_retries: self.max_retries,
@@ -558,6 +563,7 @@ impl BenchmarkRunner<'_> {
             attempts,
             tokens,
             latency_ms,
+            db_latency_ms,
             result,
             accurate,
         }

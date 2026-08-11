@@ -48,6 +48,21 @@ pub struct OpenAiCompatibleConfig {
     /// "max_completion_tokens".
     #[serde(default)]
     pub max_tokens_field: MaxTokensField,
+    /// Extra top-level keys merged into the request body verbatim.
+    ///
+    /// The rest of this provider speaks only the universally cloned core of
+    /// the API, which is what keeps it portable; this is the escape hatch for
+    /// the parameters that are not portable. Reasoning effort is the case that
+    /// forced it — a model whose thinking cannot be turned down emits tens of
+    /// thousands of tokens per call, and with a serial runner that is the
+    /// difference between a pilot finishing in an hour and in a day.
+    ///
+    /// Keys here override the fields built above if they collide, so this can
+    /// also correct a provider that wants a different spelling. Nothing is
+    /// validated: an unsupported key reaches the provider and its error comes
+    /// back as an ordinary HTTP failure.
+    #[serde(default)]
+    pub extra_body: serde_json::Map<String, serde_json::Value>,
 }
 
 impl OpenAiCompatibleConfig {
@@ -94,6 +109,7 @@ impl OpenAiCompatible {
             messages: wire_messages(conversation),
             max_tokens,
             max_completion_tokens,
+            extra: &self.config.extra_body,
         }
     }
 }
@@ -179,6 +195,10 @@ struct ChatRequest<'a> {
     max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_completion_tokens: Option<u32>,
+    /// Flattened last so a colliding key from config wins over the field
+    /// built above it.
+    #[serde(flatten)]
+    extra: &'a serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -223,6 +243,7 @@ mod tests {
             api_key_env: None,
             max_tokens: default_max_tokens(),
             max_tokens_field: MaxTokensField::default(),
+            extra_body: serde_json::Map::new(),
         }
     }
 
@@ -347,5 +368,34 @@ mod tests {
         labelled.label = Some("llama-70b-groq".to_string());
         let provider = OpenAiCompatible::new(labelled, None).unwrap();
         assert_eq!(provider.model_id(), "llama-70b-groq");
+    }
+
+    #[test]
+    fn extra_body_keys_reach_the_wire_and_win_collisions() {
+        let mut cfg = config();
+        cfg.extra_body = serde_json::json!({
+            "reasoning_effort": "high",
+            "max_tokens": 999,
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        let provider = OpenAiCompatible::new(cfg, None).unwrap();
+        let request = serde_json::to_value(provider.build_request(&[Message::user("hi")])).unwrap();
+        assert_eq!(request["reasoning_effort"], "high");
+        // The config's own max_tokens loses to the override — flattening last
+        // is what lets extra_body correct a field this provider builds.
+        assert_eq!(request["max_tokens"], 999);
+    }
+
+    #[test]
+    fn an_absent_extra_body_changes_nothing() {
+        let provider = OpenAiCompatible::new(config(), None).unwrap();
+        let request = serde_json::to_value(provider.build_request(&[Message::user("hi")])).unwrap();
+        // Sorted, because serde_json's map is a BTreeMap.
+        assert_eq!(
+            request.as_object().unwrap().keys().collect::<Vec<_>>(),
+            vec!["max_tokens", "messages", "model"]
+        );
     }
 }

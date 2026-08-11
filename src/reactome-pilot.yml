@@ -83,6 +83,18 @@ models:
   # Small active footprint (80B total / 3B active) and coding-agent tuned.
   # Expected lower anchor, and the successor to the qwen3-coder:30b already run
   # locally, so it is the closest thing to a continuous data point.
+  #
+  # QwenCloud is Alibaba's first-party portal for these models, but it is where
+  # the API key is issued rather than an endpoint of its own: its own model page
+  # documents this DashScope URL and DASHSCOPE_API_KEY, so this is the canonical
+  # route despite the domain not saying "qwen".
+  #
+  # Note that Model Studio is moving off the shared dashscope-intl domain to
+  # workspace-specific ones — https://{WorkspaceId}.ap-southeast-1.maas
+  # .aliyuncs.com/compatible-mode/v1 for Singapore, dashscope-us.aliyuncs.com
+  # for US (Virginia) — which it says are faster and more stable. The shared
+  # domain below still works; switch to the workspace domain from the Model
+  # Studio console if this endpoint starts underperforming.
   - openai-compatible:
       model: qwen3-coder-next
       base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1

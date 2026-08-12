@@ -324,21 +324,6 @@
       }
     },
     {
-      "question": "How many human complexes (species includes Homo sapiens) that have at least one direct component have every one of their direct components be an EntityWithAccessionedSequence?",
-      "difficulty": "polymorphism",
-      "expected": 4822,
-      "queries": {
-        "sql": "SELECT COUNT(*) FROM (SELECT hc.DB_ID FROM Complex_2_hasComponent hc JOIN Complex_2_species cs ON cs.DB_ID = hc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = cs.species AND sp._displayName = 'Homo sapiens' LEFT JOIN EntityWithAccessionedSequence e ON e.DB_ID = hc.hasComponent GROUP BY hc.DB_ID HAVING COUNT(DISTINCT hc.hasComponent) = COUNT(DISTINCT e.DB_ID)) t;",
-        "cypher": "MATCH (c:Complex)-[:species]->(:Species {displayName:'Homo sapiens'})\nWHERE EXISTS { (c)-[:hasComponent]->() }\n  AND NOT EXISTS { MATCH (c)-[:hasComponent]->(x) WHERE NOT x:EntityWithAccessionedSequence }\nRETURN count(DISTINCT c)",
-        "typeql": "match\n  $c isa complex;\n  species-assignment (classified-thing: $c, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  complex-composition (containing-complex: $c, component: $any);\n  not {\n    complex-composition (containing-complex: $c, component: $bad);\n    not { $bad isa entity-with-accessioned-sequence; };\n  };\nselect $c;\ndistinct;\nreduce $count = count;"
-      },
-      "expected_by_db": {
-        "neo4j": 4821,
-        "typedb": 4821
-      },
-      "divergence": "The graph dump omits 19 Complex instances that the relational dump has (111,374 nodes against 111,393 rows); confirmed by looking the missing DB_IDs up directly — they have a DatabaseObject row with _class=Complex and no node in Neo4j at all. TypeDB is loaded from the graph, so it matches Neo4j."
-    },
-    {
       "question": "Consider every human pathway (species includes Homo sapiens). For each, count the distinct reaction-like events anywhere in its hasEvent subtree, and the percentage of those events having at least one catalyst activity. Return the five pathways with the most such events, ordered by that count descending and then by pathway name. Use columns named pathway, events and pct, with pct rounded to one decimal place.",
       "difficulty": "expert",
       "expected": [
@@ -426,16 +411,6 @@
       }
     },
     {
-      "question": "How many distinct events record at least one related species that is not also one of that same event's own species?",
-      "difficulty": "expert",
-      "expected": 1573,
-      "queries": {
-        "sql": "SELECT COUNT(DISTINCT rs.DB_ID) FROM Event_2_relatedSpecies rs WHERE NOT EXISTS (SELECT 1 FROM Event_2_species es WHERE es.DB_ID = rs.DB_ID AND es.species = rs.relatedSpecies);",
-        "cypher": "MATCH (e:Event)-[:relatedSpecies]->(rs:Species)\nWHERE NOT (e)-[:species]->(rs)\nRETURN count(DISTINCT e)",
-        "typeql": "match\n  $e isa event;\n  related-species-assignment (classified-thing: $e, related-species: $rs);\n  not { species-assignment (classified-thing: $e, species: $rs); };\nselect $e;\ndistinct;\nreduce $count = count;"
-      }
-    },
-    {
       "question": "How many distinct human reaction-like events (species includes Homo sapiens) were inferred from an event that records a species other than Homo sapiens?",
       "difficulty": "expert",
       "expected": 2256,
@@ -474,16 +449,6 @@
       "question": "Considering drugs whose reference therapeutic is marked as approved, what is the most frequently recorded recommended daily dosage?",
       "difficulty": "unanswerable",
       "unanswerable": true
-    },
-    {
-      "question": "Across human reaction-like events (species includes Homo sapiens), how many distinct pairings of an event with one of its compartments are recorded? Count each event-and-compartment pairing separately, so an event assigned three compartments contributes three pairings.",
-      "difficulty": "expert",
-      "expected": 23715,
-      "queries": {
-        "sql": "SELECT COUNT(*) FROM (SELECT DISTINCT rc.DB_ID, rc.compartment FROM ReactionlikeEvent_2_compartment rc JOIN Event_2_species es ON es.DB_ID = rc.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens') t;",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (r)-[:compartment]->(c)\nRETURN count(DISTINCT [elementId(r), elementId(c)])",
-        "typeql": "match\n  $r isa reaction-like-event;\n  species-assignment (classified-thing: $r, species: $sp); $sp has display-name \"Homo sapiens\";\n  compartment-assignment (localised-thing: $r, compartment: $c);\nselect $r, $c;\ndistinct;\nreduce $count = count;"
-      }
     },
     {
       "question": "For every species, count the distinct reaction-like events and the distinct pathways that record it as one of their species. Report the ten species with the most reaction-like events, ordered by that count descending and then by species name, using columns named species, reactions and pathways.",
@@ -563,16 +528,6 @@
       "divergence": "Reactome's relational and graph dumps of release 97 disagree on InstanceEdit: 126,230 rows against 160,392 nodes, counted directly rather than through this question's query. TypeDB is loaded from the graph, so it matches Neo4j."
     },
     {
-      "question": "Treating the direct hasEvent children of the pathway with stable identifier R-HSA-168256 as depth 1, how many distinct events below that pathway are reachable at two or more different depths?",
-      "difficulty": "recursion",
-      "expected": 125,
-      "queries": {
-        "sql": "WITH RECURSIVE lv AS (SELECT he.hasEvent AS ev, 1 AS d FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256' UNION SELECT he.hasEvent, lv.d + 1 FROM lv JOIN Pathway_2_hasEvent he ON he.DB_ID = lv.ev) SELECT COUNT(*) FROM (SELECT ev FROM lv GROUP BY ev HAVING COUNT(DISTINCT d) > 1) t;",
-        "cypher": "MATCH path = (:Pathway {stId:'R-HSA-168256'})-[:hasEvent*]->(e)\nWITH e, count(DISTINCT length(path)) AS depths\nWHERE depths > 1\nRETURN count(*)",
-        "typeql": "with\nfun sub-depths($p: event) -> { event, integer }:\n  match\n    { event-containment (containing-pathway: $p, contained-event: $e); let $d = 1; } or\n    { event-containment (containing-pathway: $p, contained-event: $m);\n      let $e, $d0 in sub-depths($m);\n      let $d = $d0 + 1; };\n  return { $e, $d };\nmatch\n  $root isa pathway, has st-id \"R-HSA-168256\";\n  let $e, $d in sub-depths($root);\nselect $e, $d;\ndistinct;\nreduce $k = count($d) groupby $e;\nmatch $k > 1;\nreduce $count = count;"
-      }
-    },
-    {
       "question": "The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, take the set of reaction-like events reachable from it through hasEvent at any depth. For every unordered pair of two different children, report the pair with columns pathway_a, pathway_b, shared and jaccard, where pathway_a and pathway_b are the two children's display names, where shared is the number of reaction-like events in both sets and jaccard is that number divided by the size of the union, rounded to four decimal places. Order by jaccard descending, then pathway_a, then pathway_b.",
       "difficulty": "expert",
       "ordered": true,
@@ -643,16 +598,6 @@
         "typedb": 5400
       },
       "divergence": "Reactome's relational and graph dumps of release 97 disagree on InstanceEdit: 126,230 rows against 160,392 nodes, counted directly rather than through this question's query. TypeDB is loaded from the graph, so it matches Neo4j."
-    },
-    {
-      "question": "Human pathways (species includes Homo sapiens) record an authored InstanceEdit, and each InstanceEdit records its own authors. Which person is an author of the authored InstanceEdit of the greatest number of distinct human pathways? Give their surname, then a comma and a space, then their first name.",
-      "difficulty": "argmax",
-      "expected": "Jassal, Bijay",
-      "queries": {
-        "sql": "SELECT CONCAT(pe.surname, ', ', pe.firstname) FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_authored au ON au.DB_ID = pw.DB_ID JOIN InstanceEdit_2_author ia ON ia.DB_ID = au.authored JOIN Person pe ON pe.DB_ID = ia.author GROUP BY ia.author, pe.surname, pe.firstname ORDER BY COUNT(DISTINCT pw.DB_ID) DESC LIMIT 1;",
-        "cypher": "MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (p)<-[:authored]-(:InstanceEdit)<-[:author]-(person:Person)\nWITH person, count(DISTINCT p) AS n\nRETURN person.surname + ', ' + person.firstname ORDER BY n DESC LIMIT 1",
-        "typeql": "match\n  $p isa pathway;\n  species-assignment (classified-thing: $p, species: $sp);\n  $sp has display-name \"Homo sapiens\";\n  authoring (curated-object: $p, edit: $ie);\n  edit-authorship (authored-edit: $ie, edit-author: $person);\nselect $p, $person;\ndistinct;\nreduce $n = count($p) groupby $person;\nsort $n desc;\nlimit 1;\nmatch $person has surname $sn, has first-name $fn;\nlet $name = $sn + \", \" + $fn;\nselect $name;"
-      }
     },
     {
       "question": "The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, collect the physical entities that are a direct input to any reaction-like event reachable from that child through hasEvent at any depth. How many distinct physical entities appear in all three of those collections?",

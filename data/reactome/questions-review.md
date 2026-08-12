@@ -202,45 +202,6 @@ select $name;
 
 ## 7. easy
 
-How many pathways record Homo sapiens as one of their species?
-
-**Expected** (int):
-
-```json
-2883
-```
-
-**cypher**
-
-```cypher
-MATCH (p:Pathway)-[:species]->(s:Species {displayName:'Homo sapiens'})
-RETURN count(DISTINCT p)
-```
-
-**sql**
-
-```sql
-SELECT COUNT(DISTINCT es.DB_ID)
-FROM Event_2_species es
-JOIN Pathway p ON p.DB_ID = es.DB_ID
-JOIN DatabaseObject d ON d.DB_ID = es.species
-WHERE d._displayName = 'Homo sapiens';
-```
-
-**typeql**
-
-```typeql
-match
-    $p isa pathway;
-    species-assignment (classified-thing: $p, species: $s);
-    $s has display-name "Homo sapiens";
-select $p;
-distinct;
-reduce $count = count;
-```
-
-## 8. easy
-
 How many distinct reaction-like events have at least one input?
 
 **Expected** (int):
@@ -273,7 +234,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 9. easy
+## 8. easy
 
 How many reactions are recorded?
 
@@ -305,7 +266,7 @@ match
 reduce $count = count;
 ```
 
-## 10. easy
+## 9. easy
 
 How many distinct reaction-like events have at least one output?
 
@@ -339,7 +300,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 11. medium
+## 10. medium
 
 How many distinct reaction-like events have at least one catalyst activity?
 
@@ -373,7 +334,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 12. medium
+## 11. medium
 
 How many distinct events have at least one summation?
 
@@ -408,7 +369,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 13. medium
+## 12. medium
 
 How many distinct reaction-like events have at least one input and at least one output?
 
@@ -454,7 +415,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 14. medium
+## 13. medium
 
 How many distinct events record more than one species?
 
@@ -498,7 +459,7 @@ match
 reduce $count = count;
 ```
 
-## 15. medium
+## 14. medium
 
 How many distinct pathways directly contain at least one reaction-like event through hasEvent?
 
@@ -535,7 +496,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 16. medium
+## 15. medium
 
 How many distinct reaction-like events are directly contained by more than one pathway through hasEvent?
 
@@ -580,7 +541,7 @@ match
 reduce $count = count;
 ```
 
-## 17. medium
+## 16. medium
 
 How many distinct compartments are recorded for at least one pathway?
 
@@ -615,7 +576,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 18. medium
+## 17. medium
 
 Report the display name and pathway count of the five species recorded by the most pathways, ordered by count descending then species name ascending. Use columns named species and pathways.
 
@@ -682,55 +643,7 @@ sort $pathways desc, $species asc;
 limit 5;
 ```
 
-## 19. medium
-
-Which compartment is recorded for the most distinct reaction-like events? Report its display name and that count, using columns named compartment and reactions.
-
-**Expected** (ordered list):
-
-```json
-{
-  "compartment": "cytosol",
-  "reactions": 46282
-}
-```
-
-**cypher**
-
-```cypher
-MATCH (r:ReactionLikeEvent)-[:compartment]->(c)
-WITH c, count(DISTINCT r) AS reactions
-RETURN c.displayName AS compartment, reactions
-ORDER BY reactions DESC, compartment ASC
-LIMIT 1
-```
-
-**sql**
-
-```sql
-SELECT d._displayName AS compartment, COUNT(DISTINCT rc.DB_ID) AS reactions
-FROM ReactionlikeEvent_2_compartment rc
-JOIN DatabaseObject d ON d.DB_ID = rc.compartment
-GROUP BY rc.compartment, d._displayName
-ORDER BY reactions DESC, compartment ASC
-LIMIT 1;
-```
-
-**typeql**
-
-```typeql
-match
-    $r isa reaction-like-event;
-    compartment-assignment (localised-thing: $r, compartment: $c);
-    $c has display-name $compartment;
-select $compartment, $r;
-distinct;
-reduce $reactions = count($r) groupby $compartment;
-sort $reactions desc, $compartment asc;
-limit 1;
-```
-
-## 20. medium
+## 18. medium
 
 Report the stable identifier and child count of the three pathways with the most direct hasEvent children, ordered by count descending then stable identifier ascending. Use columns named pathway and children.
 
@@ -791,7 +704,7 @@ sort $children desc, $pathway asc;
 limit 3;
 ```
 
-## 21. expert
+## 19. expert
 
 Consider human reaction-like events (species includes Homo sapiens) whose rank-0 input is a Complex. For how many such events is at least one of the event's own catalyst-activity physical entities also a part of that same rank-0 input complex, where 'part of' means reachable from the complex by following hasComponent links out of complexes and hasMember links out of entity sets, to any depth?
 
@@ -867,7 +780,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 22. expert
+## 20. expert
 
 Restrict to human reaction-like events (species includes Homo sapiens) that have at least 4 distinct input entities, ignoring rank and ignoring any entity listed more than once. How many unordered pairs of two different such events have exactly the same set of input entities?
 
@@ -955,7 +868,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 23. argmax
+## 21. argmax
 
 Human pathways (species includes Homo sapiens) carry summations, and those summations cite literature references, which in turn have authors. Which people are an author of the greatest number of distinct literature references reached that way? Give each person as their surname, then a comma and a space, then their first name.
 
@@ -1034,7 +947,7 @@ match
 select $name;
 ```
 
-## 24. expert
+## 22. expert
 
 Consider human pathways (species includes Homo sapiens) that have been reviewed, where at least one author of a reviewing InstanceEdit is affiliated with an organisation whose name contains the word 'University'. How many of those pathways directly contain, through hasEvent, an event carrying a negative preceding event whose reason has the display name 'Futile Cycle'?
 
@@ -1096,7 +1009,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 25. expert
+## 23. expert
 
 Consider the pathways that are direct hasEvent children of the pathway with stable identifier R-HSA-168256. For each such child, collect every event in its own hasEvent subtree including itself, take every input and output of those events, then expand any complexes through hasComponent and any entity sets through hasMember to any depth. Among the EntityWithAccessionedSequence instances found that way, which child has the greatest number of distinct reference gene products? Give the child's display name.
 
@@ -1205,7 +1118,7 @@ match
 select $name;
 ```
 
-## 26. expert
+## 24. expert
 
 Call a compartment 'membrane-derived' if it reaches the GO cellular component with accession 0016020 by following one or more instanceOf links. How many human pathways (species includes Homo sapiens) that directly contain at least one reaction-like event through hasEvent have every one of their directly contained reaction-like events assigned at least one membrane-derived compartment?
 
@@ -1291,7 +1204,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 27. recursion
+## 25. recursion
 
 How many distinct reaction-like events lie in the hasEvent hierarchy at any depth below the pathway with stable identifier R-HSA-168256 but not at any depth below the pathway with stable identifier R-HSA-392499?
 
@@ -1364,7 +1277,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 28. expert
+## 26. expert
 
 How many distinct reaction-like events are regulated by a regulation whose regulator is a Complex that contains, by following hasComponent out of complexes and hasMember out of entity sets for one or more steps, a physical entity that is also the catalyst of that very same event? The regulator complex being itself the catalyst does not count; at least one containment step is required.
 
@@ -1433,7 +1346,67 @@ distinct;
 reduce $count = count;
 ```
 
-## 29. expert
+## 27. polymorphism
+
+How many human complexes (species includes Homo sapiens) that have at least one direct component have every one of their direct components be an EntityWithAccessionedSequence?
+
+**Expected** — baseline (int):
+
+```json
+4822
+```
+
+**Stores that disagree:**
+
+- `neo4j`: 4821
+- `typedb`: 4821
+
+> The graph dump omits 19 Complex instances that the relational dump has (111,374 nodes against 111,393 rows); confirmed by looking the missing DB_IDs up directly — they have a DatabaseObject row with _class=Complex and no node in Neo4j at all. TypeDB is loaded from the graph, so it matches Neo4j.
+
+**cypher**
+
+```cypher
+MATCH (c:Complex)-[:species]->(:Species {displayName:'Homo sapiens'})
+WHERE EXISTS { (c)-[:hasComponent]->() }
+AND NOT EXISTS {
+    MATCH (c)-[:hasComponent]->(x)
+    WHERE NOT x:EntityWithAccessionedSequence }
+RETURN count(DISTINCT c)
+```
+
+**sql**
+
+```sql
+SELECT COUNT(*)
+FROM (
+    SELECT hc.DB_ID
+    FROM Complex_2_hasComponent hc
+    JOIN Complex_2_species cs ON cs.DB_ID = hc.DB_ID
+    JOIN DatabaseObject sp ON sp.DB_ID = cs.species
+    AND sp._displayName = 'Homo sapiens'
+    LEFT JOIN EntityWithAccessionedSequence e ON e.DB_ID = hc.hasComponent
+    GROUP BY hc.DB_ID
+    HAVING COUNT(DISTINCT hc.hasComponent) = COUNT(DISTINCT e.DB_ID)) t;
+```
+
+**typeql**
+
+```typeql
+match
+    $c isa complex;
+    species-assignment (classified-thing: $c, species: $sp);
+    $sp has display-name "Homo sapiens";
+    complex-composition (containing-complex: $c, component: $any);
+    not { complex-composition (containing-complex: $c, component: $bad);
+        not { $bad isa entity-with-accessioned-sequence;
+        };
+    };
+select $c;
+distinct;
+reduce $count = count;
+```
+
+## 28. expert
 
 Consider every human pathway (species includes Homo sapiens). For each, count the distinct reaction-like events anywhere in its hasEvent subtree, and the percentage of those events having at least one catalyst activity. Return the five pathways with the most such events, ordered by that count descending and then by pathway name. Use columns named pathway, events and pct, with pct rounded to one decimal place.
 
@@ -1546,7 +1519,7 @@ sort $events desc, $pathway asc;
 limit 5;
 ```
 
-## 30. polymorphism
+## 29. polymorphism
 
 How many distinct reaction-like events are regulated by at least one regulation that is an instance of PositiveRegulation or of any subclass of PositiveRegulation, and by no regulation that is an instance of NegativeRegulation or of any subclass of NegativeRegulation?
 
@@ -1590,7 +1563,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 31. expert
+## 30. expert
 
 For each human pathway (species includes Homo sapiens), count the distinct reaction-like events in its hasEvent subtree at any depth, considering only pathways whose subtree contains at least one. How many of those pathways have a count strictly greater than the mean count across all of them?
 
@@ -1672,7 +1645,7 @@ match
 reduce $count = count;
 ```
 
-## 32. polymorphism
+## 31. polymorphism
 
 Consider human reaction-like events (species includes Homo sapiens) that carry at least one regulation. What percentage of them carry no regulation that is an instance of NegativeRegulation or any of its subclasses? Round to one decimal place.
 
@@ -1735,7 +1708,7 @@ match
 select $pct;
 ```
 
-## 33. expert
+## 32. expert
 
 Consider the EntityWithAccessionedSequence instances that are the physical entity of a catalyst activity of some reaction-like event. How many distinct reference entities do they reference whose own reference sequence records its species as Homo sapiens? Judge the species from the reference sequence itself, not from the species of any event.
 
@@ -1779,7 +1752,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 34. expert
+## 33. expert
 
 How many distinct human pathways (species includes Homo sapiens) have at least one recorded revision and have never been internally reviewed?
 
@@ -1828,7 +1801,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 35. expert
+## 34. expert
 
 How many distinct human reaction-like events (species includes Homo sapiens) were inferred from an event that records a species other than Homo sapiens?
 
@@ -1881,7 +1854,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 36. expert
+## 35. expert
 
 How many distinct complexes record at least one included location that is not also one of that same complex's compartments?
 
@@ -1931,25 +1904,25 @@ distinct;
 reduce $count = count;
 ```
 
-## 37. unanswerable
+## 36. unanswerable
 
 For the human reaction-like events that have at least one catalyst activity, what is the mean catalytic rate constant (kcat) recorded for those catalyst activities?
 
 **Unanswerable** — the only correct response is the UNANSWERABLE token.
 
-## 38. unanswerable
+## 37. unanswerable
 
 Among the reference gene products referenced by EntityWithAccessionedSequence instances, which one has the greatest molecular mass in daltons?
 
 **Unanswerable** — the only correct response is the UNANSWERABLE token.
 
-## 39. unanswerable
+## 38. unanswerable
 
 Considering drugs whose reference therapeutic is marked as approved, what is the most frequently recorded recommended daily dosage?
 
 **Unanswerable** — the only correct response is the UNANSWERABLE token.
 
-## 40. expert
+## 39. expert
 
 For every species, count the distinct reaction-like events and the distinct pathways that record it as one of their species. Report the ten species with the most reaction-like events, ordered by that count descending and then by species name, using columns named species, reactions and pathways.
 
@@ -2058,7 +2031,7 @@ sort $reactions desc, $species asc;
 limit 10;
 ```
 
-## 41. expert
+## 40. expert
 
 How many InstanceEdit instances are not recorded as the creating edit of any pathway? Treat a pathway as an instance of Pathway or of any subclass of Pathway.
 
@@ -2108,7 +2081,7 @@ distinct;
 reduce $count = count;
 ```
 
-## 42. expert
+## 41. expert
 
 The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, take the set of reaction-like events reachable from it through hasEvent at any depth. For every unordered pair of two different children, report the pair with columns pathway_a, pathway_b, shared and jaccard, where pathway_a and pathway_b are the two children's display names, where shared is the number of reaction-like events in both sets and jaccard is that number divided by the size of the union, rounded to four decimal places. Order by jaccard descending, then pathway_a, then pathway_b.
 
@@ -2238,7 +2211,7 @@ select $pathway_a, $pathway_b, $shared, $jaccard;
 sort $jaccard desc, $pathway_a asc, $pathway_b asc;
 ```
 
-## 43. expert
+## 42. expert
 
 Rank species by the number of distinct reaction-like events that record them as one of their species, and take the top three. For each of those three, report the pathway that directly contains, through hasEvent, the greatest number of reaction-like events recording that species. Use columns species, pathway and reactions, ordered by reactions descending then species.
 
@@ -2344,7 +2317,7 @@ select $species, $pathway, $reactions;
 sort $reactions desc, $species asc;
 ```
 
-## 44. expert
+## 43. expert
 
 How many InstanceEdit instances that have the person with surname D'Eustachio and first name Peter as one of their authors are not recorded as the creating edit of any pathway?
 
@@ -2400,6 +2373,63 @@ match
 select $ie;
 distinct;
 reduce $count = count;
+```
+
+## 44. argmax
+
+Human pathways (species includes Homo sapiens) record an authored InstanceEdit, and each InstanceEdit records its own authors. Which person is an author of the authored InstanceEdit of the greatest number of distinct human pathways? Give their surname, then a comma and a space, then their first name.
+
+**Expected** (str):
+
+```json
+"Jassal, Bijay"
+```
+
+**cypher**
+
+```cypher
+MATCH (p:Pathway)-[:species]->(:Species {displayName:'Homo sapiens'})
+MATCH (p)<-[:authored]-(:InstanceEdit)<-[:author]-(person:Person)
+WITH person, count(DISTINCT p) AS n
+RETURN person.surname + ', ' + person.firstname
+ORDER BY n DESC
+LIMIT 1
+```
+
+**sql**
+
+```sql
+SELECT CONCAT(pe.surname, ', ', pe.firstname)
+FROM Pathway pw
+JOIN Event_2_species es ON es.DB_ID = pw.DB_ID
+JOIN DatabaseObject sp ON sp.DB_ID = es.species
+AND sp._displayName = 'Homo sapiens'
+JOIN Event_2_authored au ON au.DB_ID = pw.DB_ID
+JOIN InstanceEdit_2_author ia ON ia.DB_ID = au.authored
+JOIN Person pe ON pe.DB_ID = ia.author
+GROUP BY ia.author, pe.surname, pe.firstname
+ORDER BY COUNT(DISTINCT pw.DB_ID) DESC
+LIMIT 1;
+```
+
+**typeql**
+
+```typeql
+match
+    $p isa pathway;
+    species-assignment (classified-thing: $p, species: $sp);
+    $sp has display-name "Homo sapiens";
+    authoring (curated-object: $p, edit: $ie);
+    edit-authorship (authored-edit: $ie, edit-author: $person);
+select $p, $person;
+distinct;
+reduce $n = count($p) groupby $person;
+sort $n desc;
+limit 1;
+match
+    $person has surname $sn, has first-name $fn;
+    let $name = $sn + ", " + $fn;
+select $name;
 ```
 
 ## 45. expert

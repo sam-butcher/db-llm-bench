@@ -1,17 +1,4 @@
-Question: Human pathways (species includes Homo sapiens) record an authored InstanceEdit, and each InstanceEdit records its own authors. Which person is an author of the authored InstanceEdit of the greatest number of distinct human pathways? Give their surname, then a comma and a space, then their first name.
+Question: Which compartment is recorded for the most distinct reaction-like events? Report its display name and that count, using columns named compartment and reactions.
 ```
-match
-  $p isa pathway;
-  species-assignment (classified-thing: $p, species: $sp);
-  $sp has display-name "Homo sapiens";
-  authoring (curated-object: $p, edit: $ie);
-  edit-authorship (authored-edit: $ie, edit-author: $person);
-select $p, $person;
-distinct;
-reduce $n = count($p) groupby $person;
-sort $n desc;
-limit 1;
-match $person has surname $sn, has first-name $fn;
-let $name = $sn + ", " + $fn;
-select $name;
+match $r isa reaction-like-event; compartment-assignment (localised-thing: $r, compartment: $c); $c has display-name $compartment; select $compartment, $r; distinct; reduce $reactions = count($r) groupby $compartment; sort $reactions desc, $compartment asc; limit 1;
 ```

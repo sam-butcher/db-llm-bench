@@ -1,15 +1,4 @@
-Question: How many human complexes (species includes Homo sapiens) that have at least one direct component have every one of their direct components be an EntityWithAccessionedSequence?
+Question: How many pathways record Homo sapiens as one of their species?
 ```
-match
-  $c isa complex;
-  species-assignment (classified-thing: $c, species: $sp);
-  $sp has display-name "Homo sapiens";
-  complex-composition (containing-complex: $c, component: $any);
-  not {
-    complex-composition (containing-complex: $c, component: $bad);
-    not { $bad isa entity-with-accessioned-sequence; };
-  };
-select $c;
-distinct;
-reduce $count = count;
+match $p isa pathway; species-assignment (classified-thing: $p, species: $s); $s has display-name "Homo sapiens"; select $p; distinct; reduce $count = count;
 ```

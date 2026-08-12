@@ -1,4 +1,4 @@
-Question: Human pathways (species includes Homo sapiens) record an authored InstanceEdit, and each InstanceEdit records its own authors. Which person is an author of the authored InstanceEdit of the greatest number of distinct human pathways? Give their surname, then a comma and a space, then their first name.
+Question: Which compartment is recorded for the most distinct reaction-like events? Report its display name and that count, using columns named compartment and reactions.
 ```
-SELECT CONCAT(pe.surname, ', ', pe.firstname) FROM Pathway pw JOIN Event_2_species es ON es.DB_ID = pw.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens' JOIN Event_2_authored au ON au.DB_ID = pw.DB_ID JOIN InstanceEdit_2_author ia ON ia.DB_ID = au.authored JOIN Person pe ON pe.DB_ID = ia.author GROUP BY ia.author, pe.surname, pe.firstname ORDER BY COUNT(DISTINCT pw.DB_ID) DESC LIMIT 1;
+SELECT d._displayName AS compartment, COUNT(DISTINCT rc.DB_ID) AS reactions FROM ReactionlikeEvent_2_compartment rc JOIN DatabaseObject d ON d.DB_ID = rc.compartment GROUP BY rc.compartment, d._displayName ORDER BY reactions DESC, compartment ASC LIMIT 1;
 ```

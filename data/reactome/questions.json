@@ -1,6 +1,246 @@
 {
   "questions": [
     {
+      "question": "How many pathways are recorded?",
+      "difficulty": "easy",
+      "expected": 23604,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM Pathway;",
+        "cypher": "MATCH (p:Pathway) RETURN count(p)",
+        "typeql": "match $p isa pathway; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many reaction-like events are recorded?",
+      "difficulty": "easy",
+      "expected": 95780,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM ReactionlikeEvent;",
+        "cypher": "MATCH (r:ReactionLikeEvent) RETURN count(r)",
+        "typeql": "match $r isa reaction-like-event; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many summations are recorded?",
+      "difficulty": "easy",
+      "expected": 21634,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM Summation;",
+        "cypher": "MATCH (s:Summation) RETURN count(s)",
+        "typeql": "match $s isa summation; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many compartments are recorded?",
+      "difficulty": "easy",
+      "expected": 158,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM Compartment;",
+        "cypher": "MATCH (c:Compartment) RETURN count(c)",
+        "typeql": "match $c isa compartment; reduce $count = count;"
+      }
+    },
+    {
+      "question": "What is the display name of the pathway whose stable identifier is R-HSA-168256?",
+      "difficulty": "easy",
+      "expected": "Immune System",
+      "queries": {
+        "sql": "SELECT d._displayName FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway p ON p.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-168256';",
+        "cypher": "MATCH (p:Pathway {stId:'R-HSA-168256'}) RETURN p.displayName",
+        "typeql": "match $p isa pathway, has st-id \"R-HSA-168256\", has display-name $name; select $name;"
+      }
+    },
+    {
+      "question": "What is the display name of the pathway whose stable identifier is R-HSA-1640170?",
+      "difficulty": "easy",
+      "expected": "Cell Cycle",
+      "queries": {
+        "sql": "SELECT d._displayName FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway p ON p.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-1640170';",
+        "cypher": "MATCH (p:Pathway {stId:'R-HSA-1640170'}) RETURN p.displayName",
+        "typeql": "match $p isa pathway, has st-id \"R-HSA-1640170\", has display-name $name; select $name;"
+      }
+    },
+    {
+      "question": "How many pathways record Homo sapiens as one of their species?",
+      "difficulty": "easy",
+      "expected": 2883,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT es.DB_ID) FROM Event_2_species es JOIN Pathway p ON p.DB_ID = es.DB_ID JOIN DatabaseObject d ON d.DB_ID = es.species WHERE d._displayName = 'Homo sapiens';",
+        "cypher": "MATCH (p:Pathway)-[:species]->(s:Species {displayName:'Homo sapiens'}) RETURN count(DISTINCT p)",
+        "typeql": "match $p isa pathway; species-assignment (classified-thing: $p, species: $s); $s has display-name \"Homo sapiens\"; select $p; distinct; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct reaction-like events have at least one input?",
+      "difficulty": "easy",
+      "expected": 95723,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT DB_ID) FROM ReactionlikeEvent_2_input;",
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:input]->() RETURN count(DISTINCT r)",
+        "typeql": "match reaction-input (reaction: $r, consumed-entity: $e); select $r; distinct; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many reactions are recorded?",
+      "difficulty": "easy",
+      "expected": 84363,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM Reaction;",
+        "cypher": "MATCH (r:Reaction) RETURN count(r)",
+        "typeql": "match $r isa reaction; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct reaction-like events have at least one output?",
+      "difficulty": "easy",
+      "expected": 95069,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT DB_ID) FROM ReactionlikeEvent_2_output;",
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:output]->() RETURN count(DISTINCT r)",
+        "typeql": "match reaction-output (reaction: $r, produced-entity: $e); select $r; distinct; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct reaction-like events have at least one catalyst activity?",
+      "difficulty": "medium",
+      "expected": 51412,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT DB_ID) FROM ReactionlikeEvent_2_catalystActivity;",
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:catalystActivity]->() RETURN count(DISTINCT r)",
+        "typeql": "match catalysis (catalysed-reaction: $r, catalyst: $c); select $r; distinct; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct events have at least one summation?",
+      "difficulty": "medium",
+      "expected": 119384,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT DB_ID) FROM Event_2_summation;",
+        "cypher": "MATCH (e:Event)-[:summation]->() RETURN count(DISTINCT e)",
+        "typeql": "match $e isa event; summarisation (summarised-thing: $e, summation: $s); select $e; distinct; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct reaction-like events have at least one input and at least one output?",
+      "difficulty": "medium",
+      "expected": 95012,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM ReactionlikeEvent r WHERE EXISTS (SELECT 1 FROM ReactionlikeEvent_2_input i WHERE i.DB_ID = r.DB_ID) AND EXISTS (SELECT 1 FROM ReactionlikeEvent_2_output o WHERE o.DB_ID = r.DB_ID);",
+        "cypher": "MATCH (r:ReactionLikeEvent) WHERE (r)-[:input]->() AND (r)-[:output]->() RETURN count(r)",
+        "typeql": "match $r isa reaction-like-event; reaction-input (reaction: $r, consumed-entity: $i); reaction-output (reaction: $r, produced-entity: $o); select $r; distinct; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct events record more than one species?",
+      "difficulty": "medium",
+      "expected": 387,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM (SELECT DB_ID FROM Event_2_species GROUP BY DB_ID HAVING COUNT(DISTINCT species) > 1) t;",
+        "cypher": "MATCH (e:Event)-[:species]->(s:Species) WITH e, count(DISTINCT s) AS n WHERE n > 1 RETURN count(e)",
+        "typeql": "match $e isa event; species-assignment (classified-thing: $e, species: $s); select $e, $s; distinct; reduce $n = count($s) groupby $e; match $n > 1; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct pathways directly contain at least one reaction-like event through hasEvent?",
+      "difficulty": "medium",
+      "expected": 17951,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent;",
+        "cypher": "MATCH (p:Pathway)-[:hasEvent]->(r:ReactionLikeEvent) RETURN count(DISTINCT p)",
+        "typeql": "match $p isa pathway; event-containment (containing-pathway: $p, contained-event: $r); $r isa reaction-like-event; select $p; distinct; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct reaction-like events are directly contained by more than one pathway through hasEvent?",
+      "difficulty": "medium",
+      "expected": 4532,
+      "queries": {
+        "sql": "SELECT COUNT(*) FROM (SELECT he.hasEvent FROM Pathway_2_hasEvent he JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent GROUP BY he.hasEvent HAVING COUNT(DISTINCT he.DB_ID) > 1) t;",
+        "cypher": "MATCH (p:Pathway)-[:hasEvent]->(r:ReactionLikeEvent) WITH r, count(DISTINCT p) AS n WHERE n > 1 RETURN count(r)",
+        "typeql": "match $r isa reaction-like-event; event-containment (containing-pathway: $p, contained-event: $r); select $r, $p; distinct; reduce $n = count($p) groupby $r; match $n > 1; reduce $count = count;"
+      }
+    },
+    {
+      "question": "How many distinct compartments are recorded for at least one pathway?",
+      "difficulty": "medium",
+      "expected": 52,
+      "queries": {
+        "sql": "SELECT COUNT(DISTINCT compartment) FROM Pathway_2_compartment;",
+        "cypher": "MATCH (:Pathway)-[:compartment]->(c) RETURN count(DISTINCT c)",
+        "typeql": "match $p isa pathway; compartment-assignment (localised-thing: $p, compartment: $c); select $c; distinct; reduce $count = count;"
+      }
+    },
+    {
+      "question": "Report the display name and pathway count of the five species recorded by the most pathways, ordered by count descending then species name ascending. Use columns named species and pathways.",
+      "difficulty": "medium",
+      "expected": [
+        {
+          "pathways": 2883,
+          "species": "Homo sapiens"
+        },
+        {
+          "pathways": 1845,
+          "species": "Mus musculus"
+        },
+        {
+          "pathways": 1841,
+          "species": "Gallus gallus"
+        },
+        {
+          "pathways": 1833,
+          "species": "Rattus norvegicus"
+        },
+        {
+          "pathways": 1822,
+          "species": "Bos taurus"
+        }
+      ],
+      "ordered": true,
+      "queries": {
+        "sql": "SELECT d._displayName AS species, COUNT(DISTINCT es.DB_ID) AS pathways FROM Event_2_species es JOIN Pathway p ON p.DB_ID = es.DB_ID JOIN DatabaseObject d ON d.DB_ID = es.species GROUP BY es.species, d._displayName ORDER BY pathways DESC, species ASC LIMIT 5;",
+        "cypher": "MATCH (p:Pathway)-[:species]->(s:Species) WITH s, count(DISTINCT p) AS pathways RETURN s.displayName AS species, pathways ORDER BY pathways DESC, species ASC LIMIT 5",
+        "typeql": "match $p isa pathway; species-assignment (classified-thing: $p, species: $s); $s has display-name $species; select $species, $p; distinct; reduce $pathways = count($p) groupby $species; sort $pathways desc, $species asc; limit 5;"
+      }
+    },
+    {
+      "question": "Which compartment is recorded for the most distinct reaction-like events? Report its display name and that count, using columns named compartment and reactions.",
+      "difficulty": "medium",
+      "expected": {
+        "compartment": "cytosol",
+        "reactions": 46282
+      },
+      "ordered": true,
+      "queries": {
+        "sql": "SELECT d._displayName AS compartment, COUNT(DISTINCT rc.DB_ID) AS reactions FROM ReactionlikeEvent_2_compartment rc JOIN DatabaseObject d ON d.DB_ID = rc.compartment GROUP BY rc.compartment, d._displayName ORDER BY reactions DESC, compartment ASC LIMIT 1;",
+        "cypher": "MATCH (r:ReactionLikeEvent)-[:compartment]->(c) WITH c, count(DISTINCT r) AS reactions RETURN c.displayName AS compartment, reactions ORDER BY reactions DESC, compartment ASC LIMIT 1",
+        "typeql": "match $r isa reaction-like-event; compartment-assignment (localised-thing: $r, compartment: $c); $c has display-name $compartment; select $compartment, $r; distinct; reduce $reactions = count($r) groupby $compartment; sort $reactions desc, $compartment asc; limit 1;"
+      }
+    },
+    {
+      "question": "Report the stable identifier and child count of the three pathways with the most direct hasEvent children, ordered by count descending then stable identifier ascending. Use columns named pathway and children.",
+      "difficulty": "medium",
+      "expected": [
+        {
+          "children": 69,
+          "pathway": "R-HSA-5619102"
+        },
+        {
+          "children": 66,
+          "pathway": "R-HSA-9018519"
+        },
+        {
+          "children": 56,
+          "pathway": "R-HSA-8854691"
+        }
+      ],
+      "ordered": true,
+      "queries": {
+        "sql": "SELECT s.identifier AS pathway, COUNT(DISTINCT he.hasEvent) AS children FROM Pathway_2_hasEvent he JOIN DatabaseObject d ON d.DB_ID = he.DB_ID JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier GROUP BY he.DB_ID, s.identifier ORDER BY children DESC, pathway ASC LIMIT 3;",
+        "cypher": "MATCH (p:Pathway)-[:hasEvent]->(e) WITH p, count(DISTINCT e) AS children RETURN p.stId AS pathway, children ORDER BY children DESC, pathway ASC LIMIT 3",
+        "typeql": "match $p isa pathway; event-containment (containing-pathway: $p, contained-event: $e); select $p, $e; distinct; reduce $children = count($e) groupby $p; match $p has st-id $pathway; select $pathway, $children; sort $children desc, $pathway asc; limit 3;"
+      }
+    },
+    {
       "question": "Consider human reaction-like events (species includes Homo sapiens) whose rank-0 input is a Complex. For how many such events is at least one of the event's own catalyst-activity physical entities also a part of that same rank-0 input complex, where 'part of' means reachable from the complex by following hasComponent links out of complexes and hasMember links out of entity sets, to any depth?",
       "difficulty": "expert",
       "expected": 60,

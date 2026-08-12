@@ -165,10 +165,13 @@ pub struct QuestionRun {
     pub records: Vec<ResultRecord>,
 }
 
-/// Errors that abort the run — never the model's fault, so nothing here is
-/// recorded as a result. Both transports get harness-level backoff first;
-/// reaching this type means the backoff budget was spent (or the error was
-/// fatal).
+/// Errors that abort the run. Not the model's fault as far as scoring goes —
+/// these never count as a wrong answer — but the attempt that hit one is still
+/// recorded, because a DB "infrastructure" failure is frequently a generated
+/// query that took the server down, and that query is the evidence.
+///
+/// Both transports get harness-level backoff first; reaching this type means
+/// the backoff budget was spent (or the error was fatal).
 #[derive(Debug, Error)]
 pub enum RunError {
     #[error(transparent)]
@@ -186,7 +189,8 @@ pub struct RunFailure {
     pub question_index: usize,
     pub repetition: u32,
     /// Fully completed question runs, plus a partial run for the failing
-    /// question if any of its repetitions finished.
+    /// question: its finished repetitions, and the repetition that died if it
+    /// got far enough to produce an attempt.
     pub completed: Vec<QuestionRun>,
 }
 
@@ -212,6 +216,34 @@ enum Success {
     /// The model declined a deliberately-unanswerable question — the
     /// correct response, by definition.
     Unanswerable,
+}
+
+/// A run-ending failure, plus the attempt that was in flight when it hit.
+///
+/// The attempt is the point: an "infrastructure" error is often a generated
+/// query that took the DB down with it, and without this the query that did
+/// the damage is discarded along with the run.
+struct AbortedAttempt {
+    error: RunError,
+    /// None when the run died before a query existed — a provider failure has
+    /// nothing worth recording.
+    partial: Option<Attempt>,
+}
+
+/// A run-ending failure, plus the record for the repetition it interrupted.
+struct AbortedRun {
+    error: RunError,
+    /// None when the repetition had produced nothing worth recording — a
+    /// provider outage before any query exists leaves an empty trace, and an
+    /// attempt-less record would be noise in the results file.
+    record: Option<ResultRecord>,
+}
+
+/// A DB failure that ends the run, with the timing of the call that failed, so
+/// the aborted attempt still reports how long the query ran.
+struct DbAbort {
+    error: RunError,
+    db_latency_ms: u64,
 }
 
 /// Everything one prompt-extract-execute round trip produced.
@@ -323,7 +355,8 @@ impl BenchmarkRunner<'_> {
                 );
                 match self.run_once(question, repetition).await {
                     Ok(record) => records.push(record),
-                    Err(error) => {
+                    Err(AbortedRun { error, record }) => {
+                        records.extend(record);
                         let mut completed = runs;
                         if !records.is_empty() {
                             completed.push(QuestionRun {
@@ -356,7 +389,7 @@ impl BenchmarkRunner<'_> {
         &self,
         question: &Question,
         repetition: u32,
-    ) -> Result<ResultRecord, RunError> {
+    ) -> Result<ResultRecord, AbortedRun> {
         let mut conversation = vec![Message::user(self.assemble(question))];
         let mut attempts: Vec<Attempt> = Vec::new();
 
@@ -368,7 +401,18 @@ impl BenchmarkRunner<'_> {
                 db_latency_ms,
                 response_text,
                 outcome,
-            } = self.attempt(&conversation, question.unanswerable).await?;
+            } = match self.attempt(&conversation, question.unanswerable).await {
+                Ok(outcome) => outcome,
+                // The run is over, but the attempt that ended it still gets a
+                // record, so the query that did it reaches the results file.
+                Err(AbortedAttempt { error, partial }) => {
+                    attempts.extend(partial);
+                    let record = (!attempts.is_empty()).then(|| {
+                        self.build_record(repetition, attempts, RecordResult::Error, false)
+                    });
+                    return Err(AbortedRun { error, record });
+                }
+            };
             attempts.push(Attempt {
                 query: query.clone(),
                 response: query.is_none().then(|| response_text.clone()),
@@ -443,17 +487,39 @@ impl BenchmarkRunner<'_> {
         &self,
         conversation: &[Message],
         unanswerable: bool,
-    ) -> Result<AttemptOutcome, RunError> {
+    ) -> Result<AttemptOutcome, AbortedAttempt> {
         eprintln!("Sending conversation to model...");
-        let (response, provider_latency_ms) = self.send_with_backoff(conversation).await?;
+        let (response, provider_latency_ms) =
+            self.send_with_backoff(conversation)
+                .await
+                .map_err(|error| AbortedAttempt {
+                    error,
+                    partial: None,
+                })?;
         eprintln!("Extracting query...");
         let (query, db_latency_ms, outcome) = match extract_query(&response.text) {
-            Extraction::Query(query) => {
-                eprintln!("Waiting for db...");
-                let (outcome, db_latency_ms) = self.query_with_backoff(&query).await?;
-                eprintln!("Done!");
-                (Some(query), db_latency_ms, outcome.map(Success::Value))
-            }
+            Extraction::Query(query) => match self.query_with_backoff(&query).await {
+                Ok((outcome, db_latency_ms)) => {
+                    (Some(query), db_latency_ms, outcome.map(Success::Value))
+                }
+                Err(DbAbort {
+                    error,
+                    db_latency_ms,
+                }) => {
+                    let message = error.to_string();
+                    return Err(AbortedAttempt {
+                        error,
+                        partial: Some(Attempt {
+                            query: Some(query),
+                            response: None,
+                            tokens: response.tokens,
+                            latency_ms: provider_latency_ms + db_latency_ms,
+                            db_latency_ms,
+                            error: Some(message),
+                        }),
+                    });
+                }
+            },
             Extraction::Unanswerable if unanswerable => (None, 0, Ok(Success::Unanswerable)),
             Extraction::Unanswerable => (
                 None,
@@ -519,7 +585,7 @@ impl BenchmarkRunner<'_> {
     async fn query_with_backoff(
         &self,
         query: &str,
-    ) -> Result<(Result<Value, Fault>, u64), RunError> {
+    ) -> Result<(Result<Value, Fault>, u64), DbAbort> {
         let mut infra_failures = 0;
         loop {
             let started = Instant::now();
@@ -541,7 +607,12 @@ impl BenchmarkRunner<'_> {
                     tokio::time::sleep(INFRA_BACKOFF * 2u32.pow(infra_failures)).await;
                     infra_failures += 1;
                 }
-                Err(e) => return Err(RunError::Infrastructure(e.to_string())),
+                Err(e) => {
+                    return Err(DbAbort {
+                        error: RunError::Infrastructure(e.to_string()),
+                        db_latency_ms: latency_ms,
+                    });
+                }
             }
         }
     }
@@ -874,9 +945,15 @@ mod run_tests {
         assert_eq!(failure.question_index, 1);
         assert_eq!(failure.repetition, 1);
         // The completed question survives the abort.
-        assert_eq!(failure.completed.len(), 1);
+        assert_eq!(failure.completed.len(), 2);
         assert_eq!(failure.completed[0].records.len(), REPETITIONS as usize);
         assert!(failure.completed[0].records.iter().all(|r| r.accurate));
+        // ...and so does the repetition that died, carrying its query.
+        let aborted = &failure.completed[1];
+        assert_eq!(aborted.question_index, 1);
+        assert_eq!(aborted.records.len(), 1);
+        assert_eq!(aborted.records[0].generated, "3");
+        assert!(!aborted.records[0].accurate);
     }
 
     #[tokio::test]
@@ -1046,12 +1123,39 @@ mod run_tests {
         .await
         .unwrap_err();
 
-        match failure.error {
+        match &failure.error {
             RunError::Infrastructure(message) => {
                 assert!(message.contains("harness ceiling"), "got: {message}")
             }
             other => panic!("expected infrastructure error, got {other:?}"),
         }
+
+        // The query that ended the run survives into the results. An
+        // infrastructure failure is often a generated query that took the DB
+        // down, so discarding it would hide the only evidence of what did it.
+        let records: Vec<_> = failure
+            .completed
+            .iter()
+            .flat_map(|run| &run.records)
+            .collect();
+        assert_eq!(
+            records.len(),
+            1,
+            "the aborted repetition should be recorded"
+        );
+        let record = records[0];
+        assert_eq!(record.generated, "3");
+        assert!(matches!(record.result, RecordResult::Error));
+        assert!(!record.accurate);
+        let last = record.attempts.last().expect("the failing attempt");
+        assert_eq!(last.query.as_deref(), Some("3"));
+        assert!(
+            last.error
+                .as_deref()
+                .is_some_and(|e| e.contains("harness ceiling")),
+            "the attempt should carry why the run ended: {:?}",
+            last.error
+        );
     }
 
     /// The core claim of the run-at-max/derive-lower design: deriving a

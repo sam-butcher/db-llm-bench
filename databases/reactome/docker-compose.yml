@@ -127,6 +127,19 @@ services:
       NEO4J_db_transaction_timeout: 120s
       NEO4J_server_memory_heap_max__size: 4G
       NEO4J_server_memory_pagecache_size: 2G
+      # Cap a SINGLE transaction, not just the global pool. The default is 0B
+      # (unlimited per transaction) while dbms.memory.transaction.total.max
+      # defaults to 70% of heap — 2.8G here — so one pathological generated
+      # query can consume the entire budget and the failure arrives as global
+      # pool exhaustion. That is indistinguishable from a sick server, gets
+      # retried, and eventually kills the run. With a per-transaction cap the
+      # offending query dies alone, well inside the global budget, and scores
+      # as the failure it is.
+      #
+      # 1G is far above anything legitimate here: the slowest reference query
+      # on this store finishes in ~1.2s. Raise it if a genuine query starts
+      # hitting the ceiling.
+      NEO4J_db_memory_transaction_max: 1G
     ports:
       - "7687:7687"
       - "7474:7474" # browser UI, handy for debugging

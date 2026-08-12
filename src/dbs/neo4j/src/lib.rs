@@ -32,6 +32,15 @@ const TIMEOUT_CODES: [&str; 2] = [
     "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration",
 ];
 
+/// Exhausting the transaction memory pool is the query's fault, despite
+/// arriving as a TransientError. The runner executes one query at a time, so
+/// nothing but the query being run can have consumed the pool — and unlike a
+/// genuine transient, retrying is futile: the same query allocates the same
+/// way every time, which is exactly how this used to burn the retry budget and
+/// then kill the run. Scoring it against the model instead keeps the run alive
+/// and records the truth, that the generated query was too expensive to run.
+const MEMORY_CODES: [&str; 1] = ["Neo.TransientError.General.MemoryPoolOutOfMemoryError"];
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Neo4jAuth {
@@ -292,6 +301,9 @@ fn classify_neo4j(code: &str, display: &str) -> QueryError {
     if TIMEOUT_CODES.contains(&code) {
         return QueryError::Timeout;
     }
+    if MEMORY_CODES.contains(&code) {
+        return QueryError::Syntax(display.to_string());
+    }
     // Mirrors neo4rs's own `adjust_code`: two transient transaction codes are
     // rewritten to their client equivalents before classification.
     let code = match code {
@@ -370,11 +382,18 @@ mod tests {
         ));
         // Transient server conditions are infrastructure (harness backoff).
         assert!(matches!(
+            classify_neo4j("Neo.TransientError.Database.DatabaseUnavailable", "down"),
+            QueryError::Infrastructure(_)
+        ));
+        // ...but exhausting the transaction memory pool is the query's fault,
+        // even though Neo4j files it under TransientError. Retrying it is
+        // futile and used to burn the retry budget and then kill the run.
+        assert!(matches!(
             classify_neo4j(
                 "Neo.TransientError.General.MemoryPoolOutOfMemoryError",
                 "oom"
             ),
-            QueryError::Infrastructure(_)
+            QueryError::Syntax(_)
         ));
         // Both server-side transaction timeout codes map to the model-fault
         // timeout. The ClientConfiguration variant is what a query that

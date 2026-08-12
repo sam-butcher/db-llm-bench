@@ -9,7 +9,7 @@ use bench_core::{Message, ProviderError, Role};
 use serde::{Deserialize, Serialize};
 
 /// Generous ceiling; the runner's own request guard stays the last resort.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Deliberately modest serde default for the providers' `max_tokens`: the
 /// expected output is a single query.

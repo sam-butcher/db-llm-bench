@@ -39,6 +39,8 @@ dbs:
         password: password
         tls: false
       schema: data/reactome/typedb/schema.tql
+      examples: data/reactome/typedb
+      skills: data/skills/typedb
   - neo4j:
       prompts: data/prompts/neo4j.txt
       url: bolt://localhost:7687
@@ -46,12 +48,16 @@ dbs:
         username: neo4j
         password: password
       schema: data/reactome/neo4j/schema.txt
+      examples: data/reactome/neo4j
+      skills: data/skills/neo4j
   - sql:
       # The shared data/prompts/sql.txt names PostgreSQL; this dataset runs on
       # MySQL, so it uses the MySQL-worded variant of the same template.
       prompts: data/prompts/sql-mysql.txt
       url: mysql://bench_ro:bench_ro@localhost/reactome
       schema: data/reactome/sql/schema.sql
+      examples: data/reactome/sql
+      skills: data/skills/sql
 
 # Every label carries the serving provider, not just the model name: the same
 # open weights served by two providers can differ in quantization and in the
@@ -91,86 +97,87 @@ models:
       model: claude-haiku-4-5-20251001
       max_tokens: 8192
 
-  # Open-weights flagship (753B MoE, ~40B active, MIT). Expected upper anchor:
-  # it may well match the frontier models rather than fail, which is itself
-  # worth knowing about the question set.
-  #
-  # reasoning_effort is load-bearing. GLM-5.2 always reasons and ships only
-  # "high" and "max"; left unset it emits tens of thousands of tokens per call,
-  # and because the runner is serial that is the difference between this pilot
-  # taking an hour and taking a day. Z.ai recommends "max" for coding — "high"
-  # is a deliberate trade of some quality for wall-clock, on the grounds that
-  # the pilot ranks candidates rather than establishing anyone's best score.
-  # Revisit for a real run.
-  #
-  # Thinking is deliberately NOT disabled. Z.ai documents
-  # `thinking: {type: disabled}`, but it is reported to be ignored by the API,
-  # and the model ships no non-thinking mode — so switching it off would score
-  # a configuration nobody deploys, and would hurt TypeQL most, which is the
-  # language the benchmark most needs a real answer on.
-  #
-  # Worth checking on the first run: z.ai's own OpenAI-compat docs do not list
-  # reasoning_effort, so it may be ignored. Compare this model's output tokens
-  # and latency against a run without it — if neither moves, the key is not
-  # being honoured and the spelling needs revisiting.
-  - openai-compatible:
-      model: glm-5.2
-      base_url: https://api.z.ai/api/paas/v4
-      label: glm-5.2@z.ai
-      api_key_env: ZAI_API_KEY
-      max_tokens: 32768
-      extra_body:
-        reasoning_effort: high
+#  # Open-weights flagship (753B MoE, ~40B active, MIT). Expected upper anchor:
+#  # it may well match the frontier models rather than fail, which is itself
+#  # worth knowing about the question set.
+#  #
+#  # reasoning_effort is load-bearing. GLM-5.2 always reasons and ships only
+#  # "high" and "max"; left unset it emits tens of thousands of tokens per call,
+#  # and because the runner is serial that is the difference between this pilot
+#  # taking an hour and taking a day. Z.ai recommends "max" for coding — "high"
+#  # is a deliberate trade of some quality for wall-clock, on the grounds that
+#  # the pilot ranks candidates rather than establishing anyone's best score.
+#  # Revisit for a real run.
+#  #
+#  # Thinking is deliberately NOT disabled. Z.ai documents
+#  # `thinking: {type: disabled}`, but it is reported to be ignored by the API,
+#  # and the model ships no non-thinking mode — so switching it off would score
+#  # a configuration nobody deploys, and would hurt TypeQL most, which is the
+#  # language the benchmark most needs a real answer on.
+#  #
+#  # Worth checking on the first run: z.ai's own OpenAI-compat docs do not list
+#  # reasoning_effort, so it may be ignored. Compare this model's output tokens
+#  # and latency against a run without it — if neither moves, the key is not
+#  # being honoured and the spelling needs revisiting.
+#  - openai-compatible:
+#      model: glm-5.2
+#      base_url: https://api.z.ai/api/paas/v4
+#      label: glm-5.2@z.ai
+#      api_key_env: ZAI_API_KEY
+#      max_tokens: 32768
+#      extra_body:
+#        reasoning_effort: high
+#
+#  # Mid-tier open weights (284B total / 13B active, MIT, 1M context). The
+#  # 0731 build is the agent-tuned GA release.
+#  - openai-compatible:
+#      model: deepseek-v4-flash
+#      base_url: https://api.deepseek.com/v1
+#      label: deepseek-v4-flash@deepseek
+#      api_key_env: DEEPSEEK_API_KEY
+#      max_tokens: 16384
+#
+#  # The only DENSE model in the slate: 30B parameters, all of them active,
+#  # against 3B active for Qwen and 13B for DeepSeek. That contrast is the
+#  # reason it is here — it separates per-token compute from language coverage
+#  # as an explanation for where models fail.
+#  #
+#  # Local-only; Meta ships no hosted API, so this runs through Ollama's MLX
+#  # build on Apple Silicon. Two consequences, both of which make its numbers
+#  # weaker evidence than the hosted entries':
+#  #
+#  #   1. REQUIRES `OLLAMA_CONTEXT_LENGTH=65536` in the server's environment.
+#  #      Ollama defaults to ~4k and silently truncates beyond it — the prompt
+#  #      here is ~37k, and this exact failure once made a local model answer
+#  #      UNANSWERABLE to every question while looking like a capability
+#  #      result. Run the context canary against this endpoint before trusting
+#  #      a single score.
+#  #   2. The `-mlx` tag is quantized (21GB for a 30B model), so it is not the
+#  #      same artifact as the FP8-ish hosted models. Treat its timings and
+#  #      accuracy as indicative, not directly comparable.
+#  - openai-compatible:
+#      model: muse-glimmer:30b-mlx
+#      base_url: http://localhost:11434/v1
+#      label: muse-glimmer-30b@ollama-mlx
+#      max_tokens: 16384
 
-  # Mid-tier open weights (284B total / 13B active, MIT, 1M context). The
-  # 0731 build is the agent-tuned GA release.
-  - openai-compatible:
-      model: deepseek-v4-flash
-      base_url: https://api.deepseek.com/v1
-      label: deepseek-v4-flash@deepseek
-      api_key_env: DEEPSEEK_API_KEY
-      max_tokens: 16384
-
-  # The only DENSE model in the slate: 30B parameters, all of them active,
-  # against 3B active for Qwen and 13B for DeepSeek. That contrast is the
-  # reason it is here — it separates per-token compute from language coverage
-  # as an explanation for where models fail.
-  #
-  # Local-only; Meta ships no hosted API, so this runs through Ollama's MLX
-  # build on Apple Silicon. Two consequences, both of which make its numbers
-  # weaker evidence than the hosted entries':
-  #
-  #   1. REQUIRES `OLLAMA_CONTEXT_LENGTH=65536` in the server's environment.
-  #      Ollama defaults to ~4k and silently truncates beyond it — the prompt
-  #      here is ~37k, and this exact failure once made a local model answer
-  #      UNANSWERABLE to every question while looking like a capability
-  #      result. Run the context canary against this endpoint before trusting
-  #      a single score.
-  #   2. The `-mlx` tag is quantized (21GB for a 30B model), so it is not the
-  #      same artifact as the FP8-ish hosted models. Treat its timings and
-  #      accuracy as indicative, not directly comparable.
-  - openai-compatible:
-      model: muse-glimmer:30b-mlx
-      base_url: http://localhost:11434/v1
-      label: muse-glimmer-30b@ollama-mlx
-      max_tokens: 16384
-
-  # Agentic generalist rather than a code specialist (1T total / 32B active).
-  # Thinking mode is enforced, hence the larger budget.
-  - openai-compatible:
-      model: kimi-k2.7-code
-      base_url: https://api.moonshot.ai/v1
-      label: kimi-k2.7-code@moonshot
-      api_key_env: MOONSHOT_API_KEY
-      max_tokens: 32768
+#  # Agentic generalist rather than a code specialist (1T total / 32B active).
+#  # Thinking mode is enforced, hence the larger budget.
+#  - openai-compatible:
+#      model: kimi-k2.7-code
+#      base_url: https://api.moonshot.ai/v1
+#      label: kimi-k2.7-code@moonshot
+#      api_key_env: MOONSHOT_API_KEY
+#      max_tokens: 32768
 
 questionsPath: data/reactome/questions-pilot.json
 # No few-shot examples ship with this dataset, so the only valid count is 0.
 exampleCounts:
-  - 0
+  - 5
 # Single attempt. Only the highest level actually runs, and retry behaviour is
 # not what the pilot is choosing on — allowing retries would multiply the calls
 # on exactly the models that fail most, which is backwards for a cost-capped
 # ranking run. Raise this for the real run.
 maxRetryCounts:
-  - 0
+  - 3
+skillsBaseline: false

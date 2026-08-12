@@ -106,6 +106,9 @@ impl Claude {
                 .effort
                 .as_deref()
                 .map(|effort| OutputConfig { effort }),
+            cache_control: CacheControl {
+                r#type: "ephemeral",
+            },
         }
     }
 }
@@ -162,6 +165,29 @@ struct MessagesRequest<'a> {
     thinking: Option<Thinking>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output_config: Option<OutputConfig<'a>>,
+    /// Top-level automatic caching: the API places the breakpoint on the last
+    /// cacheable block itself and moves it as the conversation grows, so
+    /// nothing here has to know where the prompt's stable part ends.
+    ///
+    /// What this does and does not buy, given the runner sends the whole
+    /// prompt as one block ending in the question: the repetitions of a
+    /// question are byte-identical, so every repetition after the first reads
+    /// from cache, and a retry conversation reads its earlier turns. Two
+    /// DIFFERENT questions never share a hit, because the cache hash covers
+    /// whole blocks and the question sits in the same block as the schema.
+    /// Splitting the stable prefix into its own block would capture those too.
+    ///
+    /// Always on. A cache write costs 1.25x the input price, so this only pays
+    /// off when a prompt is reused — which REPETITIONS guarantees at 3. Drop
+    /// it if repetitions ever go to 1. Prompts below the model's minimum
+    /// cacheable size (4,096 tokens on Haiku 4.5, the highest of any model)
+    /// are silently not cached and cost nothing extra.
+    cache_control: CacheControl,
+}
+
+#[derive(Serialize)]
+struct CacheControl {
+    r#type: &'static str,
 }
 
 #[derive(Serialize)]
@@ -236,6 +262,10 @@ mod tests {
             serde_json::json!({
                 "model": "claude-opus-4-8",
                 "max_tokens": 4096,
+                // Automatic prompt caching, sent on every request: the
+                // repetitions of a question are identical prompts, so all but
+                // the first read from cache.
+                "cache_control": {"type": "ephemeral"},
                 "messages": [
                     {"role": "user", "content": "generate a query"},
                     {"role": "assistant", "content": "```\nbad\n```"},

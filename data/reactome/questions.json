@@ -41,7 +41,7 @@
       }
     },
     {
-      "question": "What is the display name of the pathway whose stable identifier is R-HSA-168256?",
+      "question": "What is the name of the pathway whose stable identifier is R-HSA-168256?",
       "difficulty": "easy",
       "expected": "Immune System",
       "queries": {
@@ -51,7 +51,7 @@
       }
     },
     {
-      "question": "What is the display name of the pathway whose stable identifier is R-HSA-1640170?",
+      "question": "What is the name of the pathway whose stable identifier is R-HSA-1640170?",
       "difficulty": "easy",
       "expected": "Cell Cycle",
       "queries": {
@@ -61,7 +61,7 @@
       }
     },
     {
-      "question": "How many distinct reaction-like events have at least one input?",
+      "question": "How many reaction-like events have an input?",
       "difficulty": "easy",
       "expected": 95723,
       "queries": {
@@ -81,7 +81,7 @@
       }
     },
     {
-      "question": "How many distinct reaction-like events have at least one output?",
+      "question": "How many reaction-like events have an output?",
       "difficulty": "easy",
       "expected": 95069,
       "queries": {
@@ -91,7 +91,7 @@
       }
     },
     {
-      "question": "How many distinct reaction-like events have at least one catalyst activity?",
+      "question": "How many reaction-like events have catalyst activity?",
       "difficulty": "medium",
       "expected": 51412,
       "queries": {
@@ -101,7 +101,7 @@
       }
     },
     {
-      "question": "How many distinct events have at least one summation?",
+      "question": "How many events have a summation?",
       "difficulty": "medium",
       "expected": 119384,
       "queries": {
@@ -111,7 +111,7 @@
       }
     },
     {
-      "question": "How many distinct reaction-like events have at least one input and at least one output?",
+      "question": "How many reaction-like events have an output and an input?",
       "difficulty": "medium",
       "expected": 95012,
       "queries": {
@@ -121,7 +121,7 @@
       }
     },
     {
-      "question": "How many distinct events record more than one species?",
+      "question": "How many events record more than one species?",
       "difficulty": "medium",
       "expected": 387,
       "queries": {
@@ -131,7 +131,7 @@
       }
     },
     {
-      "question": "How many distinct pathways directly contain at least one reaction-like event through hasEvent?",
+      "question": "How many pathways have a reaction-like event?",
       "difficulty": "medium",
       "expected": 17951,
       "queries": {
@@ -141,7 +141,7 @@
       }
     },
     {
-      "question": "How many distinct reaction-like events are directly contained by more than one pathway through hasEvent?",
+      "question": "How many reaction-like events are directly contained by more than one pathway?",
       "difficulty": "medium",
       "expected": 4532,
       "queries": {
@@ -151,7 +151,7 @@
       }
     },
     {
-      "question": "How many distinct compartments are recorded for at least one pathway?",
+      "question": "How many compartments are recorded for at least one pathway?",
       "difficulty": "medium",
       "expected": 52,
       "queries": {
@@ -161,7 +161,7 @@
       }
     },
     {
-      "question": "Report the display name and pathway count of the five species recorded by the most pathways, ordered by count descending then species name ascending. Use columns named species and pathways.",
+      "question": "Report the display name and pathway count of the five species recorded by the most pathways, ordered by highest count first, then alphabetically by species name. Use columns named species and pathways.",
       "difficulty": "medium",
       "expected": [
         {
@@ -193,7 +193,7 @@
       }
     },
     {
-      "question": "Report the stable identifier and child count of the three pathways with the most direct hasEvent children, ordered by count descending then stable identifier ascending. Use columns named pathway and children.",
+      "question": "Report the stable identifier and child count of the three pathways with the most direct events, ordered by highest count first, then alphabetically by stable identifier. Use columns named pathway and children.",
       "difficulty": "medium",
       "expected": [
         {
@@ -217,7 +217,7 @@
       }
     },
     {
-      "question": "Consider human reaction-like events (species includes Homo sapiens) whose rank-0 input is a Complex. For how many such events is at least one of the event's own catalyst-activity physical entities also a part of that same rank-0 input complex, where 'part of' means reachable from the complex by following hasComponent links out of complexes and hasMember links out of entity sets, to any depth?",
+      "question": "Consider reaction-like events assigned to Homo sapiens whose first input is a Complex. How many such events have a physical entity as part of their catalyst activity that's also directly or indirectly part of that first input complex?",
       "difficulty": "expert",
       "expected": 60,
       "queries": {
@@ -227,7 +227,7 @@
       }
     },
     {
-      "question": "Restrict to human reaction-like events (species includes Homo sapiens) that have at least 4 distinct input entities, ignoring rank and ignoring any entity listed more than once. How many unordered pairs of two different such events have exactly the same set of input entities?",
+      "question": "Consider reaction-like events assigned to Homo sapiens that have at least 4 distinct input entities. How many unordered pairs of such events have exactly the same set of input entities?",
       "difficulty": "expert",
       "expected": 104,
       "queries": {
@@ -237,7 +237,7 @@
       }
     },
     {
-      "question": "Human pathways (species includes Homo sapiens) carry summations, and those summations cite literature references, which in turn have authors. Which people are an author of the greatest number of distinct literature references reached that way? Give each person as their surname, then a comma and a space, then their first name.",
+      "question": "Which people are an author of the greatest number of distinct literature references that are summations of Homo sapiens pathways? Give each person as their surname, then a comma and a space, then their first name.",
       "difficulty": "argmax",
       "expected": [
         "Casanova, Jean-Laurent",
@@ -250,7 +250,7 @@
       }
     },
     {
-      "question": "Consider human pathways (species includes Homo sapiens) that have been reviewed, where at least one author of a reviewing InstanceEdit is affiliated with an organisation whose name contains the word 'University'. How many of those pathways directly contain, through hasEvent, an event carrying a negative preceding event whose reason has the display name 'Futile Cycle'?",
+      "question": "Consider Homo sapiens pathways where a reviewer of an edit is affiliated with a University. How many of those pathways directly contain an event with a negative preceding event whose reason is \"Futile Cycle\"?",
       "difficulty": "expert",
       "expected": 42,
       "queries": {
@@ -260,7 +260,7 @@
       }
     },
     {
-      "question": "Consider the pathways that are direct hasEvent children of the pathway with stable identifier R-HSA-168256. For each such child, collect every event in its own hasEvent subtree including itself, take every input and output of those events, then expand any complexes through hasComponent and any entity sets through hasMember to any depth. Among the EntityWithAccessionedSequence instances found that way, which child has the greatest number of distinct reference gene products? Give the child's display name.",
+      "question": "Consider the pathways directly contained by the pathway with stable identifier R-HSA-168256. For each one, take the inputs and outputs of every reaction-like event beneath it, along with anything directly or indirectly part of those entities. Which of them references the most gene products? Give its name.",
       "difficulty": "expert",
       "expected": "Innate Immune System",
       "queries": {
@@ -270,7 +270,7 @@
       }
     },
     {
-      "question": "Call a compartment 'membrane-derived' if it reaches the GO cellular component with accession 0016020 by following one or more instanceOf links. How many human pathways (species includes Homo sapiens) that directly contain at least one reaction-like event through hasEvent have every one of their directly contained reaction-like events assigned at least one membrane-derived compartment?",
+      "question": "Call a compartment membrane-derived if it is, directly or indirectly, an instance of the GO cellular component with accession 0016020. Among Homo sapiens pathways that directly contain a reaction-like event, how many have a membrane-derived compartment on every one of those events?",
       "difficulty": "expert",
       "expected": 771,
       "queries": {
@@ -280,7 +280,7 @@
       }
     },
     {
-      "question": "How many distinct reaction-like events lie in the hasEvent hierarchy at any depth below the pathway with stable identifier R-HSA-168256 but not at any depth below the pathway with stable identifier R-HSA-392499?",
+      "question": "How many reaction-like events lie somewhere beneath the pathway with stable identifier R-HSA-168256 but nowhere beneath the pathway with stable identifier R-HSA-392499?",
       "difficulty": "recursion",
       "expected": 1896,
       "queries": {
@@ -290,7 +290,7 @@
       }
     },
     {
-      "question": "How many distinct reaction-like events are regulated by a regulation whose regulator is a Complex that contains, by following hasComponent out of complexes and hasMember out of entity sets for one or more steps, a physical entity that is also the catalyst of that very same event? The regulator complex being itself the catalyst does not count; at least one containment step is required.",
+      "question": "How many reaction-like events are regulated by a Complex that has the event's own catalyst among its parts, directly or indirectly? A regulator that is itself the catalyst does not count.",
       "difficulty": "expert",
       "expected": 411,
       "queries": {
@@ -300,7 +300,7 @@
       }
     },
     {
-      "question": "How many human complexes (species includes Homo sapiens) that have at least one direct component have every one of their direct components be an EntityWithAccessionedSequence?",
+      "question": "How many Homo sapiens complexes have at least one direct component, with every one of those components being an EntityWithAccessionedSequence?",
       "difficulty": "polymorphism",
       "expected": 4822,
       "queries": {
@@ -315,7 +315,7 @@
       "divergence": "The graph dump omits 19 Complex instances that the relational dump has (111,374 nodes against 111,393 rows); confirmed by looking the missing DB_IDs up directly — they have a DatabaseObject row with _class=Complex and no node in Neo4j at all. TypeDB is loaded from the graph, so it matches Neo4j."
     },
     {
-      "question": "Consider every human pathway (species includes Homo sapiens). For each, count the distinct reaction-like events anywhere in its hasEvent subtree, and the percentage of those events having at least one catalyst activity. Return the five pathways with the most such events, ordered by that count descending and then by pathway name. Use columns named pathway, events and pct, with pct rounded to one decimal place.",
+      "question": "For each Homo sapiens pathway, count the reaction-like events anywhere beneath it, and what percentage of those have catalyst activity. Report the five pathways with the most events, ordered by highest count first, then alphabetically by pathway name. Use columns named pathway, events and pct, with pct rounded to one decimal place.",
       "difficulty": "expert",
       "expected": [
         {
@@ -352,7 +352,7 @@
       "ordered": true
     },
     {
-      "question": "How many distinct reaction-like events are regulated by at least one regulation that is an instance of PositiveRegulation or of any subclass of PositiveRegulation, and by no regulation that is an instance of NegativeRegulation or of any subclass of NegativeRegulation?",
+      "question": "How many reaction-like events are positively regulated but never negatively regulated?",
       "difficulty": "polymorphism",
       "expected": 4451,
       "queries": {
@@ -362,7 +362,7 @@
       }
     },
     {
-      "question": "For each human pathway (species includes Homo sapiens), count the distinct reaction-like events in its hasEvent subtree at any depth, considering only pathways whose subtree contains at least one. How many of those pathways have a count strictly greater than the mean count across all of them?",
+      "question": "Count the reaction-like events anywhere beneath each Homo sapiens pathway, ignoring pathways with none. How many of those pathways have a count above the mean?",
       "difficulty": "expert",
       "expected": 501,
       "queries": {
@@ -372,7 +372,7 @@
       }
     },
     {
-      "question": "Consider human reaction-like events (species includes Homo sapiens) that carry at least one regulation. What percentage of them carry no regulation that is an instance of NegativeRegulation or any of its subclasses? Round to one decimal place.",
+      "question": "Of the Homo sapiens reaction-like events that are regulated at all, what percentage are never negatively regulated? Round to one decimal place.",
       "difficulty": "polymorphism",
       "expected": 62.4,
       "queries": {
@@ -382,7 +382,7 @@
       }
     },
     {
-      "question": "Consider the EntityWithAccessionedSequence instances that are the physical entity of a catalyst activity of some reaction-like event. How many distinct reference entities do they reference whose own reference sequence records its species as Homo sapiens? Judge the species from the reference sequence itself, not from the species of any event.",
+      "question": "Consider the EntityWithAccessionedSequence instances that catalyse a reaction-like event. How many of the reference sequences they point to record their species as Homo sapiens? Judge the species from the reference sequence itself, not from any event.",
       "difficulty": "expert",
       "expected": 1048,
       "queries": {
@@ -392,7 +392,7 @@
       }
     },
     {
-      "question": "How many distinct human pathways (species includes Homo sapiens) have at least one recorded revision and have never been internally reviewed?",
+      "question": "How many Homo sapiens pathways have been revised but never internally reviewed?",
       "difficulty": "expert",
       "expected": 236,
       "queries": {
@@ -402,7 +402,7 @@
       }
     },
     {
-      "question": "How many distinct human reaction-like events (species includes Homo sapiens) were inferred from an event that records a species other than Homo sapiens?",
+      "question": "How many Homo sapiens reaction-like events were inferred from an event of another species?",
       "difficulty": "expert",
       "expected": 2256,
       "queries": {
@@ -412,7 +412,7 @@
       }
     },
     {
-      "question": "How many distinct complexes record at least one included location that is not also one of that same complex's compartments?",
+      "question": "How many complexes have an included location that is not also one of their own compartments?",
       "difficulty": "expert",
       "expected": 5591,
       "queries": {
@@ -427,22 +427,22 @@
       "divergence": "The graph dump omits 19 Complex instances that the relational dump has (111,374 nodes against 111,393 rows); confirmed by looking the missing DB_IDs up directly — they have a DatabaseObject row with _class=Complex and no node in Neo4j at all. TypeDB is loaded from the graph, so it matches Neo4j."
     },
     {
-      "question": "For the human reaction-like events that have at least one catalyst activity, what is the mean catalytic rate constant (kcat) recorded for those catalyst activities?",
+      "question": "What is the mean catalytic rate constant (kcat) recorded across the catalyst activities of Homo sapiens reaction-like events?",
       "difficulty": "unanswerable",
       "unanswerable": true
     },
     {
-      "question": "Among the reference gene products referenced by EntityWithAccessionedSequence instances, which one has the greatest molecular mass in daltons?",
+      "question": "Which of the gene products referenced by EntityWithAccessionedSequence instances has the greatest molecular mass in daltons?",
       "difficulty": "unanswerable",
       "unanswerable": true
     },
     {
-      "question": "Considering drugs whose reference therapeutic is marked as approved, what is the most frequently recorded recommended daily dosage?",
+      "question": "Among the drugs whose reference therapeutic is approved, what is the most frequently recorded recommended daily dosage?",
       "difficulty": "unanswerable",
       "unanswerable": true
     },
     {
-      "question": "For every species, count the distinct reaction-like events and the distinct pathways that record it as one of their species. Report the ten species with the most reaction-like events, ordered by that count descending and then by species name, using columns named species, reactions and pathways.",
+      "question": "For every species, count the reaction-like events and the pathways assigned to it. Report the ten species with the most reaction-like events, ordered by highest count first, then alphabetically by species name. Use columns named species, reactions and pathways.",
       "difficulty": "expert",
       "ordered": true,
       "expected": [
@@ -504,7 +504,7 @@
       }
     },
     {
-      "question": "How many InstanceEdit instances are not recorded as the creating edit of any pathway? Treat a pathway as an instance of Pathway or of any subclass of Pathway.",
+      "question": "How many edits are not recorded as having created a pathway?",
       "difficulty": "expert",
       "expected": 124393,
       "queries": {
@@ -519,7 +519,7 @@
       "divergence": "Reactome's relational and graph dumps of release 97 disagree on InstanceEdit: 126,230 rows against 160,392 nodes, counted directly rather than through this question's query. TypeDB is loaded from the graph, so it matches Neo4j."
     },
     {
-      "question": "The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, take the set of reaction-like events reachable from it through hasEvent at any depth. For every unordered pair of two different children, report the pair with columns pathway_a, pathway_b, shared and jaccard, where pathway_a and pathway_b are the two children's display names, where shared is the number of reaction-like events in both sets and jaccard is that number divided by the size of the union, rounded to four decimal places. Order by jaccard descending, then pathway_a, then pathway_b.",
+      "question": "The pathway with stable identifier R-HSA-168256 directly contains three pathways. Compare each pair of them by the reaction-like events beneath each, reporting how many events they share and the Jaccard similarity of the two sets, rounded to four decimal places. Use columns pathway_a and pathway_b for the two names, then shared and jaccard, ordered by highest similarity first, then alphabetically by pathway_a, then pathway_b.",
       "difficulty": "expert",
       "ordered": true,
       "expected": [
@@ -549,7 +549,7 @@
       }
     },
     {
-      "question": "Rank species by the number of distinct reaction-like events that record them as one of their species, and take the top three. For each of those three, report the pathway that directly contains, through hasEvent, the greatest number of reaction-like events recording that species. Use columns species, pathway and reactions, ordered by reactions descending then species.",
+      "question": "Take the three species with the most reaction-like events. For each, report the pathway that directly contains the most reaction-like events of that species. Use columns species, pathway and reactions, ordered by highest count first, then alphabetically by species.",
       "difficulty": "expert",
       "ordered": true,
       "expected": [
@@ -576,7 +576,7 @@
       }
     },
     {
-      "question": "How many InstanceEdit instances that have the person with surname D'Eustachio and first name Peter as one of their authors are not recorded as the creating edit of any pathway?",
+      "question": "How many edits authored by the person with surname D'Eustachio and first name Peter are not recorded as having created a pathway?",
       "difficulty": "expert",
       "expected": 9081,
       "queries": {
@@ -591,7 +591,7 @@
       "divergence": "Reactome's relational and graph dumps of release 97 disagree on InstanceEdit: 126,230 rows against 160,392 nodes, counted directly rather than through this question's query. TypeDB is loaded from the graph, so it matches Neo4j."
     },
     {
-      "question": "Human pathways (species includes Homo sapiens) record an authored InstanceEdit, and each InstanceEdit records its own authors. Which person is an author of the authored InstanceEdit of the greatest number of distinct human pathways? Give their surname, then a comma and a space, then their first name.",
+      "question": "Which person is recorded as the author of the greatest number of Homo sapiens pathways? Give their surname, then a comma and a space, then their first name.",
       "difficulty": "argmax",
       "expected": "Jassal, Bijay",
       "queries": {
@@ -601,7 +601,7 @@
       }
     },
     {
-      "question": "The pathway with stable identifier R-HSA-168256 has three direct hasEvent children. For each child, collect the physical entities that are a direct input to any reaction-like event reachable from that child through hasEvent at any depth. How many distinct physical entities appear in all three of those collections?",
+      "question": "The pathway with stable identifier R-HSA-168256 directly contains three pathways. How many physical entities are an input to some reaction-like event beneath each of the three?",
       "difficulty": "expert",
       "expected": 22,
       "queries": {
@@ -611,7 +611,7 @@
       }
     },
     {
-      "question": "How many human pathways (species includes Homo sapiens) that directly contain at least one reaction-like event through hasEvent have the property that every one of those directly contained reaction-like events has at least one input and has every one of its inputs be a Complex?",
+      "question": "Among Homo sapiens pathways that directly contain a reaction-like event, how many have every one of those events take at least one input, with all of their inputs being Complexes?",
       "difficulty": "expert",
       "expected": 59,
       "queries": {
@@ -621,7 +621,7 @@
       }
     },
     {
-      "question": "For each human pathway (species includes Homo sapiens) whose hasEvent subtree contains at least one reaction-like event, count those distinct reaction-like events. Divide the pathways into four equally sized groups by that count using NTILE ordered ascending, and report how many pathways fall in the highest group.",
+      "question": "Count the reaction-like events anywhere beneath each Homo sapiens pathway, ignoring pathways with none. Split those pathways into four equally sized groups by that count, from lowest to highest. How many pathways fall in the top group?",
       "difficulty": "expert",
       "expected": 720,
       "queries": {
@@ -631,7 +631,7 @@
       }
     },
     {
-      "question": "Starting from the pathway with stable identifier R-HSA-168256, repeatedly follow either a hasEvent link from a pathway to a contained event or a precedingEvent link from an event to an event that precedes it, in any order and any number of times. How many distinct reaction-like events are reachable?",
+      "question": "Starting from the pathway with stable identifier R-HSA-168256, repeatedly step either from a pathway to an event it contains or from an event to an event that precedes it, in any order and any number of times. How many reaction-like events are reachable?",
       "difficulty": "recursion",
       "expected": 3453,
       "queries": {
@@ -641,7 +641,7 @@
       }
     },
     {
-      "question": "For each of the pathways with stable identifiers R-HSA-168249, R-HSA-1280218 and R-HSA-1280215, collect the physical entities that are a direct input to any reaction-like event reachable from it through hasEvent at any depth. How many distinct physical entities are in both the R-HSA-168249 collection and the R-HSA-1280218 collection while not being in the R-HSA-1280215 collection?",
+      "question": "How many physical entities are an input to some reaction-like event beneath both the pathway with stable identifier R-HSA-168249 and the pathway with stable identifier R-HSA-1280218, but nowhere beneath the pathway with stable identifier R-HSA-1280215?",
       "difficulty": "expert",
       "expected": 31,
       "queries": {
@@ -651,7 +651,7 @@
       }
     },
     {
-      "question": "How many human pathways (species includes Homo sapiens) directly contain, through hasEvent, at least one reaction-like event that is not reachable through hasEvent at any depth from any pathway that the same human pathway also directly contains?",
+      "question": "How many Homo sapiens pathways directly contain a reaction-like event that does not also appear beneath any of the pathways they directly contain?",
       "difficulty": "expert",
       "expected": 2362,
       "queries": {
@@ -661,7 +661,7 @@
       }
     },
     {
-      "question": "An event below the pathway with stable identifier R-HSA-168256 may be reachable through hasEvent by more than one route, at different depths. Treating the direct children of that pathway as depth 1, take each reaction-like event's smallest such depth, and report the mean of those smallest depths across all reaction-like events below it, rounded to four decimal places.",
+      "question": "An event below the pathway with stable identifier R-HSA-168256 may be reachable by more than one route, at different depths. Counting the events it directly contains as depth 1, what is the mean shortest depth of the reaction-like events below it, rounded to four decimal places?",
       "difficulty": "recursion",
       "expected": 4.3942,
       "queries": {
@@ -671,7 +671,7 @@
       }
     },
     {
-      "question": "Walk outward from the pathway with stable identifier R-HSA-168256 through hasEvent, but only continue outward from a pathway that has at least one reviewed InstanceEdit; a pathway lacking one may still be reached, but nothing below it may. How many distinct reaction-like events are reachable under that restriction?",
+      "question": "Walk down from the pathway with stable identifier R-HSA-168256 into the events it contains, but only continue past a pathway that has been reviewed; an unreviewed pathway may still be reached, but nothing below it. How many reaction-like events are reachable that way?",
       "difficulty": "recursion",
       "expected": 1881,
       "queries": {

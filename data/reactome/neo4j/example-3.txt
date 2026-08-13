@@ -1,4 +1,4 @@
-Question: How many pathways record Homo sapiens as one of their species?
+Question: How many pathways are assigned to Homo sapiens?
 ```
 MATCH (p:Pathway)-[:species]->(s:Species {displayName:'Homo sapiens'}) RETURN count(DISTINCT p)
 ```

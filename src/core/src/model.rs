@@ -54,13 +54,20 @@ pub struct ModelResponse {
     pub stop: Option<String>,
 }
 
-/// Provider errors are never the model's fault, so neither variant counts
+/// Provider errors are never the model's fault, so no variant counts
 /// against the retry budget; the split decides what the harness does next.
 #[derive(Debug, Error)]
 pub enum ProviderError {
-    /// Rate limits, network blips — the harness retries with backoff.
+    /// Rate limits, network blips — the harness retries with backoff, and
+    /// aborts the run if they persist past its patience.
     #[error("transient provider error: {0}")]
     Transient(String),
+    /// The request ran out of time client-side. Retried like Transient, but
+    /// persistence ends only the repetition in flight, not the run: a
+    /// provider that stalls for 10 minutes at a time costs one record, not
+    /// the rest of the benchmark.
+    #[error("provider timeout: {0}")]
+    Timeout(String),
     /// Auth failures, malformed requests — abort the run.
     #[error("fatal provider error: {0}")]
     Fatal(String),

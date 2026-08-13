@@ -51,22 +51,29 @@ pub fn wire_messages(conversation: &[Message]) -> Vec<WireMessage<'_>> {
 }
 
 /// Send the request and return the successful response body. Network
-/// failures and client-side timeouts are Transient (worth a retry); HTTP
+/// failures are Transient (worth a retry) and client-side timeouts are
+/// Timeout (retried too, but persistence doesn't abort the run); HTTP
 /// failures are classified by status, with the API's own error message
 /// extracted from the body where possible.
 pub async fn send_for_body(request: reqwest::RequestBuilder) -> Result<String, ProviderError> {
-    let response = request
-        .send()
-        .await
-        .map_err(|e| ProviderError::Transient(format!("request failed: {e}")))?;
+    let response = request.send().await.map_err(|e| {
+        if e.is_timeout() {
+            ProviderError::Timeout(format!("request timed out: {e}"))
+        } else {
+            ProviderError::Transient(format!("request failed: {e}"))
+        }
+    })?;
     let status = response.status();
     if status.is_success() {
         // A read failure on a good status is a network blip mid-body, not a
         // bad response.
-        response
-            .text()
-            .await
-            .map_err(|e| ProviderError::Transient(format!("reading response body: {e}")))
+        response.text().await.map_err(|e| {
+            if e.is_timeout() {
+                ProviderError::Timeout(format!("response body timed out: {e}"))
+            } else {
+                ProviderError::Transient(format!("reading response body: {e}"))
+            }
+        })
     } else {
         let body = response
             .text()

@@ -14,8 +14,9 @@ use thiserror::Error;
 pub const REPETITIONS: u32 = 3;
 
 /// Harness-level retries for transient provider errors (rate limits, network
-/// blips). These never count against the model's retry budget. Doubling from
-/// a 10s base gives ~310s of total patience — enough to ride out transient errors.
+/// blips) and provider timeouts. These never count against the model's retry
+/// budget. Doubling from a 10s base gives ~310s of total patience — enough to
+/// ride out transient errors.
 pub const TRANSIENT_RETRIES: u32 = 5;
 const TRANSIENT_BACKOFF: Duration = Duration::from_secs(10);
 
@@ -25,8 +26,9 @@ pub const INFRA_RETRIES: u32 = 5;
 const INFRA_BACKOFF: Duration = Duration::from_millis(500);
 
 /// Defensive ceilings only: packages own the real timeouts. These convert a
-/// hung backend into a diagnosable infrastructure failure instead of a
-/// frozen run.
+/// hung backend into a diagnosable failure instead of a frozen run: a
+/// provider timeout costs the repetition, a DB one is an infrastructure
+/// failure.
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(600);
 const DB_TIMEOUT: Duration = Duration::from_secs(240);
 
@@ -165,7 +167,9 @@ pub struct QuestionRun {
     pub records: Vec<ResultRecord>,
 }
 
-/// Errors that abort the run. Not the model's fault as far as scoring goes —
+/// Errors that abort the run (provider timeouts are the exception: they are
+/// intercepted in `run_once` and cost only the repetition in flight).
+/// Not the model's fault as far as scoring goes —
 /// these never count as a wrong answer — but the attempt that hit one is still
 /// recorded, because a DB "infrastructure" failure is frequently a generated
 /// query that took the server down, and that query is the evidence.
@@ -403,6 +407,25 @@ impl BenchmarkRunner<'_> {
                 outcome,
             } = match self.attempt(&conversation, question.unanswerable).await {
                 Ok(outcome) => outcome,
+                // A provider that stayed timed out through the whole backoff
+                // budget ends the repetition, not the run: the stall is
+                // recorded as an error attempt (zero cost — nothing was
+                // received) and the benchmark moves on.
+                Err(AbortedAttempt {
+                    error: RunError::Provider(ProviderError::Timeout(message)),
+                    partial,
+                }) => {
+                    attempts.extend(partial);
+                    attempts.push(Attempt {
+                        query: None,
+                        response: None,
+                        tokens: TokenUsage::default(),
+                        latency_ms: 0,
+                        db_latency_ms: 0,
+                        error: Some(message),
+                    });
+                    return Ok(self.build_record(repetition, attempts, RecordResult::Error, false));
+                }
                 // The run is over, but the attempt that ended it still gets a
                 // record, so the query that did it reaches the results file.
                 Err(AbortedAttempt { error, partial }) => {
@@ -548,9 +571,10 @@ impl BenchmarkRunner<'_> {
         })
     }
 
-    /// Retry transient provider errors with exponential backoff; fatal
-    /// errors and exhausted retries abort the run. Returns the response and
-    /// the latency of the successful call only.
+    /// Retry transient provider errors and timeouts with exponential
+    /// backoff; fatal errors and exhausted retries end the attempt (the
+    /// caller decides whether that ends the repetition or the run). Returns
+    /// the response and the latency of the successful call only.
     async fn send_with_backoff(
         &self,
         conversation: &[Message],
@@ -562,14 +586,16 @@ impl BenchmarkRunner<'_> {
                 tokio::time::timeout(PROVIDER_TIMEOUT, self.model.send_prompt(conversation))
                     .await
                     .unwrap_or_else(|_| {
-                        Err(ProviderError::Transient(format!(
+                        Err(ProviderError::Timeout(format!(
                             "provider exceeded the harness ceiling of {PROVIDER_TIMEOUT:?}"
                         )))
                     });
             let latency_ms = started.elapsed().as_millis() as u64;
             match outcome {
                 Ok(response) => return Ok((response, latency_ms)),
-                Err(ProviderError::Transient(_)) if transient_failures < TRANSIENT_RETRIES => {
+                Err(ProviderError::Transient(_) | ProviderError::Timeout(_))
+                    if transient_failures < TRANSIENT_RETRIES =>
+                {
                     tokio::time::sleep(TRANSIENT_BACKOFF * 2u32.pow(transient_failures)).await;
                     transient_failures += 1;
                 }
@@ -1090,6 +1116,118 @@ mod run_tests {
             failure.error,
             RunError::Provider(ProviderError::Transient(_))
         ));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn provider_timeouts_are_backed_off_and_retried() {
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(Vec::<String>::new());
+        for _ in 0..REPETITIONS {
+            provider.push_timeout_error("took too long");
+            provider.push_response("```\n3\n```");
+        }
+        let runs = runner(&db, &provider)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+
+        assert!(runs[0].records.iter().all(|r| r.accurate));
+        // Timeouts don't touch the model's budget or the trace.
+        assert!(runs[0].records.iter().all(|r| r.retries_used == 0));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn persistent_provider_timeouts_end_the_repetition_not_the_run() {
+        let db = DummyDb::new();
+        let provider = DummyProvider::new(Vec::<String>::new());
+        // Repetition 1: a model-fault attempt, then timeouts past the
+        // harness budget.
+        provider.push_response("```\nnot valid json\n```");
+        for _ in 0..=TRANSIENT_RETRIES {
+            provider.push_timeout_error("took too long");
+        }
+        // The remaining repetitions recover.
+        for _ in 1..REPETITIONS {
+            provider.push_response("```\n3\n```");
+        }
+        let runs = runner_with_retries(&db, &provider, 1)
+            .run(&[question(Value::Int(3))])
+            .await
+            .unwrap();
+
+        let records = &runs[0].records;
+        assert_eq!(records.len(), REPETITIONS as usize);
+        // The timed-out repetition is an error record carrying both the
+        // earlier attempt and the timeout that ended it.
+        let timed_out = &records[0];
+        assert!(!timed_out.accurate);
+        assert!(matches!(timed_out.result, RecordResult::Error));
+        assert_eq!(timed_out.attempts.len(), 2);
+        assert!(
+            timed_out.attempts[0]
+                .error
+                .as_deref()
+                .unwrap()
+                .contains("syntax error")
+        );
+        let last = timed_out.attempts.last().unwrap();
+        assert!(last.query.is_none());
+        assert_eq!(last.error.as_deref(), Some("took too long"));
+        assert_eq!(last.tokens, TokenUsage::default());
+        // The run carried on to the remaining repetitions.
+        assert!(records[1..].iter().all(|r| r.accurate));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn hung_provider_costs_the_repetitions_not_the_run() {
+        struct HangingProvider;
+
+        #[async_trait::async_trait]
+        impl ModelProvider for HangingProvider {
+            fn model_id(&self) -> String {
+                "hang".to_string()
+            }
+
+            async fn send_prompt(
+                &self,
+                _conversation: &[Message],
+            ) -> Result<ModelResponse, ProviderError> {
+                std::future::pending().await
+            }
+        }
+
+        let db = DummyDb::new();
+        let provider = HangingProvider;
+        let runs = BenchmarkRunner {
+            db: &db,
+            db_id: "dummy",
+            model: &provider,
+            prompt_template: "{{question}}".to_string(),
+            schema: String::new(),
+            examples: vec![],
+            skills: None,
+            max_retries: 0,
+        }
+        .run(&[question(Value::Int(3))])
+        .await
+        .unwrap();
+
+        // Every repetition hit the harness ceiling, was recorded, and the
+        // run still completed.
+        let records = &runs[0].records;
+        assert_eq!(records.len(), REPETITIONS as usize);
+        for record in records {
+            assert!(!record.accurate);
+            assert!(matches!(record.result, RecordResult::Error));
+            assert!(
+                record.attempts[0]
+                    .error
+                    .as_deref()
+                    .is_some_and(|e| e.contains("harness ceiling")),
+                "the attempt should say why there is no response: {:?}",
+                record.attempts[0].error
+            );
+        }
     }
 
     #[tokio::test(start_paused = true)]

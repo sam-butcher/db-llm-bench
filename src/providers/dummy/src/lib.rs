@@ -27,6 +27,7 @@ pub struct DummyConfig {
 enum Scripted {
     Text(String),
     TransientError(String),
+    TimeoutError(String),
 }
 
 pub struct DummyProvider {
@@ -71,6 +72,15 @@ impl DummyProvider {
             .lock()
             .unwrap()
             .push_back(Scripted::TransientError(message.into()));
+    }
+
+    /// Script a provider timeout, for testing that persistent timeouts end
+    /// the repetition rather than the run.
+    pub fn push_timeout_error(&self, message: impl Into<String>) {
+        self.responses
+            .lock()
+            .unwrap()
+            .push_back(Scripted::TimeoutError(message.into()));
     }
 
     /// Every conversation received so far, in order.
@@ -137,6 +147,10 @@ impl ModelProvider for DummyProvider {
             Some(Scripted::TransientError(message)) => {
                 eprintln!("[dummy model] returning scripted transient error: {message}");
                 Err(ProviderError::Transient(message))
+            }
+            Some(Scripted::TimeoutError(message)) => {
+                eprintln!("[dummy model] returning scripted timeout error: {message}");
+                Err(ProviderError::Timeout(message))
             }
             None => {
                 eprintln!("[dummy model] script exhausted; returning fatal error");

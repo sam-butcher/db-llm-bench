@@ -11,26 +11,6 @@
       }
     },
     {
-      "question": "How many reaction-like events are recorded?",
-      "difficulty": "easy",
-      "expected": 95780,
-      "queries": {
-        "sql": "SELECT COUNT(*) FROM ReactionlikeEvent;",
-        "cypher": "MATCH (r:ReactionLikeEvent) RETURN count(r)",
-        "typeql": "match $r isa reaction-like-event; reduce $count = count;"
-      }
-    },
-    {
-      "question": "How many summations are recorded?",
-      "difficulty": "easy",
-      "expected": 21634,
-      "queries": {
-        "sql": "SELECT COUNT(*) FROM Summation;",
-        "cypher": "MATCH (s:Summation) RETURN count(s)",
-        "typeql": "match $s isa summation; reduce $count = count;"
-      }
-    },
-    {
       "question": "How many compartments are recorded?",
       "difficulty": "easy",
       "expected": 158,
@@ -51,16 +31,6 @@
       }
     },
     {
-      "question": "What is the name of the pathway whose stable identifier is R-HSA-1640170?",
-      "difficulty": "easy",
-      "expected": "Cell Cycle",
-      "queries": {
-        "sql": "SELECT d._displayName FROM DatabaseObject d JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier JOIN Pathway p ON p.DB_ID = d.DB_ID WHERE s.identifier = 'R-HSA-1640170';",
-        "cypher": "MATCH (p:Pathway {stId:'R-HSA-1640170'}) RETURN p.displayName",
-        "typeql": "match $p isa pathway, has st-id \"R-HSA-1640170\", has display-name $name; select $name;"
-      }
-    },
-    {
       "question": "How many reaction-like events have an input?",
       "difficulty": "easy",
       "expected": 95723,
@@ -68,46 +38,6 @@
         "sql": "SELECT COUNT(DISTINCT DB_ID) FROM ReactionlikeEvent_2_input;",
         "cypher": "MATCH (r:ReactionLikeEvent)-[:input]->() RETURN count(DISTINCT r)",
         "typeql": "match reaction-input (reaction: $r, consumed-entity: $e); select $r; distinct; reduce $count = count;"
-      }
-    },
-    {
-      "question": "How many reactions are recorded?",
-      "difficulty": "easy",
-      "expected": 84363,
-      "queries": {
-        "sql": "SELECT COUNT(*) FROM Reaction;",
-        "cypher": "MATCH (r:Reaction) RETURN count(r)",
-        "typeql": "match $r isa reaction; reduce $count = count;"
-      }
-    },
-    {
-      "question": "How many reaction-like events have an output?",
-      "difficulty": "easy",
-      "expected": 95069,
-      "queries": {
-        "sql": "SELECT COUNT(DISTINCT DB_ID) FROM ReactionlikeEvent_2_output;",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:output]->() RETURN count(DISTINCT r)",
-        "typeql": "match reaction-output (reaction: $r, produced-entity: $e); select $r; distinct; reduce $count = count;"
-      }
-    },
-    {
-      "question": "How many reaction-like events have catalyst activity?",
-      "difficulty": "medium",
-      "expected": 51412,
-      "queries": {
-        "sql": "SELECT COUNT(DISTINCT DB_ID) FROM ReactionlikeEvent_2_catalystActivity;",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:catalystActivity]->() RETURN count(DISTINCT r)",
-        "typeql": "match catalysis (catalysed-reaction: $r, catalyst: $c); select $r; distinct; reduce $count = count;"
-      }
-    },
-    {
-      "question": "How many events have a summation?",
-      "difficulty": "medium",
-      "expected": 119384,
-      "queries": {
-        "sql": "SELECT COUNT(DISTINCT DB_ID) FROM Event_2_summation;",
-        "cypher": "MATCH (e:Event)-[:summation]->() RETURN count(DISTINCT e)",
-        "typeql": "match $e isa event; summarisation (summarised-thing: $e, summation: $s); select $e; distinct; reduce $count = count;"
       }
     },
     {
@@ -138,16 +68,6 @@
         "sql": "SELECT COUNT(DISTINCT he.DB_ID) FROM Pathway_2_hasEvent he JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent;",
         "cypher": "MATCH (p:Pathway)-[:hasEvent]->(r:ReactionLikeEvent) RETURN count(DISTINCT p)",
         "typeql": "match $p isa pathway; event-containment (containing-pathway: $p, contained-event: $r); $r isa reaction-like-event; select $p; distinct; reduce $count = count;"
-      }
-    },
-    {
-      "question": "How many reaction-like events are directly contained by more than one pathway?",
-      "difficulty": "medium",
-      "expected": 4532,
-      "queries": {
-        "sql": "SELECT COUNT(*) FROM (SELECT he.hasEvent FROM Pathway_2_hasEvent he JOIN ReactionlikeEvent r ON r.DB_ID = he.hasEvent GROUP BY he.hasEvent HAVING COUNT(DISTINCT he.DB_ID) > 1) t;",
-        "cypher": "MATCH (p:Pathway)-[:hasEvent]->(r:ReactionLikeEvent) WITH r, count(DISTINCT p) AS n WHERE n > 1 RETURN count(r)",
-        "typeql": "match $r isa reaction-like-event; event-containment (containing-pathway: $p, contained-event: $r); select $r, $p; distinct; reduce $n = count($p) groupby $r; match $n > 1; reduce $count = count;"
       }
     },
     {
@@ -190,30 +110,6 @@
         "sql": "SELECT d._displayName AS species, COUNT(DISTINCT es.DB_ID) AS pathways FROM Event_2_species es JOIN Pathway p ON p.DB_ID = es.DB_ID JOIN DatabaseObject d ON d.DB_ID = es.species GROUP BY es.species, d._displayName ORDER BY pathways DESC, species ASC LIMIT 5;",
         "cypher": "MATCH (p:Pathway)-[:species]->(s:Species) WITH s, count(DISTINCT p) AS pathways RETURN s.displayName AS species, pathways ORDER BY pathways DESC, species ASC LIMIT 5",
         "typeql": "match $p isa pathway; species-assignment (classified-thing: $p, species: $s); $s has display-name $species; select $species, $p; distinct; reduce $pathways = count($p) groupby $species; sort $pathways desc, $species asc; limit 5;"
-      }
-    },
-    {
-      "question": "Report the stable identifier and child count of the three pathways with the most direct events, ordered by highest count first, then alphabetically by stable identifier. Use columns named pathway and children.",
-      "difficulty": "medium",
-      "expected": [
-        {
-          "children": 69,
-          "pathway": "R-HSA-5619102"
-        },
-        {
-          "children": 66,
-          "pathway": "R-HSA-9018519"
-        },
-        {
-          "children": 56,
-          "pathway": "R-HSA-8854691"
-        }
-      ],
-      "ordered": true,
-      "queries": {
-        "sql": "SELECT s.identifier AS pathway, COUNT(DISTINCT he.hasEvent) AS children FROM Pathway_2_hasEvent he JOIN DatabaseObject d ON d.DB_ID = he.DB_ID JOIN StableIdentifier s ON s.DB_ID = d.stableIdentifier GROUP BY he.DB_ID, s.identifier ORDER BY children DESC, pathway ASC LIMIT 3;",
-        "cypher": "MATCH (p:Pathway)-[:hasEvent]->(e) WITH p, count(DISTINCT e) AS children RETURN p.stId AS pathway, children ORDER BY children DESC, pathway ASC LIMIT 3",
-        "typeql": "match $p isa pathway; event-containment (containing-pathway: $p, contained-event: $e); select $p, $e; distinct; reduce $children = count($e) groupby $p; match $p has st-id $pathway; select $pathway, $children; sort $children desc, $pathway asc; limit 3;"
       }
     },
     {

@@ -208,6 +208,14 @@ services:
       DB_PASS: password
       TYPEDB: /usr/local/bin/typedb
       WORK: /reactome/typedb/work
+      # Loader checkpoints are written to a temp file and renamed into place.
+      # On a Windows host the bind mount rejects rename-over-existing with
+      # EPERM part way through a large pass, which aborts the whole load under
+      # `set -e` with the error buried in that pass's log. Keeping the loader's
+      # scratch output on the container filesystem avoids it; the per-pass
+      # reject counts still print, and a single pass can be re-run with OUT
+      # pointed back at /reactome/typedb/loader-output to inspect rejects.log.
+      OUT: /tmp/loader-output
       NEO4J_HTTP: http://neo4j:7474/db/neo4j/tx/commit
       NEO4J_USER: neo4j
       NEO4J_PASS: password

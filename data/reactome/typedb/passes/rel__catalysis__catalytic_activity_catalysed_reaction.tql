@@ -1,0 +1,13 @@
+given
+    $catalysed_reaction: integer,
+    $catalyst: integer,
+    $catalytic_activity: integer,
+    $db_id: integer,
+    $display_name: string,
+    $schema_class: string;
+match
+$p0 isa reaction-like-event, has db-id == $catalysed_reaction;
+$p1 isa physical-entity, has db-id == $catalyst;
+$p2 isa go-molecular-function, has db-id == $catalytic_activity;
+insert
+$x isa catalysis, links (catalysed-reaction: $p0, catalyst: $p1, catalytic-activity: $p2), has db-id == $db_id, has display-name == $display_name, has schema-class == $schema_class;

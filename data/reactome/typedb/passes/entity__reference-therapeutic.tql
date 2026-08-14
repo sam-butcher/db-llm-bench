@@ -6,7 +6,8 @@ given
     $old_st_id: string?,
     $approved: boolean?,
     $withdrawn: boolean?,
-    $therapeutic_type: string?;
+    $therapeutic_type: string?,
+    $identifier: string?;
 insert
 $x isa reference-therapeutic, has db-id == $db_id;
 try { $x has display-name == $display_name; };
@@ -16,3 +17,4 @@ try { $x has old-st-id == $old_st_id; };
 try { $x has approved == $approved; };
 try { $x has withdrawn == $withdrawn; };
 try { $x has therapeutic-type == $therapeutic_type; };
+try { $x has identifier == $identifier; };

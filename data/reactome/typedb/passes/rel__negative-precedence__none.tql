@@ -1,8 +1,11 @@
 given
     $excluded_preceding_event: integer,
-    $following_event: integer;
+    $following_event: integer,
+    $db_id: integer,
+    $display_name: string,
+    $schema_class: string;
 match
 $p0 isa event, has db-id == $excluded_preceding_event;
 $p1 isa event, has db-id == $following_event;
 insert
-$x isa negative-precedence, links (excluded-preceding-event: $p0, following-event: $p1);
+$x isa negative-precedence, links (excluded-preceding-event: $p0, following-event: $p1), has db-id == $db_id, has display-name == $display_name, has schema-class == $schema_class;

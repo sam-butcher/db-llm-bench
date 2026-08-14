@@ -28,15 +28,62 @@ _bs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_bs)
 
 # Columns that are attributes of the relation rather than role players.
-RELATION_ATTRS = {"ordering", "stoichiometry"}
+# Columns on a relation CSV that are attributes rather than role players.
+# Anything not listed here is taken to be a role and matched by db-id, so a new
+# owned attribute must be added or it will be read as a player and reject.
+# db-id, display-name and schema-class appear on the relations Reactome reifies
+# as nodes (catalysis, regulation, entity-functional-status,
+# negative-precedence): the node carries them, so the relation that replaces it
+# should too.
+RELATION_ATTRS = {"ordering", "stoichiometry",
+                  "db_id", "display_name", "schema_class", "st_id"}
 
 
 def value_types() -> dict[str, str]:
-    """Attribute label -> TypeQL value type, read from the schema source."""
-    out = {}
-    for m in re.finditer(r"attribute ([\w-]+), value (\w+);", _bs.ATTRIBUTES):
-        out[m.group(1).replace("-", "_")] = m.group(2)
-    return out
+    """Attribute label -> TypeQL value type, read from the schema source.
+
+    Handles the three shapes the schema uses: a plain declaration, a subtype
+    that states its own value type (`db-id sub id, value integer`), and a
+    subtype that inherits one from an abstract parent (`display-name sub name`,
+    where `name` carries the `value string`).
+
+    Resolving inheritance is not optional. Callers fall back to `string` for an
+    attribute they cannot find, which is silently correct for most of them and
+    catastrophic for `db-id`: every entity pass inserts one, so a missed
+    integer rejects the entire load one pass at a time.
+    """
+    declared: dict[str, tuple[str | None, str | None]] = {}
+    abstract: set[str] = set()
+    for line in _bs.ATTRIBUTES.splitlines():
+        m = re.match(r"\s*attribute ([\w-]+)(.*);\s*$", line)
+        if not m:
+            continue
+        label, rest = m.group(1), m.group(2)
+        parent = re.search(r"\bsub ([\w-]+)", rest)
+        value = re.search(r"\bvalue (\w+)", rest)
+        declared[label] = (parent.group(1) if parent else None,
+                           value.group(1) if value else None)
+        if "@abstract" in rest:
+            abstract.add(label)
+
+    def resolve(label: str, seen: frozenset[str] = frozenset()) -> str | None:
+        if label not in declared or label in seen:
+            return None
+        parent, value = declared[label]
+        if value:
+            return value
+        return resolve(parent, seen | {label}) if parent else None
+
+    resolved = {label: resolve(label) for label in declared}
+    # An abstract attribute need not carry a value type; anything else that
+    # fails to resolve would be silently defaulted to `string` by the callers,
+    # which is how a subtyped `db-id` once rejected every entity in the load.
+    missing = sorted(l for l, v in resolved.items() if not v and l not in abstract)
+    if missing:
+        raise SystemExit(
+            "value_types: no value type resolved for " + ", ".join(missing) +
+            " — the schema uses a declaration shape this parser does not read")
+    return {label.replace("-", "_"): v for label, v in resolved.items() if v}
 
 
 def role_player_types() -> dict[str, str]:
@@ -49,6 +96,21 @@ def role_player_types() -> dict[str, str]:
     """
     parent = _bs.read_hierarchy()
     out = {}
+    # A relation can itself play a role — the literature evidence for a
+    # catalysis points at that catalysis, not at a stand-in for it — and those
+    # are declared with `plays` inside the relation rather than in PLAYS, which
+    # only covers entities. Without them the pass falls back to matching the
+    # player as database-object, which no relation is, and type inference
+    # rejects the whole pass rather than a row.
+    current = None
+    for line in _bs.RELATIONS.splitlines():
+        m = re.match(r"\s*relation ([\w-]+)", line)
+        if m:
+            current = m.group(1)
+            continue
+        m = re.match(r"\s*plays ([\w-]+:[\w-]+)", line)
+        if m and current:
+            out[m.group(1)] = current
     for entity, roles in _bs.hoist_roles(_bs._merge_specialised(dict(_bs.PLAYS)), parent).items():
         for role in roles:
             # Keyed by the FULL relation:role. Role names repeat across
@@ -101,6 +163,20 @@ def main() -> None:
             lines.append(f"$x isa {entity}, has db-id == ${header[0]};")
             lines.append("insert")
             lines.append(f"$x has {attr} == ${header[1]};")
+        elif stem.startswith("link__"):
+            # link__<relation>__<role>. The base pass has already inserted the
+            # relation with its first player, so this matches it on its db-id
+            # key and adds one more player to a multi-valued role. Runs after
+            # every rel__ pass for that reason.
+            _, relation, role = stem.split("__", 2)
+            col = header[1]
+            lines.append(f"given\n    $db_id: integer,\n    ${col}: integer;")
+            lines.append("match")
+            lines.append(f"$x isa {relation}, has db-id == $db_id;")
+            player = players.get(f"{relation}:{role}") or players.get(role, "database-object")
+            lines.append(f"$p isa {player}, has db-id == ${col};")
+            lines.append("insert")
+            lines.append(f"$x links ({role}: $p);")
         elif stem.startswith("entity__"):
             entity = stem[len("entity__"):]
             given = [f"    ${header[0]}: {types.get(header[0], 'string')}"]
@@ -111,8 +187,10 @@ def main() -> None:
             for c in header[1:]:
                 lines.append(f"try {{ $x has {c.replace('_', '-')} == ${c}; }};")
         else:
-            # rel__<type>[__optional-suffix]
-            name = stem[len("rel__"):]
+            # rel__<type>[__optional-suffix], or post__<type> for the relations
+            # whose player is itself a relation, which load in a later phase.
+            prefix = "post__" if stem.startswith("post__") else "rel__"
+            name = stem[len(prefix):]
             relation = re.sub(r"__(none|[a-z_]+)$", "", name)
             roles = [c for c in header if c not in RELATION_ATTRS]
             attrs = [c for c in header if c in RELATION_ATTRS]

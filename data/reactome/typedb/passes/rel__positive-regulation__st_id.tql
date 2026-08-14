@@ -1,0 +1,10 @@
+given
+    $regulator: integer,
+    $db_id: integer,
+    $display_name: string,
+    $schema_class: string,
+    $st_id: string;
+match
+$p0 isa physical-entity, has db-id == $regulator;
+insert
+$x isa positive-regulation, links (regulator: $p0), has db-id == $db_id, has display-name == $display_name, has schema-class == $schema_class, has st-id == $st_id;

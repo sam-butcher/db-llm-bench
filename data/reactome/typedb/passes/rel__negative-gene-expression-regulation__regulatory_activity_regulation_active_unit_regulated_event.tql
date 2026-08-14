@@ -1,0 +1,15 @@
+given
+    $regulated_event: integer,
+    $regulator: integer,
+    $regulatory_activity: integer,
+    $regulation_active_unit: integer,
+    $db_id: integer,
+    $display_name: string,
+    $schema_class: string;
+match
+$p0 isa reaction-like-event, has db-id == $regulated_event;
+$p1 isa physical-entity, has db-id == $regulator;
+$p2 isa go-molecular-function, has db-id == $regulatory_activity;
+$p3 isa physical-entity, has db-id == $regulation_active_unit;
+insert
+$x isa negative-gene-expression-regulation, links (regulated-event: $p0, regulator: $p1, regulatory-activity: $p2, regulation-active-unit: $p3), has db-id == $db_id, has display-name == $display_name, has schema-class == $schema_class;

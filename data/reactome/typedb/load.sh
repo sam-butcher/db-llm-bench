@@ -89,6 +89,19 @@ for csv in "$WORK"/attr__*.csv; do [ -e "$csv" ] || continue; run_pass "$csv"; d
 echo "== relations =="
 for csv in "$WORK"/rel__*.csv; do run_pass "$csv"; done
 
+# Extra players for the multi-valued roles of the reified relations. These come
+# last because each one matches a relation by db-id that a rel__ pass inserted:
+# one reified node is one relation, and a role it points at several times gets
+# several players rather than several copies of the relation.
+echo "== relation role links =="
+for csv in "$WORK"/link__*.csv; do [ -e "$csv" ] || continue; run_pass "$csv"; done
+
+# Relations whose role player is another relation — the literature evidence for
+# a catalysis or regulation. Last, because the relation they point at has to
+# exist first, and it is only complete once its link passes have run.
+echo "== relations referencing relations =="
+for csv in "$WORK"/post__*.csv; do [ -e "$csv" ] || continue; run_pass "$csv"; done
+
 if [ "$failed" = 0 ]; then
     echo "== all passes committed with zero rejects =="
 else

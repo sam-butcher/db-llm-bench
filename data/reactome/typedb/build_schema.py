@@ -74,24 +74,48 @@ def read_hierarchy() -> dict[str, str | None]:
 
 
 # Attributes, with the value type each carries.
+#
+# `id` and `name` are abstract supertypes over the concrete attributes rather
+# than attributes anything owns directly. Reactome spreads both concepts over
+# many slots — six kinds of identifier, six kinds of name — and grouping them
+# makes `$x has name $n` one polymorphic lookup over all of them instead of a
+# query that has to enumerate each. Ownership is unchanged: owners still own the
+# concrete subtypes, so no `owns` declaration moves.
+#
+# `name` and `id` each declare their value type once and their subtypes inherit
+# it, so the schema itself guarantees every name and every identifier is a
+# string. A subtype may not redeclare a value type it already inherits (SVL39),
+# which is why the subtypes below are bare.
+#
+# db-id stays outside the `id` hierarchy deliberately. It is the store's own
+# surrogate key, held by every object, so including it would make `$x has id $i`
+# match everything and reduce "objects carrying an identifier" to "all objects".
+# Outside it, `id` means an externally meaningful identifier, which is the thing
+# worth asking about.
 ATTRIBUTES = """
 attribute db-id, value integer;
-attribute st-id, value string;
-attribute old-st-id, value string;
-attribute display-name, value string;
+
+attribute id @abstract, value string;
+attribute st-id sub id;
+attribute old-st-id sub id;
+attribute identifier sub id;
+attribute accession sub id;
+attribute tax-id sub id;
+attribute variant-identifier sub id;
+
+attribute name @abstract, value string;
+attribute display-name sub name;
+attribute entity-name sub name;
+attribute gene-name sub name;
+attribute systematic-name sub name;
+attribute first-name sub name;
+attribute surname sub name;
+attribute affiliation-name sub name;
+
 attribute schema-class, value string;
-attribute entity-name, value string;
 attribute definition, value string;
-attribute accession, value string;
-attribute identifier, value string;
-attribute variant-identifier, value string;
-attribute gene-name, value string;
 attribute ec-number, value string;
-attribute tax-id, value string;
 attribute abbreviation, value string;
-attribute first-name, value string;
-attribute surname, value string;
-attribute affiliation-name, value string;
 attribute summary-text, value string;
 attribute note, value string;
 attribute release-number, value integer;
@@ -104,6 +128,9 @@ attribute withdrawn, value boolean;
 attribute is-canonical, value boolean;
 attribute is-chimeric, value boolean;
 attribute therapeutic-type, value string;
+# Deliberately outside the `name` hierarchy: this names the action an update
+# tracker performed, not an object. Under `name`, "objects whose name contains
+# X" would start matching update trackers by their verb.
 attribute action-name, value string;
 # Ordering and stoichiometry sit on the relation, not on either endpoint:
 # they are facts about the participation, not about the participant.
@@ -113,29 +140,56 @@ attribute stoichiometry, value integer;
 
 # Which entity types own which attributes. Declared on the highest type that
 # has them so every subtype inherits — the same polymorphism the queries use.
+#
+# `entity-name` is Reactome's `name` slot — the curated names and synonyms an
+# object goes by, as distinct from the derived single `display-name`. It is
+# owned by exactly the types whose Reactome labels carry the slot in the graph
+# the loader reads (48 labels, reached by the ten owners below). Declaring it on
+# database-object instead would be shorter but would permit a name on a person
+# or an instance-edit, which Reactome never records.
 OWNERSHIP = {
     "database-object": ["db-id @key", "display-name", "schema-class",
                         "st-id @card(0..1)", "old-st-id @card(0..1)"],
-    "event": ["entity-name @card(0..)", "definition @card(0..1)"],
+    # Events carry their own releaseDate — the release that first published
+    # them — separately from the release-* entity's own date.
+    "event": ["entity-name @card(0..)", "definition @card(0..1)",
+              "release-date @card(0..1)"],
     "pathway": ["is-canonical @card(0..1)"],
-    "reaction-like-event": ["is-chimeric @card(0..1)"],
-    "physical-entity": ["entity-name @card(0..)", "definition @card(0..1)"],
+    "reaction-like-event": ["is-chimeric @card(0..1)",
+                            "systematic-name @card(0..1)"],
+    "physical-entity": ["entity-name @card(0..)", "definition @card(0..1)",
+                        "systematic-name @card(0..1)"],
     "reference-entity": ["identifier @card(0..1)", "entity-name @card(0..)"],
     "reference-sequence": ["gene-name @card(0..)", "sequence-length @card(0..1)"],
+    # 85 ReferenceMolecules carry a geneName in the graph despite sitting
+    # outside ReferenceSequence. Odd for a small molecule, but real, and
+    # omitting it would leave TypeDB 85 gene names short of the other stores.
+    "reference-molecule": ["gene-name @card(0..)"],
     "reference-isoform": ["variant-identifier @card(0..1)"],
     "reference-therapeutic": ["approved @card(0..1)", "withdrawn @card(0..1)",
                               "therapeutic-type @card(0..1)"],
-    "go-term": ["accession @card(0..1)", "definition @card(0..1)"],
+    "go-term": ["accession @card(0..1)", "definition @card(0..1)",
+                "entity-name @card(0..)"],
     "go-molecular-function": ["ec-number @card(0..)"],
-    "external-ontology": ["identifier @card(0..1)", "definition @card(0..1)"],
-    "taxon": ["tax-id @card(0..1)", "abbreviation @card(0..1)"],
+    "external-ontology": ["identifier @card(0..1)", "definition @card(0..1)",
+                          "entity-name @card(0..)"],
+    "controlled-vocabulary": ["entity-name @card(0..)"],
+    # The whole point of a database-identifier is the identifier it pairs with
+    # a reference database, so it owns one directly.
+    "database-identifier": ["identifier @card(0..1)"],
+    "functional-status-type": ["entity-name @card(0..)"],
+    "reference-database": ["entity-name @card(0..)"],
+    "deleted-instance": ["entity-name @card(0..)"],
+    "taxon": ["tax-id @card(0..1)", "abbreviation @card(0..1)",
+              "entity-name @card(0..)"],
     "person": ["first-name @card(0..1)", "surname @card(0..1)"],
     "affiliation": ["affiliation-name @card(0..)"],
     "instance-edit": ["edited-on @card(0..1)", "note @card(0..1)"],
     "summation": ["summary-text @card(0..1)"],
     "abstract-modified-residue": ["coordinate @card(0..1)"],
     "update-tracker": ["action-name @card(0..)"],
-    "release-": ["release-number @card(0..1)", "release-date @card(0..1)"],
+    "release-": ["release-number @card(0..1)", "release-date @card(0..1)",
+                 "entity-name @card(0..)"],
 }
 
 RELATIONS = """
@@ -157,6 +211,9 @@ relation event-precedence,
   relates following-event;
 
 relation negative-precedence,
+  owns db-id @key,
+  owns display-name,
+  owns schema-class,
   relates excluded-preceding-event,
   relates following-event,
   relates exclusion-reason @card(0..1);
@@ -186,8 +243,17 @@ relation required-input-component sub reaction-participation,
 # activity is shared by many reactions, the fact being stated is really
 # three-way: this entity, performing this molecular function, catalyses this
 # reaction. An active unit narrows which part of the catalyst is responsible.
+# One relation per CatalystActivity node, holding every reaction that node is
+# referenced by — 63 at the most. Reactome shares one activity across reactions
+# rather than repeating it, and that sharing is a fact about the activity, not a
+# reason to mint a separate relation per reaction. `db-id` is the node's own, so
+# it keys the relation.
 relation catalysis,
-  relates catalysed-reaction,
+  owns db-id @key,
+  owns display-name,
+  owns schema-class,
+  plays catalyst-activity-evidence:evidenced-catalysis,
+  relates catalysed-reaction @card(0..),
   relates catalyst,
   relates catalytic-activity @card(0..1),
   relates active-unit @card(0..);
@@ -199,7 +265,13 @@ relation catalysis,
 # PositiveRegulation table: `requirement` is a positive regulation, and its
 # name says nothing about that.
 relation regulation @abstract,
-  relates regulated-event,
+  owns db-id @key,
+  owns display-name,
+  owns schema-class,
+  owns st-id @card(0..1),
+  plays regulation-evidence:evidenced-regulation,
+  plays regulation-go-annotation:annotated-regulation,
+  relates regulated-event @card(0..),
   relates regulator,
   relates regulatory-activity @card(0..1),
   relates regulation-active-unit @card(0..);
@@ -307,7 +379,10 @@ relation entity-inference,
 # replaces, and the functional consequence. Splitting it into binaries loses
 # which normal entity the disease entity stands in for.
 relation entity-functional-status,
-  relates affected-event,
+  owns db-id @key,
+  owns display-name,
+  owns schema-class,
+  relates affected-event @card(1..),
   relates disease-entity,
   relates normal-entity @card(0..1),
   relates functional-status @card(1..);
@@ -349,6 +424,11 @@ relation authoring sub curation;
 relation review sub curation;
 relation internal-review sub curation;
 relation revision sub curation;
+# `edited` and `structureModified` are the same shape as the rest — an object
+# and the edit that touched it — so they belong here rather than as standalone
+# relations. Adding them makes "touched by any curation act" answer correctly.
+relation editing sub curation;
+relation structure-modification sub curation;
 
 relation edit-authorship,
   relates authored-edit,
@@ -358,76 +438,281 @@ relation edit-authorship,
 relation release-record,
   relates tracked-object,
   relates tracking-release;
+
+relation update-tracking,
+  relates tracker,
+  relates updated-object;
+
+# ---------------------------------------------------------------------------
+# Reference sequence cross-links
+# ---------------------------------------------------------------------------
+relation reference-gene-link,
+  relates referring-sequence,
+  relates gene-sequence;
+
+relation reference-transcript-link,
+  relates referring-sequence,
+  relates transcript-sequence;
+
+relation residue-reference-sequence,
+  relates modified-residue,
+  relates residue-sequence;
+
+relation second-reference-sequence,
+  relates crosslinked-residue,
+  relates partner-sequence;
+
+relation isoform-parenthood,
+  relates isoform,
+  relates parent-gene-product;
+
+relation residue-modification,
+  relates modified-residue,
+  relates modifying-group;
+
+relation crosslink-equivalence,
+  relates crosslinked-residue,
+  relates equivalent-residue;
+
+# ---------------------------------------------------------------------------
+# Interactions
+# ---------------------------------------------------------------------------
+relation interaction-participation,
+  relates interaction,
+  relates interactor;
+
+# ---------------------------------------------------------------------------
+# Cells, markers and anatomy
+# ---------------------------------------------------------------------------
+relation cell-marker-reference,
+  relates marked-cell,
+  relates cell-marker-ref;
+
+relation marker-reference-cell,
+  relates referencing-marker,
+  relates referenced-cell;
+
+relation marker-assignment,
+  relates marker-ref,
+  relates marker-entity;
+
+relation protein-marker-assignment,
+  relates marked-cell,
+  relates protein-marker;
+
+relation rna-marker-assignment,
+  relates marked-cell,
+  relates rna-marker;
+
+relation organ-assignment,
+  relates localised-cell,
+  relates organ;
+
+relation tissue-assignment,
+  relates localised-thing,
+  relates tissue;
+
+relation tissue-layer-assignment,
+  relates localised-cell,
+  relates tissue-layer;
+
+relation cell-type-assignment,
+  relates typed-thing,
+  relates assigned-cell-type;
+
+# ---------------------------------------------------------------------------
+# Compartment topology — GO cellular components relate to one another
+# ---------------------------------------------------------------------------
+relation compartment-membership,
+  relates part-compartment,
+  relates whole-compartment;
+
+relation compartment-part,
+  relates whole-compartment,
+  relates part-compartment;
+
+relation compartment-surrounding,
+  relates surrounded-compartment,
+  relates surrounding-compartment;
+
+relation go-cellular-component-assignment,
+  relates localised-thing,
+  relates cellular-component;
+
+# ---------------------------------------------------------------------------
+# Control references — the literature evidence for a catalysis or regulation.
+# The evidence points at the relation itself, which TypeDB allows: a relation
+# can play a role in another relation, so no reification is reintroduced.
+# ---------------------------------------------------------------------------
+relation catalyst-activity-reference-link,
+  relates referencing-reaction,
+  relates catalyst-reference;
+
+relation catalyst-activity-evidence,
+  relates evidencing-reference,
+  relates evidenced-catalysis;
+
+relation regulation-reference-link,
+  relates referencing-reaction,
+  relates regulation-ref;
+
+relation regulation-evidence,
+  relates evidencing-reference,
+  relates evidenced-regulation;
+
+# 28 goBiologicalProcess edges start at a Regulation rather than an Event, so
+# they cannot use go-annotation, whose annotated-event role only events play.
+relation regulation-go-annotation,
+  relates annotated-regulation,
+  relates regulation-biological-process;
+
+# ---------------------------------------------------------------------------
+# Curation and review status
+# ---------------------------------------------------------------------------
+relation review-status-assignment,
+  relates reviewed-thing,
+  relates status;
+
+relation previous-review-status-assignment,
+  relates reviewed-thing,
+  relates previous-status;
+
+relation evidence-type-assignment,
+  relates evidenced-thing,
+  relates evidence;
+
+relation figure-illustration,
+  relates illustrated-thing,
+  relates figure;
+
+relation psi-mod-assignment,
+  relates modified-thing,
+  relates psi-mod-term;
+
+relation structural-variant-assignment,
+  relates varied-status,
+  relates variant-term;
+
+relation publication-publisher,
+  relates published-work,
+  relates publisher;
+
+# ---------------------------------------------------------------------------
+# Deletion bookkeeping
+# ---------------------------------------------------------------------------
+relation deleted-instance-record,
+  relates deletion,
+  relates deleted-thing;
+
+relation replacement-instance,
+  relates deletion,
+  relates replacement;
+
+relation deletion-reason,
+  relates deletion,
+  relates reason;
+
+# ---------------------------------------------------------------------------
+# Alternative event structure
+# ---------------------------------------------------------------------------
+relation encapsulated-event,
+  relates encapsulating-pathway,
+  relates encapsulated;
+
+relation normal-reaction-link,
+  relates disease-reaction,
+  relates normal-reaction;
+
+relation normal-pathway-link,
+  relates disease-pathway,
+  relates normal-pathway;
+
+relation reverse-reaction-link,
+  relates forward-reaction,
+  relates reverse-reaction;
+
+relation entity-on-other-cell,
+  relates interacting-thing,
+  relates other-cell-entity;
+
+relation reaction-type-assignment,
+  relates typed-reaction,
+  relates assigned-reaction-type;
 """
 
 # Role players, declared on the most general type that can play the role so
 # that every subtype inherits the capability.
+# Roles physical-entity plays that specialise a role it already plays.
+#
+# TypeQL does not infer these: declaring `plays composition:part` does not let a
+# type play `candidate-membership:candidate`, even though `candidate` is
+# declared `as part`. Each specialisation has to be spelled out.
+#
+# Kept out of PLAYS rather than as an entry in it, so every key of that dict is
+# a real type label. It previously lived there under the synthetic key
+# "physical-entity+specialised", which reads like a type and is not one —
+# anything walking PLAYS structurally mistakes it for one.
+PHYSICAL_ENTITY_SPECIALISED_PLAYS = [
+    "complex-composition:component", "set-membership:member",
+    "candidate-membership:candidate", "polymer-repetition:repeated-unit",
+    "reaction-input:consumed-entity", "reaction-output:produced-entity",
+    "required-input-component:required-component",
+]
+
 PLAYS = {
-    "pathway": ["event-containment:containing-pathway"],
-    "event": [
-        "event-containment:contained-event",
-        "event-precedence:preceding-event", "event-precedence:following-event",
-        "negative-precedence:excluded-preceding-event", "negative-precedence:following-event",
-        "event-inference:inferred-event", "event-inference:source-event",
-        "species-assignment:classified-thing", "related-species-assignment:classified-thing",
-        "compartment-assignment:localised-thing", "disease-annotation:diseased-thing",
-        "go-annotation:annotated-event", "literature-citation:citing-thing",
-        "summarisation:summarised-thing", "cross-reference:referring-thing",
-    ],
-    "reaction-like-event": [
-        "reaction-participation:reaction", "catalysis:catalysed-reaction",
-        "regulation:regulated-event", "entity-functional-status:affected-event",
-    ],
-    "physical-entity": [
-        "reaction-participation:participant", "catalysis:catalyst",
-        "catalysis:active-unit", "regulation:regulator",
-        "regulation:regulation-active-unit", "composition:part",
-        "species-assignment:classified-thing", "related-species-assignment:classified-thing",
-        "compartment-assignment:localised-thing", "disease-annotation:diseased-thing",
-        "entity-inference:inferred-entity", "entity-inference:source-entity",
-        "entity-functional-status:disease-entity", "entity-functional-status:normal-entity",
-        "literature-citation:citing-thing", "summarisation:summarised-thing",
-        "cross-reference:referring-thing", "reference-assignment:instance-entity",
-    ],
+    "pathway": ["event-containment:containing-pathway", "encapsulated-event:encapsulating-pathway", "encapsulated-event:encapsulated", "normal-pathway-link:disease-pathway", "normal-pathway-link:normal-pathway"],
+    "event": ["event-containment:contained-event", "event-precedence:preceding-event", "event-precedence:following-event", "negative-precedence:excluded-preceding-event", "negative-precedence:following-event", "event-inference:inferred-event", "event-inference:source-event", "species-assignment:classified-thing", "related-species-assignment:classified-thing", "compartment-assignment:localised-thing", "disease-annotation:diseased-thing", "go-annotation:annotated-event", "literature-citation:citing-thing", "summarisation:summarised-thing", "cross-reference:referring-thing"],
+    "reaction-like-event": ["reaction-participation:reaction", "catalysis:catalysed-reaction", "regulation:regulated-event", "entity-functional-status:affected-event", "catalyst-activity-reference-link:referencing-reaction", "regulation-reference-link:referencing-reaction", "normal-reaction-link:disease-reaction", "normal-reaction-link:normal-reaction", "reverse-reaction-link:forward-reaction", "reverse-reaction-link:reverse-reaction", "reaction-type-assignment:typed-reaction"],
+    "physical-entity": ["reaction-participation:participant", "catalysis:catalyst", "catalysis:active-unit", "regulation:regulator", "regulation:regulation-active-unit", "composition:part", "species-assignment:classified-thing", "related-species-assignment:classified-thing", "compartment-assignment:localised-thing", "disease-annotation:diseased-thing", "entity-inference:inferred-entity", "entity-inference:source-entity", "entity-functional-status:disease-entity", "entity-functional-status:normal-entity", "literature-citation:citing-thing", "summarisation:summarised-thing", "cross-reference:referring-thing", "reference-assignment:instance-entity", "entity-on-other-cell:other-cell-entity"],
     "complex": ["complex-composition:containing-complex", "included-location:localised-thing"],
     "entity-set": ["set-membership:containing-set", "included-location:localised-thing"],
     "polymer": ["polymer-repetition:containing-polymer"],
-    # A specialised role is not covered by `plays` on the role it specialises:
-    # declaring `plays composition:part` does not let a physical entity play
-    # `candidate-membership:candidate`, so each specialisation is declared too.
-    "physical-entity+specialised": [
-        "complex-composition:component", "set-membership:member",
-        "candidate-membership:candidate", "polymer-repetition:repeated-unit",
-        "reaction-input:consumed-entity", "reaction-output:produced-entity",
-        "required-input-component:required-component",
-    ],
-    "entity-with-accessioned-sequence": ["modified-residue-assignment:modified-entity"],
-    "abstract-modified-residue": ["modified-residue-assignment:residue"],
+    "entity-with-accessioned-sequence": ["modified-residue-assignment:modified-entity", "marker-assignment:marker-entity", "protein-marker-assignment:protein-marker", "rna-marker-assignment:rna-marker"],
+    "abstract-modified-residue": ["modified-residue-assignment:residue", "residue-reference-sequence:modified-residue", "residue-modification:modified-residue"],
     "catalyst-activity": [],
     "go-molecular-function": ["catalysis:catalytic-activity", "regulation:regulatory-activity"],
-    "go-biological-process": ["go-annotation:biological-process"],
-    "go-cellular-component": ["compartment-assignment:compartment", "included-location:location",
-                              "ontology-parenthood:ontology-child", "ontology-parenthood:ontology-parent"],
-    "external-ontology": ["ontology-parenthood:ontology-child", "ontology-parenthood:ontology-parent",
-                          "disease-annotation:disease"],
-    "taxon": ["taxonomy-parenthood:sub-taxon", "taxonomy-parenthood:super-taxon"],
-    "species": ["species-assignment:species", "related-species-assignment:related-species"],
-    "reference-entity": ["reference-assignment:reference", "cross-reference:referring-thing",
-                         "species-assignment:classified-thing", "database-of:external-thing"],
+    "go-biological-process": ["regulation-go-annotation:regulation-biological-process", "go-annotation:biological-process"],
+    "go-cellular-component": ["compartment-assignment:compartment", "included-location:location", "ontology-parenthood:ontology-child", "ontology-parenthood:ontology-parent", "compartment-membership:part-compartment", "compartment-membership:whole-compartment", "compartment-part:whole-compartment", "compartment-part:part-compartment", "compartment-surrounding:surrounded-compartment", "compartment-surrounding:surrounding-compartment", "go-cellular-component-assignment:cellular-component"],
+    "external-ontology": ["ontology-parenthood:ontology-child", "ontology-parenthood:ontology-parent", "disease-annotation:disease"],
+    "taxon": ["taxonomy-parenthood:sub-taxon", "taxonomy-parenthood:super-taxon", "species-assignment:species"],
+    "species": ["related-species-assignment:related-species"],
+    "reference-entity": ["reference-assignment:reference", "cross-reference:referring-thing", "species-assignment:classified-thing", "database-of:external-thing", "interaction-participation:interactor", "residue-modification:modifying-group"],
     "reference-database": ["database-of:reference-database"],
     "database-identifier": ["cross-reference:external-identifier", "database-of:external-thing"],
     "publication": ["literature-citation:cited-publication", "publication-authorship:publication"],
-    "person": ["publication-authorship:publication-author", "edit-authorship:edit-author",
-               "person-affiliation:affiliated-person"],
-    "affiliation": ["person-affiliation:affiliation"],
+    "person": ["publication-authorship:publication-author", "edit-authorship:edit-author", "person-affiliation:affiliated-person"],
+    "affiliation": ["person-affiliation:affiliation", "publication-publisher:publisher"],
     "instance-edit": ["curation:edit", "edit-authorship:authored-edit"],
-    "database-object": ["curation:curated-object", "release-record:tracked-object"],
+    "database-object": ["curation:curated-object", "release-record:tracked-object", "update-tracking:updated-object", "review-status-assignment:reviewed-thing", "previous-review-status-assignment:reviewed-thing", "evidence-type-assignment:evidenced-thing", "figure-illustration:illustrated-thing", "psi-mod-assignment:modified-thing", "cell-type-assignment:typed-thing", "tissue-assignment:localised-thing", "go-cellular-component-assignment:localised-thing", "entity-on-other-cell:interacting-thing", "replacement-instance:replacement"],
+    "update-tracker": ["release-record:tracked-object", "update-tracking:tracker"],
+    "release-": ["release-record:tracking-release"],
+    "deleted": ["deleted-instance-record:deletion", "replacement-instance:deletion", "deletion-reason:deletion"],
+    "deleted-instance": ["deleted-instance-record:deleted-thing"],
+    "deleted-controlled-vocabulary": ["deletion-reason:reason"],
+    "review-status": ["review-status-assignment:status", "previous-review-status-assignment:previous-status"],
+    "evidence-type": ["evidence-type-assignment:evidence"],
+    "figure": ["figure-illustration:figure"],
+    "psi-mod": ["psi-mod-assignment:psi-mod-term"],
+    "cell-type": ["cell-type-assignment:assigned-cell-type"],
+    "anatomy": ["organ-assignment:organ", "tissue-assignment:tissue", "tissue-layer-assignment:tissue-layer"],
+    "sequence-ontology": ["structural-variant-assignment:variant-term"],
+    "functional-status": ["structural-variant-assignment:varied-status", "entity-functional-status:functional-status", "functional-status-typing:typed-status"],
+    "reaction-type": ["reaction-type-assignment:assigned-reaction-type"],
+    "book": ["publication-publisher:published-work"],
+    "interaction": ["interaction-participation:interaction"],
+    "catalyst-activity-reference": ["catalyst-activity-reference-link:catalyst-reference", "catalyst-activity-evidence:evidencing-reference"],
+    "regulation-reference": ["regulation-reference-link:regulation-ref", "regulation-evidence:evidencing-reference"],
+    "marker-reference": ["cell-marker-reference:cell-marker-ref", "marker-reference-cell:referencing-marker", "marker-assignment:marker-ref"],
     "summation": ["summarisation:summation", "literature-citation:citing-thing"],
-    "functional-status": ["entity-functional-status:functional-status",
-                          "functional-status-typing:typed-status"],
+    "cell": ["cell-marker-reference:marked-cell", "marker-reference-cell:referenced-cell", "protein-marker-assignment:marked-cell", "rna-marker-assignment:marked-cell", "organ-assignment:localised-cell", "tissue-layer-assignment:localised-cell"],
+    "reference-sequence": ["reference-gene-link:referring-sequence", "reference-transcript-link:referring-sequence", "residue-reference-sequence:residue-sequence", "second-reference-sequence:partner-sequence"],
+    "reference-dnasequence": ["reference-gene-link:gene-sequence"],
+    "reference-rnasequence": ["reference-transcript-link:transcript-sequence"],
+    "reference-isoform": ["isoform-parenthood:isoform"],
+    "reference-gene-product": ["isoform-parenthood:parent-gene-product"],
+    "inter-chain-crosslinked-residue": ["second-reference-sequence:crosslinked-residue", "crosslink-equivalence:crosslinked-residue", "crosslink-equivalence:equivalent-residue"],
     "functional-status-type": ["functional-status-typing:status-type"],
     "negative-preceding-event-reason": ["negative-precedence:exclusion-reason"],
-    "release-": ["release-record:tracking-release"],
 }
 
 # Reactome reifies these as classes because neither the relational model nor a
@@ -448,8 +733,9 @@ RENAMES = {"Release": "release-"}
 
 
 def _merge_specialised(plays: dict[str, list[str]]) -> dict[str, list[str]]:
-    extra = plays.pop("physical-entity+specialised", [])
-    plays["physical-entity"] = sorted(set(plays.get("physical-entity", []) + extra))
+    """Fold the specialised roles into physical-entity's own `plays`."""
+    plays["physical-entity"] = sorted(
+        set(plays.get("physical-entity", []) + PHYSICAL_ENTITY_SPECIALISED_PLAYS))
     return plays
 
 

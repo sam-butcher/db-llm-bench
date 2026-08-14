@@ -12,7 +12,12 @@ Two facts about the record model matter for correctness:
   aggregation shape as the `reification` ones but with no candidacy in them, and
   `argmax` picks the top of a group — where the languages diverge most, since
   Cypher won't ORDER BY an aggregate it hasn't projected and TypeQL needs a
-  user-defined function for any per-group extreme — and `polymorphism` queries
+  user-defined function for any per-group extreme — `aggregation` stacks
+  aggregates that a window function answers in one clause (a group's share of a
+  global total, a row against its own group's mean, the top N per group), which
+  SQL takes in its stride while Cypher has to collect the rows into a list and
+  unwind them again and TypeQL has to re-derive each level as a fresh pipeline
+  stage — and `polymorphism` queries
   the election type hierarchy through an abstract parent, which TypeQL and
   Cypher answer from the type system while Postgres walks a taxonomy table.
   Read those columns against each other — this benchmark exists to compare query
@@ -31,7 +36,7 @@ Two facts about the record model matter for correctness:
 import json
 
 DIFF_ORDER = ["easy", "medium", "hard", "expert", "recursion", "reification",
-               "control", "argmax", "polymorphism", "unanswerable"]
+               "control", "argmax", "aggregation", "polymorphism", "unanswerable"]
 
 
 def load_records(path):

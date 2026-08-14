@@ -78,6 +78,14 @@ run_pass() {                                  # run_pass <csv path>
 echo "== entities =="
 for csv in "$WORK"/entity__*.csv; do run_pass "$csv"; done
 
+# Multi-valued attributes come after their owners and before relations, for the
+# same reason relations come last: the pass matches its owner by db-id, and an
+# unmatched owner is a rejected row rather than a retry. The existence guard
+# keeps a dataset with no multi-valued attributes from tripping over an
+# unexpanded glob, which would read as "no pass for attr__*".
+echo "== multi-valued attributes =="
+for csv in "$WORK"/attr__*.csv; do [ -e "$csv" ] || continue; run_pass "$csv"; done
+
 echo "== relations =="
 for csv in "$WORK"/rel__*.csv; do run_pass "$csv"; done
 

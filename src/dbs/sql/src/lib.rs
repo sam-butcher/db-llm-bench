@@ -24,12 +24,12 @@ use tokio::sync::OnceCell;
 /// statement timeout so the server cancels first — that path yields a clean
 /// cancellation error on a still-healthy connection, instead of the client
 /// dropping the stream mid-query.
-const QUERY_TIMEOUT: Duration = Duration::from_secs(125);
-const STATEMENT_TIMEOUT: &str = "120s";
-/// The same 120s cap as Postgres's `statement_timeout`, in the milliseconds
+const QUERY_TIMEOUT: Duration = Duration::from_secs(185);
+const STATEMENT_TIMEOUT: &str = "180s";
+/// The same 180s cap as Postgres's `statement_timeout`, in the milliseconds
 /// MySQL wants. Note MySQL applies `max_execution_time` to SELECTs only —
 /// harmless here, since the read-only role admits nothing else.
-const MYSQL_MAX_EXECUTION_TIME_MS: u64 = 120_000;
+const MYSQL_MAX_EXECUTION_TIME_MS: u64 = 180_000;
 const MAX_ROWS: usize = 10_000;
 
 #[derive(Debug, Clone, Deserialize)]

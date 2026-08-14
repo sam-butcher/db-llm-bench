@@ -124,7 +124,7 @@ services:
       NEO4J_AUTH: neo4j/password
       # Server-side transaction timeout, matching the cap the benchmark applies
       # to the other DBs.
-      NEO4J_db_transaction_timeout: 120s
+      NEO4J_db_transaction_timeout: 180s
       NEO4J_server_memory_heap_max__size: 4G
       NEO4J_server_memory_pagecache_size: 2G
       # Cap a SINGLE transaction, not just the global pool. The default is 0B

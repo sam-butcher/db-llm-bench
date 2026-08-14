@@ -19,12 +19,19 @@ use typedb_driver::{
 };
 
 /// Pathological queries surface as model-fault timeouts rather than hanging
-/// the run (the runner's 180s ceiling stays a last resort). Set to catch
+/// the run (the runner's 240s ceiling stays a last resort). Set to catch
 /// runaway queries, not slow ones: a legitimate query that needs a minute is
 /// a fact about the language, not a fault, so the cap is well clear of the
 /// slowest reference query. The three DB packages hold the same cap, or a
 /// query that is merely slow would fail in one language and pass in another.
-const QUERY_TIMEOUT: Duration = Duration::from_secs(120);
+///
+/// Raised from 120s: the Reactome reference query for the three-way input
+/// intersection beneath R-HSA-168249 measured 94.0s, 94.6s, 99.1s, 102.1s and
+/// one timeout across five runs on the same machine, so a 120s cap scored a
+/// correct query as a failure perhaps half the time. That question is
+/// legitimately ~25x slower here than in Cypher and SQL, which is a
+/// measurement the benchmark exists to make, not a fault to cut off.
+const QUERY_TIMEOUT: Duration = Duration::from_secs(180);
 const MAX_ROWS: usize = 10_000;
 
 #[derive(Debug, Clone, Deserialize)]

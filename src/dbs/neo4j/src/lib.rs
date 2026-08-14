@@ -18,10 +18,10 @@ use serde::Deserialize;
 use tokio::sync::OnceCell;
 
 /// Client-side ceiling, deliberately longer than the server-side
-/// db.transaction.timeout configured in the compose files (120s), so the
+/// db.transaction.timeout configured in the compose files (180s), so the
 /// server cancels first with a clean TransactionTimedOut instead of the
 /// client abandoning a transaction that keeps holding locks.
-const QUERY_TIMEOUT: Duration = Duration::from_secs(125);
+const QUERY_TIMEOUT: Duration = Duration::from_secs(185);
 const MAX_ROWS: usize = 10_000;
 
 /// The server-side transaction timeout codes — the model's fault (a

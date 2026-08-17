@@ -1,8 +1,9 @@
 //! SQL package: Postgres or MySQL via sqlx ("sql" is the generic language ID;
 //! the engine follows the URL scheme, so a dataset selects one by its `url`
 //! alone). Mutation safety is layered the same way on both: connect as a
-//! SELECT-only role (the hard guarantee — see databases/postgres/roles.sql and
-//! databases/mysql/roles.sql) with a read-only session default and server-side
+//! SELECT-only role (the hard guarantee — see databases/mysql/roles.sql; a
+//! Postgres deployment needs the equivalent GRANT SELECT-only role) with a
+//! read-only session default and server-side
 //! statement timeout as defense-in-depth, since a generated SET can disable
 //! session defaults but cannot escape grants.
 
@@ -578,7 +579,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires a running Postgres server (SQL_URL)"]
+    // No dataset stack runs Postgres any more, so this needs a server of your
+    // own with a SELECT-only `bench_ro` role (no CREATE on the schema).
+    #[ignore = "requires a running Postgres server (SQL_URL) with a SELECT-only bench_ro role"]
     async fn queries_a_live_server() {
         let url = std::env::var("SQL_URL")
             .unwrap_or_else(|_| "postgres://bench_ro:bench_ro@localhost/bench".to_string());
@@ -597,7 +600,7 @@ mod tests {
             .await
             .unwrap();
         let error = db
-            .send_query("INSERT INTO cars (brand, model, wheels) VALUES ('X', 'Y', 4)")
+            .send_query("CREATE TABLE nope (id INT)")
             .await
             .unwrap_err();
         assert!(matches!(error, QueryError::Syntax(_)));

@@ -1,7 +1,0 @@
-insert
-  $a isa car, has brand "Toyota", has model "Corolla", has wheels 4,
-    has price 20000.25, has registered 2020-01-05;
-  $b isa car, has brand "Ford", has model "Fiesta", has wheels 4,
-    has price 30000.50, has registered 2018-06-30;
-  $c isa car, has brand "Tesla", has model "Model 3", has wheels 6,
-    has price 40000.75, has registered 2023-11-20;

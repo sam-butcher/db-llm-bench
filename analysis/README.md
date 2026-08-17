@@ -2,7 +2,7 @@
 
 Scripts for summarising a benchmark results JSON (as written by `bench-cli`).
 Python 3, standard library only. Each takes the results path as its argument
-and defaults to `results-candidates.json`.
+and defaults to `results-reactome.json`.
 
 | Script | Reports |
 | ------ | ------- |
@@ -14,10 +14,10 @@ and defaults to `results-candidates.json`.
 | `format_questions.py` | Renders a *questions* file (not a results file) as Markdown for review, breaking the one-line reference queries across clause boundaries so the joins are actually checkable. Takes the questions path and an output path. |
 
 ```sh
-analysis/accuracy_by_db.py results-candidates.json
-analysis/accuracy_by_variation.py results-candidates.json
-analysis/incorrect_queries.py results-candidates.json db=sql difficulty=hard
-analysis/token_usage.py results-candidates.json
+analysis/accuracy_by_db.py results-reactome.json
+analysis/accuracy_by_variation.py results-reactome.json
+analysis/incorrect_queries.py results-reactome.json db=sql difficulty=hard
+analysis/token_usage.py results-reactome.json
 analysis/query_time.py results-reactome.json baseline=ref-timings.json
 analysis/format_questions.py data/reactome/questions.json data/reactome/questions-review.md
 ```

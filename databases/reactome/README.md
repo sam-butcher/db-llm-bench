@@ -1,15 +1,19 @@
 # Reactome DBs
 
-`docker compose` boots the two Reactome benchmark DBs and restores the dumps
-from [`../../data/reactome`](../../data/reactome):
+`docker compose` boots the three Reactome benchmark DBs, restores the MySQL and
+Neo4j dumps from [`../../data/reactome`](../../data/reactome), and exports the
+graph from Neo4j into TypeDB:
 
 ```sh
 cd databases/reactome
-docker compose up -d --wait
+docker compose up -d --wait neo4j mysql   # restore the dumps
+docker compose up -d --wait               # then export Neo4j -> TypeDB
 ```
 
-`--wait` blocks until both loads have finished — neither service reports healthy
-before then. Without it, `up -d` returns while the data is still loading.
+`--wait` blocks until the loads have finished — no service reports healthy
+before then. Without it, `up -d` returns while the data is still loading. Neo4j
+must be up before `typedb-load` starts (see [TypeDB](#typedb) for why it is not
+a `depends_on`).
 
 ## Getting the dumps
 
@@ -39,14 +43,13 @@ is the signal that the questions and their expected values need rechecking.
 | ----- | ------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | MySQL | `localhost:3306` (`reactome`)  | benchmark: `bench_ro` / `bench_ro` (SELECT-only); admin: `root` / `password` | self-seeding via `/docker-entrypoint-initdb.d` on first init          |
 | Neo4j | `bolt://localhost:7687`        | `neo4j` / `password`                                                        | one-shot `neo4j-load` → `neo4j-migrate`, then the server starts       |
+| TypeDB | `localhost:1729` (`reactome`) | `admin` / `password`                                                       | one-shot `typedb-load`: export from Neo4j → generate passes → bulk load (~25 min) |
 
-## Why this stack differs from the candidates one
+## Why the loads are independent
 
-The candidates dataset derives every DB's data from one cleaned CSV, so it needs
-a shared `prep` service and a per-DB seed step. Reactome instead publishes each
-release as two native dumps — a MySQL dump of the curation database and a Neo4j
-dump generated from it — so each DB restores its own and the loads are
-independent.
+Reactome publishes each release as two native dumps — a MySQL dump of the
+curation database and a Neo4j dump generated from it — so each DB restores its
+own, with no shared source file to prep and no per-DB seed step.
 
 That also means the two DBs are not loaded from a common source here. They are
 both derived from the same Reactome release upstream, but the graph is produced
@@ -61,16 +64,15 @@ this stack guarantees — and the loaded data confirms it does not hold:
 The `graph-importer` is a transformation, not a mirror. **Any question authored
 against this dataset needs its expected answer established per DB rather than
 assumed shared**, and the divergence should be characterised before questions
-are written — the candidates dataset's verified-identical-counts property does
-not carry over here.
+are written — identical counts across DBs cannot be taken for granted here.
 
 ## MySQL
 
 The dump is MySQL, not Postgres — backtick quoting, `ENGINE=MyISAM`,
 `int unsigned`, `utf8mb3` collations. It will not load into Postgres, which is
-why this stack runs `mysql:8.0` rather than reusing the candidates stack's
-Postgres service. Pinned to 8.0 deliberately: all 242 tables are MyISAM, and
-MySQL 9.x drops MyISAM support.
+why this stack runs `mysql:8.0` (the SQL package speaks both engines and picks
+one from the URL scheme). Pinned to 8.0 deliberately: all 242 tables are
+MyISAM, and MySQL 9.x drops MyISAM support.
 
 The dump carries no `CREATE DATABASE` or `USE` statement, so what places it in
 the `reactome` schema is the entrypoint running it with
@@ -136,12 +138,40 @@ polymorphic supertype — labels encode the class hierarchy
 (`DatabaseObject` → `PhysicalEntity` → `GenomeEncodedEntity` →
 `EntityWithAccessionedSequence`).
 
+## TypeDB
+
+Reactome publishes no TypeDB dump, so `typedb-load` builds one from the graph:
+[`data/reactome/typedb/seed.sh`](../../data/reactome/typedb/seed.sh) runs
+`export.py` (Neo4j → per-pass CSVs, over the HTTP API), `generate_passes.py`
+(one loader `.tql` per CSV, its `given` block derived from the CSV header) and
+`load.sh` (drops `reactome`, installs `schema.tql`, then bulk-loads every pass
+with `typedb loader`). The server image ships no loader, so `loader/Dockerfile`
+pulls the `typedb-all` distribution plus Python and curl. Its `TYPEDB_VERSION`
+must match the `typedb` service's image tag (**3.12.1**): loader and server
+share a protocol, and a mismatch panics the server on the handshake.
+
+Two things about the wiring:
+
+- `typedb-load` deliberately does **not** `depends_on` Neo4j, although the
+  export reads from it: that would re-trigger `neo4j-load`, whose
+  `neo4j-admin database load` cannot overwrite a store while the server is
+  running. Bring Neo4j up first; `seed.sh` checks it is reachable and stops
+  with a clear message if not.
+- The store lives on the `typedb_data` volume, mounted at the image's declared
+  `VOLUME` path, so the ~25 minute load survives container recreation. Only
+  `typedb-load` running again reloads it — so once loaded, restart the server
+  alone with `docker compose up -d typedb` rather than a bare `up`, which
+  re-runs every one-shot service.
+
+The same `seed.sh` runs host-side against any TypeDB server (defaults:
+`localhost:1729`, `admin` / `password`, `~/.typedb/typedb` for the loader).
+
 ## Notes
 
-- A distinct compose project name (`reactome`) keeps this isolated from the
-  sample and candidates stacks. It shares their Neo4j ports, so run one dataset
-  at a time.
+- The compose project is named `reactome`, so its containers and volumes are
+  namespaced by dataset rather than by the `databases/reactome` folder name.
 - Re-running `docker compose up` does **not** reload MySQL: the init hook fires
   only when the data directory is empty. Neo4j does reload, because
-  `neo4j-load` passes `--overwrite-destination=true`. To reset both:
-  `docker compose down -v && docker compose up -d --wait`.
+  `neo4j-load` passes `--overwrite-destination=true`, and so does TypeDB,
+  because `load.sh` drops the database first. To reset everything:
+  `docker compose down -v`, then the two-step `up` from the top of this file.

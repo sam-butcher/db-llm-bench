@@ -1,8 +1,0 @@
-given
-    $party_id: string,
-    $party_name: string?,
-    $legacy_party_id: string?;
-insert
-$party isa party, has party_id == $party_id;
-try { $party has party_name == $party_name; };
-try { $party has legacy_party_id == $legacy_party_id; };

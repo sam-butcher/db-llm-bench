@@ -1,18 +1,19 @@
-# Boots the two Reactome benchmark DBs and loads the dumps from
-# ../../data/reactome.
+# Boots the three Reactome benchmark DBs: restores the MySQL and Neo4j dumps
+# from ../../data/reactome, then exports the graph from Neo4j into TypeDB.
 #
 # Reactome ships each quarterly release as both a MySQL dump of the curation
-# database and a Neo4j dump generated from it, so unlike the candidates dataset
-# there is no shared source file to prep — each DB restores its own native dump
-# and the two loads are independent.
+# database and a Neo4j dump generated from it, so there is no shared source
+# file to prep — each DB restores its own native dump and the two loads are
+# independent. TypeDB has no dump and is derived from the graph (see
+# typedb-load below).
 #
-# Both loads are slow (841 MB of MyISAM INSERTs; a 528 MB compressed graph
-# store), so the first `up` takes a while — watch it with
-# `docker compose logs -f`. Neither service reports healthy until its load has
-# finished, so `--wait` is the reliable way to block on readiness.
+# All the loads are slow (841 MB of MyISAM INSERTs; a 528 MB compressed graph
+# store; ~25 minutes of TypeDB bulk load), so the first `up` takes a while —
+# watch it with `docker compose logs -f`. No service reports healthy until its
+# load has finished, so `--wait` is the reliable way to block on readiness.
 #
-# A separate project name keeps this isolated from the other compose stacks.
-# They expose the same Neo4j and TypeDB ports, so run one dataset at a time.
+# The project is named after the dataset so its containers and volumes are
+# identifiable as Reactome's rather than as the folder's.
 name: reactome
 
 volumes:
@@ -66,7 +67,7 @@ services:
   # One-shot: restores the dump into the `neo4j` database before the server
   # starts. neo4j-admin needs the store offline, so this cannot run against a
   # live server — hence a separate container sharing the data volume rather
-  # than the seed-a-running-server pattern the candidates stack uses.
+  # than seeding a running server.
   neo4j-load:
     image: neo4j:5-community
     volumes:
@@ -174,8 +175,7 @@ services:
       # Mounted at .../data, not its parent: the image declares
       # `VOLUME /var/lib/typedb/data`, so Docker creates an anonymous volume
       # there that shadows anything mounted higher up — the store would go to
-      # the anonymous volume and be lost when the container is recreated.
-      # Unlike the candidates stack, which reseeds on every `up`, the Reactome
+      # the anonymous volume and be lost when the container is recreated. The
       # load takes ~25 minutes, so it must survive.
       - typedb_data:/var/lib/typedb/data
     healthcheck:

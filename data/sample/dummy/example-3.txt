@@ -1,4 +1,0 @@
-Question: How old is the oldest car?
-```
-11
-```

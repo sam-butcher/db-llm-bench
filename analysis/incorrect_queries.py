@@ -14,7 +14,7 @@ are multi-line and would be unreadable truncated into columns.
 
 Usage: analysis/incorrect_queries.py [results.json] [key=value ...]
   Optional filters: db=, difficulty=, model=, examples=, skills=on|off
-  e.g. analysis/incorrect_queries.py results-candidates.json db=sql difficulty=hard
+  e.g. analysis/incorrect_queries.py results-reactome.json db=sql difficulty=hard
 """
 import os
 import sys
@@ -70,7 +70,7 @@ def fmt_answer(v):
 
 def main():
     args = sys.argv[1:]
-    path = args[0] if args and "=" not in args[0] else "results-candidates.json"
+    path = args[0] if args and "=" not in args[0] else "results-reactome.json"
     filters = parse_filters([a for a in args if "=" in a])
 
     records = C.load_records(path)

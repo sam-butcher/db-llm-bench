@@ -259,8 +259,8 @@ which is the contamination condition's exact exclusion.
 ## Practical note
 
 At 200+ tables the schema must be ported to TypeQL and Cypher by hand, plus
-loaders written — an order of magnitude more work than the candidates dataset's
-8 tables. One mitigation is to keep the full schema in the prompt (that difficulty
+loaders written — an order of magnitude more work than a small-schema dataset of
+under ten tables. One mitigation is to keep the full schema in the prompt (that difficulty
 is part of the point) while loading only a coherent subset. For Chado, the
 sequence + cv + pub + organism modules are roughly 80 tables and retain every
 construct that produces cross-language divergence.

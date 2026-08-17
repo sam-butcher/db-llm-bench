@@ -1,23 +1,19 @@
 # Databases
 
-One `docker compose` manifest boots all three benchmark DBs and seeds each
-with the car dataset from [`../data`](../data):
+One `docker compose` stack per dataset. There is currently one dataset,
+Reactome, so [`reactome/`](reactome/README.md) is the only stack:
 
 ```sh
-cd databases
-docker compose up -d --build
+cd databases/reactome
+docker compose up -d --wait
 ```
 
-| DB       | Endpoint                 | Credentials         | Seeding                                     |
-| -------- | ------------------------ | ------------------- | ------------------------------------------- |
-| TypeDB   | `localhost:1729`         | `admin` / `password` | one-shot `typedb-seed` (builds a console image, drops + recreates `bench`; idempotent) |
-| Postgres | `localhost:5432` (`bench`) | benchmark: `bench_ro` / `bench_ro` (SELECT-only); admin: `postgres` / `postgres` | native `initdb.d` hook on first boot |
-| Neo4j    | `bolt://localhost:7687`  | `neo4j` / `password` | one-shot `neo4j-seed` via cypher-shell (idempotent) |
+It boots MySQL, Neo4j and TypeDB, restores Reactome's dumps into the first two,
+and exports from Neo4j into TypeDB. `--wait` blocks until the loads finish;
+the README there covers fetching the dumps, credentials, and load timings.
 
-Credentials and endpoints match the defaults in `src/config.yml` and the DB
+`mysql/roles.sql` holds the SELECT-only benchmark role and is shared by any
+MySQL-backed stack rather than living inside one dataset's folder.
+
+Credentials and endpoints match the defaults in `src/reactome.yml` and the DB
 packages' `#[ignore]`d live tests (`cargo test -- --ignored`).
-
-Re-running `docker compose up` reseeds TypeDB and Neo4j in place. To reset
-everything including Postgres: `docker compose down -v && docker compose up -d --build`.
-Keep the console version in `typedb/Dockerfile` aligned with the `typedb/typedb`
-image tag.

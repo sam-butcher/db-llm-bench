@@ -1,4 +1,0 @@
-Question: Which people were born before 1940?
-```
-SELECT person_name FROM person WHERE birth_date < '1940-01-01';
-```

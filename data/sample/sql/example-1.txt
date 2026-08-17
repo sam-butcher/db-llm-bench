@@ -1,4 +1,0 @@
-Question: How many wheels are there in total?
-```
-SELECT SUM(wheels) FROM cars;
-```

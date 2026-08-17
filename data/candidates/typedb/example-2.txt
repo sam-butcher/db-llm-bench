@@ -1,8 +1,0 @@
-Question: Are there any people with a Wikipedia page?
-```
-with fun has_wiki() -> boolean:
-  match $p isa person, has wikipedia_url $w;
-  return check;
-match
-let $exists = has_wiki();
-```

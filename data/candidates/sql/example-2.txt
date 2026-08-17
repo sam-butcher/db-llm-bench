@@ -1,4 +1,0 @@
-Question: Are there any people with a Wikipedia page?
-```
-SELECT EXISTS (SELECT 1 FROM person WHERE wikipedia_url IS NOT NULL);
-```

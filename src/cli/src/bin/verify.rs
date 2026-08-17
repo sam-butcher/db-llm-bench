@@ -9,7 +9,7 @@
 //!
 //! Usage: `verify <config.yml> [questions.json] [--timings <path>]`
 //! Questions default to the config's `questionsPath`. The DBs named in the
-//! config must be up (e.g. via `databases/candidates/docker-compose.yml`).
+//! config must be up (e.g. via `databases/reactome/docker-compose.yml`).
 //!
 //! Every reference query is timed as it runs, and `--timings` writes those
 //! times out as `{db: {question: ms}}` — the baseline `analysis/query_time.py`

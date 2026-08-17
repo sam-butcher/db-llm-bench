@@ -1,5 +1,0 @@
-cars: 3 entries, each with brand (string), model (string), wheels (integer),
-price (number), registered (date string "YYYY-MM-DD"):
-  Toyota Corolla, 4 wheels, 20000.25, registered 2020-01-05
-  Ford Fiesta, 4 wheels, 30000.50, registered 2018-06-30
-  Tesla Model 3, 6 wheels, 40000.75, registered 2023-11-20

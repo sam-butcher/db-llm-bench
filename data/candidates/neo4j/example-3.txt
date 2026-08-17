@@ -1,4 +1,0 @@
-Question: Which people were born before 1940?
-```
-MATCH (p:Person) WHERE p.birth_date < date('1940-01-01') RETURN p.person_name
-```

@@ -320,23 +320,25 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires a seeded TypeDB server (TYPEDB_ADDRESS, TYPEDB_DATABASE)"]
+    #[ignore = "requires a seeded TypeDB server (TYPEDB_ADDRESS, TYPEDB_DATABASE); see databases/reactome"]
     async fn queries_a_live_server() {
         let address =
             std::env::var("TYPEDB_ADDRESS").unwrap_or_else(|_| "127.0.0.1:1729".to_string());
-        let database = std::env::var("TYPEDB_DATABASE").unwrap_or_else(|_| "bench".to_string());
+        let database =
+            std::env::var("TYPEDB_DATABASE").unwrap_or_else(|_| "reactome".to_string());
         let db = TypeDb::new(address, database, TypeDbAuth::default()).unwrap();
 
-        // The seeded car dataset: a reduce count unwraps to a scalar.
+        // The loaded Reactome data: a reduce count unwraps to a scalar. Homo
+        // sapiens is one species, whatever the release.
         let count = db
-            .send_query("match $x isa car; reduce $count = count;")
+            .send_query("match $x isa species, has display-name \"Homo sapiens\"; reduce $count = count;")
             .await
             .unwrap();
-        assert_eq!(count, Value::Int(3));
+        assert_eq!(count, Value::Int(1));
 
         // Read transactions reject writes as a model fault.
         let error = db
-            .send_query("insert $x isa car, has wheels 4;")
+            .send_query("insert $x isa species, has db-id -1;")
             .await
             .unwrap_err();
         assert!(matches!(error, QueryError::Syntax(_)));

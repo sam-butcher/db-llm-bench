@@ -1,4 +1,0 @@
-Question: Which brands make a car with more than 4 wheels?
-```
-MATCH (c:Car) WHERE c.wheels > 4 RETURN c.brand
-```

@@ -4,6 +4,11 @@ Facts considered when choosing a benchmark dataset for db-llm-bench (which
 measures how well LLMs generate TypeQL, SQL, and Cypher queries). This is a
 neutral reference — the inputs to the decision, not the decision itself.
 
+The small-schema dataset this originally selected has since been retired; the
+repository now carries only the large-schema Reactome dataset chosen in
+[dataset-selection-large-schema.md](dataset-selection-large-schema.md). The
+hard requirements and conditions below still govern any dataset added.
+
 ## Hard requirements
 
 A candidate must provide, or let us build:

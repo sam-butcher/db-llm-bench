@@ -1,4 +1,0 @@
-Question: How many seats have been contested in total?
-```
-SELECT SUM(seats_contested) FROM ballot;
-```

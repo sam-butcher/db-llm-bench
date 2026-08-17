@@ -4,9 +4,10 @@ This contains the framework for running LLM benchmarks against various DBs
 
 Prior steps:
 - Launch DBs
-- Load data
+- Load data (see [`../databases`](../databases/README.md))
 
-Inputs (taken in through config file - see config.yml for a suggested format):
+Inputs (taken in through a config file - `reactome.yml` is the full-run config for the Reactome
+dataset and `reactome-pilot.yml` the model-selection pilot; use either as the format reference):
 - List of DBs to hit, each of which contains:
   - ID of DB (e.g. sql/neo4j/typedb)
   - Path to the prompt template file for that DB

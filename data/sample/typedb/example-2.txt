@@ -1,6 +1,0 @@
-Question: Are there any Mercedes cars?
-```
-match
-let $exists = true;
-not { not { $_ isa car, has brand "Mercedes"; }; };
-```

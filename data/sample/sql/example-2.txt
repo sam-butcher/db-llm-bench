@@ -1,4 +1,0 @@
-Question: Are there any Mercedes cars?
-```
-SELECT EXISTS (SELECT 1 FROM cars WHERE brand = 'Mercedes');
-```

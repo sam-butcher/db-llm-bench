@@ -7,21 +7,21 @@ returned the expected result.
 Two facts about the record model matter for correctness:
 
 - Later tiers name the *construct* a question stresses rather than a difficulty:
-  `recursion` needs transitive closure, `reification` needs the n-ary candidacy
-  fact constrained on several roles at once, `control` holds questions of the same
-  aggregation shape as the `reification` ones but with no candidacy in them, and
-  `argmax` picks the top of a group — where the languages diverge most, since
-  Cypher won't ORDER BY an aggregate it hasn't projected and TypeQL needs a
-  user-defined function for any per-group extreme — `aggregation` stacks
-  aggregates that a window function answers in one clause (a group's share of a
-  global total, a row against its own group's mean, the top N per group), which
-  SQL takes in its stride while Cypher has to collect the rows into a list and
-  unwind them again and TypeQL has to re-derive each level as a fresh pipeline
-  stage — and `polymorphism` queries
-  the election type hierarchy through an abstract parent, which TypeQL and
-  Cypher answer from the type system while Postgres walks a taxonomy table.
-  Read those columns against each other — this benchmark exists to compare query
-  languages, so a tier where all DBs score alike carries no information.
+  `recursion` needs transitive closure (the pathway hierarchy), `reification`
+  needs an n-ary fact — a regulation, a catalysis, a negative-precedence record —
+  constrained on several roles at once, `argmax` picks the top of a group —
+  where the languages diverge most, since Cypher won't ORDER BY an aggregate it
+  hasn't projected and TypeQL needs a user-defined function for any per-group
+  extreme — `aggregation` stacks aggregates that a window function answers in
+  one clause (a group's share of a global total, a row against its own group's
+  mean, the top N per group), which SQL takes in its stride while Cypher has to
+  collect the rows into a list and unwind them again and TypeQL has to re-derive
+  each level as a fresh pipeline stage — and `polymorphism` queries Reactome's
+  class hierarchy through a supertype, which TypeQL and Cypher answer from the
+  type system (subtypes; labels) while SQL has to name and join the per-class
+  tables. Read those columns against each other — this benchmark exists to
+  compare query languages, so a tier where all DBs score alike carries no
+  information.
 - `unanswerable` is its own difficulty tier. Those questions measure a different
   skill (emitting the UNANSWERABLE token rather than a correct query), so read
   the `unanswerable` column as detection accuracy, not query accuracy.
@@ -36,7 +36,7 @@ Two facts about the record model matter for correctness:
 import json
 
 DIFF_ORDER = ["easy", "medium", "hard", "expert", "recursion", "reification",
-               "control", "argmax", "aggregation", "polymorphism", "unanswerable"]
+               "argmax", "aggregation", "polymorphism", "unanswerable"]
 
 
 def load_records(path):

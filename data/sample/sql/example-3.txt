@@ -1,4 +1,0 @@
-Question: Which brands make a car with more than 4 wheels?
-```
-SELECT brand FROM cars WHERE wheels > 4;
-```

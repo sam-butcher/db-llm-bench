@@ -7,9 +7,11 @@
   slot when a DB config opts in. See [`skills/README.md`](skills/README.md).
 - `reactome/` - the benchmark dataset: the Reactome curation database, restored from the MySQL and
   Neo4j dumps Reactome publishes per release and exported from the graph into TypeDB. Carries
-  `questions.json` (plus the `questions-*-hard.json` supplements and their `*-review.md`
-  renderings), and per DB the schema handed to the model, the `example-N.txt` few-shot examples, and
-  the scripts that derive the schema or drive the load. The dumps themselves are gitignored;
+  `questions.json` (the full set), `questions-hard.json` (the twelve questions written to balance
+  the set's language bias, also present in `questions.json`, kept apart so they can be run alone via
+  `src/reactome-hard.yml`), their `*-review.md` renderings, and per DB the schema handed to the
+  model, the `example-N.txt` few-shot examples, and the scripts that derive the schema or drive the
+  load. The dumps themselves are gitignored;
   [`../databases/reactome/README.md`](../databases/reactome/README.md) says where to fetch them.
 
 A dataset folder holds, per DB, the schema and data files needed to load it, and optionally the

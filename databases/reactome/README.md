@@ -166,6 +166,15 @@ Two things about the wiring:
 The same `seed.sh` runs host-side against any TypeDB server (defaults:
 `localhost:1729`, `admin` / `password`, `~/.typedb/typedb` for the loader).
 
+Because the store is built from `schema.tql` and the export scripts rather than
+restored from a dump, a change to any of them means a rebuild, not a migration:
+`docker compose up -d typedb-load` re-exports and reloads from scratch. Neo4j
+must be up, and nothing should be querying TypeDB while it runs.
+
+Verified after a from-scratch `up`: **243 passes committed with zero rejects**,
+and every reference query in `data/reactome/questions.json` reproduces its
+expected value (`cargo run -p bench-cli --bin verify -- src/reactome.yml`).
+
 ## Notes
 
 - The compose project is named `reactome`, so its containers and volumes are

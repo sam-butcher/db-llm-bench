@@ -58,3 +58,4 @@ exampleCounts:
 maxRetryCounts:
   - 0
   - 4
+skillsBaseline: false

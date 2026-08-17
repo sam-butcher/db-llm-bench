@@ -1,9 +1,8 @@
 # Model selection
 
-How the benchmark's models are chosen, and why the current six are in the
-pilot. Companion to the dataset-selection docs; unlike those, this one records
-a decision in progress — the final three come from pilot results, not from the
-reasoning below.
+How the benchmark's models are chosen, and why the six below make up the
+slate. Companion to the dataset-selection docs — a neutral reference for the
+inputs to the choice, not a ranking.
 
 Current as of August 2026. Model availability in this tier turns over fast, so
 treat every name here as needing confirmation against provider docs.
@@ -69,9 +68,7 @@ Two findings changed the shape of the decision:
    hosted APIs, every open-weights candidate costs the same and needs the same
    zero integration work, so Qwen competes on merit alone.
 
-## The pilot
-
-Six candidates, eight questions, single attempt: `src/reactome-pilot.yml`.
+## The slate
 
 | Model | Role |
 | --- | --- |
@@ -82,16 +79,10 @@ Six candidates, eight questions, single attempt: `src/reactome-pilot.yml`.
 | Kimi K2.7-Code | Agentic generalist rather than code specialist |
 | Muse Glimmer 30B | The only dense model; separates per-token compute from language coverage |
 
-The eight questions (`analysis/make_pilot.py`) span every difficulty category
-plus an unanswerable, absolute complexity from the shortest reference SQL to
-the longest, and a TypeQL-to-SQL length ratio from 0.78 to 1.98 — that ratio
-being the cheap proxy for "much harder in TypeQL than SQL". A uniformly easy
-subset would rank every model identically.
-
-**Decision rule:** keep the three that land at genuinely different points on
-the SQL → Cypher → TypeQL gradient. Drop anything that floors at zero (no
-signal) or clusters with another candidate (no spread). Expectations above are
-hypotheses the pilot tests, not conclusions.
+A model earns its place by landing at a genuinely different point on the
+SQL → Cypher → TypeQL gradient. One that floors at zero carries no signal, and
+one that clusters with another adds no spread. The roles above are
+expectations to be tested by results, not conclusions.
 
 ## Operational notes
 
@@ -102,9 +93,9 @@ hypotheses the pilot tests, not conclusions.
   enforced), 16k for DeepSeek and Muse Glimmer, 8k for Haiku and Qwen. At the 4096 default a
   reasoning model exhausts its budget mid-thought and never emits a query,
   which scores as a capability failure but is a configuration one.
-- **Retries off for the pilot.** Retries multiply calls on exactly the models
-  that fail most, which is backwards for a cost-capped ranking run. Raise
-  `maxRetryCounts` for the real run.
+- **Retries multiply cost unevenly.** They add calls on exactly the models
+  that fail most, so a cost-capped comparison run is cheapest with a low
+  `maxRetryCounts`; raise it for a full run.
 - **The local entry is weaker evidence.** Muse Glimmer has no hosted API, so
   it runs quantized through Ollama — a different artifact from the FP8-ish
   hosted models, and exposed to silent prompt truncation unless
@@ -112,4 +103,4 @@ hypotheses the pilot tests, not conclusions.
   numbers as indicative.
 - **Avoid aggregator routing** (e.g. OpenRouter) for the real run: it routes
   across sub-providers with differing quantization and context caps, so runs
-  are not reproducible unless the upstream is pinned. Acceptable for a pilot.
+  are not reproducible unless the upstream is pinned.

@@ -1,16 +1,19 @@
-# Reactome dataset. SQL (MySQL) only for now — the Cypher and TypeQL reference
-# queries in data/reactome/questions.json are still to be written, and a DB
-# listed here without a query for its language fails validation.
+# Reactome dataset — the benchmark config.
 #
 # Prereqs:
-#   1. Seed the Reactome stack (restores both dumps; the first run is slow):
-#        cd databases/reactome && docker compose up -d --wait
+#   1. Seed the Reactome stack (restores both dumps, then exports into TypeDB;
+#      the first run is slow):
+#        cd databases/reactome && docker compose up -d --wait neo4j mysql
+#        docker compose up -d --wait
+#   2. Export an API key for each hosted model, or have Ollama serving the
+#      local one — see the models block below.
 #
 # Run:  cargo run -p bench-cli -- src/reactome.yml results-reactome.json
 #
-# The schema slot carries the complete 242-table DDL (~15.6k est. tokens), so
-# navigating a schema too large to hold comfortably in working memory is part of
-# what this dataset measures. See docs/dataset-selection-large-schema.md.
+# The schema slot carries the complete schema of each DB (~15.6k est. tokens
+# of DDL for MySQL, ~23k for Neo4j), so navigating a schema too large to hold
+# comfortably in working memory is part of what this dataset measures. See
+# docs/dataset-selection-large-schema.md.
 dbs:
   - typedb:
       prompts: data/prompts/typedb.txt
@@ -21,6 +24,8 @@ dbs:
         password: password
         tls: false
       schema: data/reactome/typedb/schema.tql
+      examples: data/reactome/typedb
+#      skills: data/skills/typedb
   - neo4j:
       prompts: data/prompts/neo4j.txt
       url: bolt://localhost:7687
@@ -28,23 +33,44 @@ dbs:
         username: neo4j
         password: password
       schema: data/reactome/neo4j/schema.txt
+      examples: data/reactome/neo4j
+#      skills: data/skills/neo4j
   - sql:
       # The shared data/prompts/sql.txt names PostgreSQL; this dataset runs on
       # MySQL, so it uses the MySQL-worded variant of the same template.
       prompts: data/prompts/sql-mysql.txt
       url: mysql://bench_ro:bench_ro@localhost/reactome
       schema: data/reactome/sql/schema.sql
+      examples: data/reactome/sql
+#      skills: data/skills/sql
+
+# Every label carries the serving provider, not just the model name: the same
+# open weights served by two providers can differ in quantization and in the
+# context actually served, so a bare model name does not identify a run.
+#
+# max_tokens is set per model rather than left at the 4096 default. Models
+# that emit long reasoning traces before the answer exhaust the default
+# mid-thought and never reach a fenced query, which scores as a capability
+# failure when it is really a configuration one.
 models:
 #  - claude:
 #      model: claude-sonnet-5
+#      max_tokens: 8192
 #  - claude:
 #      model: claude-haiku-4-5-20251001
+#      max_tokens: 8192
+  # Local Ollama needs no key; omit api_key_env entirely. Ollama defaults to a
+  # ~4k context and silently truncates beyond it, and the prompt here is
+  # ~37k, so the server must run with OLLAMA_CONTEXT_LENGTH=65536 — otherwise
+  # a model answers UNANSWERABLE to everything while looking like a capability
+  # result.
   - openai-compatible:
       model: qwen3-coder:30b
       base_url: http://localhost:11434/v1
       label: qwen3-coder:30b
+      max_tokens: 8192
 questionsPath: data/reactome/questions.json
-# No few-shot examples ship with this dataset, so the only valid count is 0.
+# Each DB ships five example-N.txt files, so any count up to 5 is valid.
 exampleCounts:
   - 0
 maxRetryCounts:

@@ -55,7 +55,7 @@ pub struct OpenAiCompatibleConfig {
     /// the parameters that are not portable. Reasoning effort is the case that
     /// forced it — a model whose thinking cannot be turned down emits tens of
     /// thousands of tokens per call, and with a serial runner that is the
-    /// difference between a pilot finishing in an hour and in a day.
+    /// difference between a run finishing in an hour and in a day.
     ///
     /// Keys here override the fields built above if they collide, so this can
     /// also correct a provider that wants a different spelling. Nothing is
@@ -402,9 +402,9 @@ mod tests {
     /// The config reaches this struct as JSON transcoded from the run's YAML,
     /// and `deny_unknown_fields` means a field this provider does not know
     /// aborts the run — but only once models are built, long after `verify`
-    /// has pronounced the config fine. Pin the shape the pilot actually ships.
+    /// has pronounced the config fine. Pin the full shape a real entry uses.
     #[test]
-    fn deserializes_the_pilot_entry_including_extra_body() {
+    fn deserializes_a_full_entry_including_extra_body() {
         let entry = serde_json::json!({
             "model": "glm-5.2",
             "base_url": "https://api.z.ai/api/paas/v4",

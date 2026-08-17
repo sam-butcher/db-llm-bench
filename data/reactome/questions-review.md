@@ -1609,7 +1609,7 @@ reduce $count = count;
 
 ## 28. recursion
 
-Starting from the pathway with stable identifier R-HSA-168256, repeatedly step either from a pathway to an event it contains or from an event to an event that precedes it, in any order and any number of times. How many reaction-like events are reachable?
+How many reaction-like events lie beneath the pathway with stable identifier R-HSA-168256, or upstream of one that does — following containment and preceding-event links in any combination, to any depth?
 
 **Expected** (int):
 

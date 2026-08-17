@@ -7,7 +7,7 @@ Prior steps:
 - Load data (see [`../databases`](../databases/README.md))
 
 Inputs (taken in through a config file - `reactome.yml` is the config for the Reactome dataset and
-the format reference; `reactome-hard.yml` runs the same DBs over the hard subset alone):
+the format reference):
 - List of DBs to hit, each of which contains:
   - ID of DB (e.g. sql/neo4j/typedb)
   - Path to the prompt template file for that DB

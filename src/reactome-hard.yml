@@ -26,6 +26,7 @@ dbs:
         tls: false
       schema: data/reactome/typedb/schema.tql
       examples: data/reactome/typedb
+      skills: data/skills/typedb
   - neo4j:
       prompts: data/prompts/neo4j.txt
       url: bolt://localhost:7687
@@ -34,6 +35,7 @@ dbs:
         password: password
       schema: data/reactome/neo4j/schema.txt
       examples: data/reactome/neo4j
+      skills: data/skills/neo4j
   - sql:
       # The shared data/prompts/sql.txt names PostgreSQL; this dataset runs on
       # MySQL, so it uses the MySQL-worded variant of the same template.
@@ -41,6 +43,7 @@ dbs:
       url: mysql://bench_ro:bench_ro@localhost/reactome
       schema: data/reactome/sql/schema.sql
       examples: data/reactome/sql
+      skills: data/skills/sql
 
 # max_tokens above the 4096 default: Sonnet 5 thinks before answering, and a
 # model that exhausts its budget mid-thought never reaches a fenced query,
@@ -51,7 +54,7 @@ models:
       max_tokens: 8192
 questionsPath: data/reactome/questions-hard.json
 exampleCounts:
-  - 0
+  - 5
 maxRetryCounts:
   - 0
   - 4

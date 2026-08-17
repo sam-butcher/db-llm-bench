@@ -355,7 +355,7 @@
       "divergence": "Reactome's relational and graph dumps of release 97 disagree on InstanceEdit: 126,230 rows against 160,392 nodes, counted directly rather than through this question's query. TypeDB is loaded from the graph, so it matches Neo4j."
     },
     {
-      "question": "How many reaction-like events lie beneath the pathway with stable identifier R-HSA-168256, or upstream of one that does — following containment and preceding-event links in any combination, to any depth?",
+      "question": "Starting from the pathway with stable identifier R-HSA-168256, consider the events it contains, directly or indirectly, and every event that directly or indirectly precedes one of those. How many reaction-like events are there?",
       "difficulty": "recursion",
       "expected": 3453,
       "queries": {

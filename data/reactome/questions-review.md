@@ -1609,7 +1609,7 @@ reduce $count = count;
 
 ## 28. recursion
 
-How many reaction-like events lie beneath the pathway with stable identifier R-HSA-168256, or upstream of one that does — following containment and preceding-event links in any combination, to any depth?
+Starting from the pathway with stable identifier R-HSA-168256, consider the events it contains, directly or indirectly, and every event that directly or indirectly precedes one of those. How many reaction-like events are there?
 
 **Expected** (int):
 

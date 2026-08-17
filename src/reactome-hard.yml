@@ -1,8 +1,8 @@
 # Reactome hard questions against claude-sonnet-5.
 #
-# The question set is data/reactome/questions-hard.json: the eighteen questions
-# written to balance the language bias of the baseline set — seven that lean
-# on window-style aggregation (Cypher's home ground) and eleven on the type
+# The question set is data/reactome/questions-hard.json: the twelve questions
+# written to balance the language bias of the baseline set — two that lean
+# on window-style aggregation (Cypher's home ground) and ten on the type
 # system, n-ary facts and the attribute hierarchy (TypeQL's). See
 # docs/dataset-selection-large-schema.md for the baseline; the DB block below
 # is identical to reactome.yml so the two runs are comparable.

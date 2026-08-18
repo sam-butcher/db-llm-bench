@@ -156,7 +156,7 @@ services:
   typedb:
     # Must match the loader image's TYPEDB_VERSION: loader and server share a
     # protocol and a mismatch panics the server on the handshake.
-    image: typedb/typedb:3.12.1
+    image: typedb/typedb:3.12.3
     command:
       - "--development-mode.enabled=true"
     environment:

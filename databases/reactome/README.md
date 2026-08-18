@@ -150,7 +150,7 @@ passes) and
 `load.sh` (drops `reactome`, installs `schema.tql`, then bulk-loads every pass
 with `typedb loader`). The server image ships no loader, so `loader/Dockerfile`
 pulls the `typedb-all` distribution plus Python and curl. Its `TYPEDB_VERSION`
-must match the `typedb` service's image tag (**3.12.1**): loader and server
+must match the `typedb` service's image tag (**3.12.3**): loader and server
 share a protocol, and a mismatch panics the server on the handshake.
 
 Two things about the wiring:

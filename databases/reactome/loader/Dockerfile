@@ -6,7 +6,7 @@
 # panics the server on the handshake.
 FROM debian:bookworm-slim
 
-ARG TYPEDB_VERSION=3.12.1
+ARG TYPEDB_VERSION=3.12.3
 ARG TARGETARCH
 
 RUN apt-get update \

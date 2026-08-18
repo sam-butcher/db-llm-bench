@@ -188,7 +188,7 @@ OWNERSHIP = {
     "summation": ["summary-text @card(0..1)"],
     "abstract-modified-residue": ["coordinate @card(0..1)"],
     "update-tracker": ["action-name @card(0..)"],
-    "release-": ["release-number @card(0..1)", "release-date @card(0..1)",
+    "release": ["release-number @card(0..1)", "release-date @card(0..1)",
                  "entity-name @card(0..)"],
 }
 
@@ -685,7 +685,7 @@ PLAYS = {
     "instance-edit": ["curation:edit", "edit-authorship:authored-edit"],
     "database-object": ["curation:curated-object", "release-record:tracked-object", "update-tracking:updated-object", "review-status-assignment:reviewed-thing", "previous-review-status-assignment:reviewed-thing", "evidence-type-assignment:evidenced-thing", "figure-illustration:illustrated-thing", "psi-mod-assignment:modified-thing", "cell-type-assignment:typed-thing", "tissue-assignment:localised-thing", "go-cellular-component-assignment:localised-thing", "entity-on-other-cell:interacting-thing", "replacement-instance:replacement"],
     "update-tracker": ["release-record:tracked-object", "update-tracking:tracker"],
-    "release-": ["release-record:tracking-release"],
+    "release": ["release-record:tracking-release"],
     "deleted": ["deleted-instance-record:deletion", "replacement-instance:deletion", "deletion-reason:deletion"],
     "deleted-instance": ["deleted-instance-record:deleted-thing"],
     "deleted-controlled-vocabulary": ["deletion-reason:reason"],
@@ -728,9 +728,6 @@ AS_RELATIONS = {
 # one is kept as a type; keeping both would let a node belong to two types.
 COEXTENSIVE_LOSERS = {"UndirectedInteraction", "DrugActionType", "TranscriptionalModification"}
 
-# Reactome class names that collide with a TypeQL keyword or a role label.
-RENAMES = {"Release": "release-"}
-
 
 def _merge_specialised(plays: dict[str, list[str]]) -> dict[str, list[str]]:
     """Fold the specialised roles into physical-entity's own `plays`."""
@@ -749,8 +746,7 @@ def hoist_roles(plays: dict[str, list[str]], parent: dict[str, str | None]) -> d
     physical-entity and reference-entity therefore leaves no single type a pass
     can match at, so the role moves up to the type that covers all three.
     """
-    def label_of(name: str) -> str:
-        return RENAMES.get(name, kebab(name))
+    label_of = kebab
 
     chain: dict[str, list[str]] = {}
     for name in parent:
@@ -780,8 +776,7 @@ def main() -> None:
     dst = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path(__file__).with_name("schema.tql")
     parent = read_hierarchy()
 
-    def label(name: str) -> str:
-        return RENAMES.get(name, kebab(name))
+    label = kebab
 
     # Reactome's own root is DatabaseObject; everything hangs off it.
     order: list[str] = []

@@ -2,6 +2,6 @@ given
     $db_id: integer,
     $entity_name: string;
 match
-$x isa release-, has db-id == $db_id;
+$x isa release, has db-id == $db_id;
 insert
 $x has entity-name == $entity_name;

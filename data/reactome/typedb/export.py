@@ -69,7 +69,7 @@ ENTITY_ATTRS = {
                       ("note", "note")],
     "summation": [("summary-text", "text")],
     "abstract-modified-residue": [("coordinate", "coordinate")],
-    "release-": [("release-number", "releaseNumber"), ("release-date", "releaseDate")],
+    "release": [("release-number", "releaseNumber"), ("release-date", "releaseDate")],
 }
 
 # Multi-valued attributes. A node property that is a list cannot share the
@@ -91,7 +91,7 @@ MULTI_ATTRS = [
     ("taxon", "entity-name", "Taxon", "name"),
     ("functional-status-type", "entity-name", "FunctionalStatusType", "name"),
     ("reference-database", "entity-name", "ReferenceDatabase", "name"),
-    ("release-", "entity-name", "Release", "name"),
+    ("release", "entity-name", "Release", "name"),
     ("deleted-instance", "entity-name", "DeletedInstance", "name"),
     # geneName sits on ReferenceSequence and, for 85 nodes, ReferenceMolecule.
     ("reference-sequence", "gene-name", "ReferenceSequence", "geneName"),
@@ -481,7 +481,7 @@ def concrete_entity_types() -> dict[str, str]:
     for label in parent:
         if label in _bs.AS_RELATIONS or label in _bs.MIXINS or label in _bs.COEXTENSIVE_LOSERS:
             continue
-        out[_bs.RENAMES.get(label, _bs.kebab(label))] = label
+        out[_bs.kebab(label)] = label
     return out
 
 
@@ -497,7 +497,7 @@ def entity_attrs_for(reactome: str, parent: dict[str, str | None]) -> list[tuple
     seen: set[str] = set()
     label: str | None = reactome
     while label:
-        tql = _bs.RENAMES.get(label, _bs.kebab(label))
+        tql = _bs.kebab(label)
         for dst, src in ENTITY_ATTRS.get(tql, []):
             if dst not in seen:
                 seen.add(dst)

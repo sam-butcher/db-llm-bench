@@ -208,12 +208,12 @@ entity controlled-vocabulary sub database-object,
 entity translational-modification sub abstract-modified-residue;
 entity crosslinked-residue sub translational-modification;
 entity meta-database-object sub database-object;
-entity release- sub meta-database-object,
+entity release sub meta-database-object,
   owns release-number @card(0..1),
   owns release-date @card(0..1),
   owns entity-name @card(0..),
   plays release-record:tracking-release;
-entity dbinfo sub release-;
+entity dbinfo sub release;
 entity database-identifier sub database-object,
   owns identifier @card(0..1),
   plays cross-reference:external-identifier;

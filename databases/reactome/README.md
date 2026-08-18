@@ -142,8 +142,11 @@ polymorphic supertype — labels encode the class hierarchy
 
 Reactome publishes no TypeDB dump, so `typedb-load` builds one from the graph:
 [`data/reactome/typedb/seed.sh`](../../data/reactome/typedb/seed.sh) runs
-`export.py` (Neo4j → per-pass CSVs, over the HTTP API), `generate_passes.py`
-(one loader `.tql` per CSV, its `given` block derived from the CSV header) and
+`export.py` (Neo4j → one CSV per concrete type, over the HTTP API),
+`generate_passes.py` (one loader `.tql` per CSV, its `given` block derived from
+the CSV header; a column that is ever blank becomes a nullable variable whose
+player or attribute sits in a `try` block, so optional roles need no extra
+passes) and
 `load.sh` (drops `reactome`, installs `schema.tql`, then bulk-loads every pass
 with `typedb loader`). The server image ships no loader, so `loader/Dockerfile`
 pulls the `typedb-all` distribution plus Python and curl. Its `TYPEDB_VERSION`
@@ -171,7 +174,7 @@ restored from a dump, a change to any of them means a rebuild, not a migration:
 `docker compose up -d typedb-load` re-exports and reloads from scratch. Neo4j
 must be up, and nothing should be querying TypeDB while it runs.
 
-Verified after a from-scratch `up`: **243 passes committed with zero rejects**,
+Verified after a from-scratch `up`: **205 passes committed with zero rejects**,
 and every reference query in `data/reactome/questions.json` reproduces its
 expected value (`cargo run -p bench-cli --bin verify -- src/reactome.yml`).
 

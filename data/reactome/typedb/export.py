@@ -311,26 +311,13 @@ BINARY = [
      "(a:ReactionLikeEvent)-[r:reactionType]->(b:ReactionType)", []),
 ]
 
-# Roles that may be absent. A relation instance either has a role player or it
-# does not, so rows are grouped by which optionals are present and each group
-# gets its own pass — cleaner than trying to make one insert conditional.
-OPTIONAL_COLS = {
-    "catalysis": ["catalytic_activity", "active_unit", "catalysed_reaction"],
-    "regulation": ["regulatory_activity", "regulation_active_unit", "st_id", "regulated_event"],
-    "entity-functional-status": ["normal_entity"],
-    "negative-precedence": ["exclusion_reason"],
-    "event-containment": ["ordering"],
-    "reaction-input": ["ordering", "stoichiometry"],
-    "reaction-output": ["ordering", "stoichiometry"],
-    "complex-composition": ["ordering", "stoichiometry"],
-    "set-membership": ["ordering"],
-    "publication-authorship": ["ordering"],
-    "edit-authorship": ["ordering"],
-}
-
 # `regulation` rows carry the concrete subtype in a `subtype` column; each
 # becomes its own pass, which is what makes requirement load as a
 # positive-regulation without any extra statement.
+#
+# Optional roles and attributes need no such split. A blank cell is a null to
+# the loader, and generate_passes wraps every column that is ever blank in a
+# `try` block, so one pass takes rows whether or not they carry the optional.
 SUBTYPE_COL = {"regulation": "subtype"}
 
 # N-ary relations reassembled by joining through Reactome's reified nodes.
@@ -552,30 +539,26 @@ def export_entities(outdir: pathlib.Path, only: set[str] | None) -> None:
 
 
 def write_relation(outdir: pathlib.Path, name: str, rows: list[list[str]]) -> None:
-    """Write one CSV per (subtype, present-optional-roles) group.
+    """Write one CSV per subtype (or a single CSV when the relation has none).
 
-    Splitting here keeps every pass a plain unconditional insert: the loader
-    has no way to omit a role player per row, so rows that differ in which
-    roles they carry cannot share a pass.
+    Optional columns stay in the file with blank cells; the pass handles them
+    with `try` blocks. Only the concrete type has to be fixed per pass, since
+    it is the one thing an insert statement cannot make conditional.
     """
     if len(rows) < 2:
         print(f"  {name:<38} {'0':>9} rows")
         return
     header, data = rows[0], rows[1:]
     idx = {c: i for i, c in enumerate(header)}
-    opt = [c for c in OPTIONAL_COLS.get(name, []) if c in idx]
     sub = SUBTYPE_COL.get(name)
-    groups: dict[tuple, list[list[str]]] = {}
+    groups: dict[str | None, list[list[str]]] = {}
     for row in data:
-        present = tuple(c for c in opt if row[idx[c]] != "")
-        subtype = row[idx[sub]] if sub else None
-        groups.setdefault((subtype, present), []).append(row)
-    for (subtype, present), rs in sorted(groups.items(), key=lambda kv: str(kv[0])):
-        cols = [c for c in header if c != sub and (c not in opt or c in present)]
-        keep = [idx[c] for c in cols]
+        groups.setdefault(row[idx[sub]] if sub else None, []).append(row)
+    cols = [c for c in header if c != sub]
+    keep = [idx[c] for c in cols]
+    for subtype, rs in sorted(groups.items(), key=lambda kv: str(kv[0])):
         stem = _bs.kebab(subtype) if subtype else name
-        suffix = "" if len(groups) == 1 else "__" + ("none" if not present else "_".join(present))
-        path = outdir / f"rel__{stem}{suffix}.csv"
+        path = outdir / f"rel__{stem}.csv"
         with path.open("w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
             w.writerow(cols)
@@ -693,10 +676,6 @@ def audit_schema_coverage() -> list[str]:
         exported_roles.setdefault(name, set()).update(
             c.replace("_", "-")
             for q in queries for c in re.findall(r"AS (\w+)", q))
-    for name, cols in OPTIONAL_COLS.items():
-        exported_roles.setdefault(name, set()).update(
-            c.replace("_", "-") for c in cols)
-
     gaps = [f"attribute {a}" for a in sorted(declared_attrs - exported_attrs)]
     # Only relations the exporter emits at all are checked. An abstract parent
     # with no entry of its own (reaction-participation, composition, curation)
@@ -790,11 +769,10 @@ def main() -> None:
             only = set(a.split("=", 1)[1].split(","))
     outdir = pathlib.Path(args[0]) if args else HERE / "work"
     outdir.mkdir(parents=True, exist_ok=True)
-    # A full export owns the directory. Which files it writes depends on which
-    # optional roles are present, so changing that leaves CSVs from the previous
-    # shape behind — and the loader runs every CSV it finds, mixing a stale pass
-    # into a fresh load. Cleared only for a full run; --only is a partial export
-    # and must leave the rest alone.
+    # A full export owns the directory: a relation renamed or dropped here would
+    # otherwise leave its CSV from the previous run behind, and the loader runs
+    # every CSV it finds, mixing a stale pass into a fresh load. Cleared only
+    # for a full run; --only is a partial export and must leave the rest alone.
     if not only:
         for stale in outdir.glob("*.csv"):
             stale.unlink()

@@ -1,7 +1,7 @@
 given
     $affected_event: integer,
     $disease_entity: integer,
-    $normal_entity: integer,
+    $normal_entity: integer?,
     $functional_status: integer,
     $db_id: integer,
     $display_name: string,
@@ -9,7 +9,8 @@ given
 match
 $p0 isa reaction-like-event, has db-id == $affected_event;
 $p1 isa physical-entity, has db-id == $disease_entity;
-$p2 isa physical-entity, has db-id == $normal_entity;
+try { $p2 isa physical-entity, has db-id == $normal_entity; };
 $p3 isa functional-status, has db-id == $functional_status;
 insert
-$x isa entity-functional-status, links (affected-event: $p0, disease-entity: $p1, normal-entity: $p2, functional-status: $p3), has db-id == $db_id, has display-name == $display_name, has schema-class == $schema_class;
+$x isa entity-functional-status, links (affected-event: $p0, disease-entity: $p1, functional-status: $p3), has db-id == $db_id, has display-name == $display_name, has schema-class == $schema_class;
+try { $x links (normal-entity: $p2); };

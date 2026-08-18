@@ -6,12 +6,13 @@ The loader binds a CSV column to a `$variable` of the same name, so each pass's
 
   entity__<type>.csv   ->  insert the entity, keyed on db-id, with `try` for
                            every optional attribute.
-  rel__<type>[__…].csv ->  match each role player by db-id, then insert the
-                           relation. Players are matched as `database-object`
-                           because db-id is the key on that root type; the
-                           schema's `plays` constraints reject a wrong player,
-                           so a mis-mapped role shows up as a reject rather
-                           than as silently wrong data.
+  rel__<type>.csv      ->  match each role player by db-id, then insert the
+                           relation. Players are matched at the type that
+                           declares the role (see role_player_types), so a
+                           mis-mapped role fails to compile rather than
+                           loading silently wrong data. A column that is ever
+                           blank is optional: its player or attribute goes in
+                           a `try` block, so one pass takes every row shape.
 
 Run export.py first. Usage: generate_passes.py [workdir] [passdir]
 """
@@ -139,6 +140,29 @@ def role_player_types() -> dict[str, str]:
     return out
 
 
+def nullable_columns(csv_path: pathlib.Path, header: list[str]) -> set[str]:
+    """Columns with at least one blank cell.
+
+    Read from the data rather than declared, so the pass and the file cannot
+    disagree: exactly the columns that are ever blank become nullable `given`
+    variables with `try` statements. The scan stops as soon as every column
+    has been seen blank, and is a fraction of the load time otherwise.
+    """
+    pending = set(range(len(header)))
+    nullable: set[str] = set()
+    with csv_path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.reader(fh)
+        next(reader, None)
+        for row in reader:
+            for i in list(pending):
+                if row[i] == "":
+                    nullable.add(header[i])
+                    pending.discard(i)
+            if not pending:
+                break
+    return nullable
+
+
 def main() -> None:
     work = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "work"
     passes = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "passes"
@@ -187,25 +211,41 @@ def main() -> None:
             for c in header[1:]:
                 lines.append(f"try {{ $x has {c.replace('_', '-')} == ${c}; }};")
         else:
-            # rel__<type>[__optional-suffix], or post__<type> for the relations
-            # whose player is itself a relation, which load in a later phase.
+            # rel__<type>[__<suffix>], or post__<type> for the relations whose
+            # player is itself a relation, which load in a later phase. A suffix
+            # marks a second export feeding the same relation (creation__reversed
+            # reads the `created` edges Reactome writes the other way round).
             prefix = "post__" if stem.startswith("post__") else "rel__"
-            name = stem[len(prefix):]
-            relation = re.sub(r"__(none|[a-z_]+)$", "", name)
+            relation = re.sub(r"__[a-z_]+$", "", stem[len(prefix):])
             roles = [c for c in header if c not in RELATION_ATTRS]
             attrs = [c for c in header if c in RELATION_ATTRS]
-            given = [f"    ${c}: integer" for c in roles]
-            given += [f"    ${c}: {types.get(c, 'string')}" for c in attrs]
+            optional = nullable_columns(csv_path, header)
+            # An optional column is a nullable `given` and its match/insert
+            # statement sits in a `try` block: on a blank cell the player or
+            # attribute is simply not there, and the row still inserts. That is
+            # what lets rows with different optional roles share one pass.
+            given = [f"    ${c}: integer{'?' if c in optional else ''}" for c in roles]
+            given += [f"    ${c}: {types.get(c, 'string')}{'?' if c in optional else ''}"
+                      for c in attrs]
             lines.append("given\n" + ",\n".join(given) + ";")
             lines.append("match")
             for i, role in enumerate(roles):
                 role_label = role.replace("_", "-")
                 player = players.get(f"{relation}:{role_label}") or players.get(role_label, "database-object")
-                lines.append(f"$p{i} isa {player}, has db-id == ${role};")
+                stmt = f"$p{i} isa {player}, has db-id == ${role};"
+                lines.append(f"try {{ {stmt} }};" if role in optional else stmt)
             lines.append("insert")
-            links = ", ".join(f"{r.replace('_', '-')}: $p{i}" for i, r in enumerate(roles))
-            has = "".join(f", has {a.replace('_', '-')} == ${a}" for a in attrs)
-            lines.append(f"$x isa {relation}, links ({links}){has};")
+            links = ", ".join(f"{r.replace('_', '-')}: $p{i}"
+                              for i, r in enumerate(roles) if r not in optional)
+            has = "".join(f", has {a.replace('_', '-')} == ${a}"
+                          for a in attrs if a not in optional)
+            lines.append(f"$x isa {relation}" + (f", links ({links})" if links else "") + f"{has};")
+            for i, r in enumerate(roles):
+                if r in optional:
+                    lines.append(f"try {{ $x links ({r.replace('_', '-')}: $p{i}); }};")
+            for a in attrs:
+                if a in optional:
+                    lines.append(f"try {{ $x has {a.replace('_', '-')} == ${a}; }};")
 
         (passes / f"{stem}.tql").write_text("\n".join(lines) + "\n", encoding="utf8")
         written += 1

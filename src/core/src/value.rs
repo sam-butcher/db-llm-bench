@@ -52,6 +52,15 @@ impl Value {
                     && a.iter()
                         .all(|(k, v)| b.get(k).is_some_and(|w| v.matches_expected(w)))
             }
+            // A one-field object where a bare value was expected is that
+            // value: the field name is a label the model chose, not part of
+            // the answer (TypeDB `fetch { "count": $n }`, Cypher `RETURN
+            // {n: ...}`). Applies per element inside lists too, via the
+            // list rules above. When the expected value is itself an object
+            // the field names are part of the shape and are not unwrapped.
+            (Value::Object(a), _) if a.len() == 1 => {
+                a.values().next().is_some_and(|v| v.matches_expected(expected))
+            }
             _ => false,
         }
     }
@@ -191,6 +200,25 @@ mod tests {
                 ("age".to_string(), Value::Int(2)),
             ]))
         );
+    }
+
+    #[test]
+    fn one_field_object_unwraps_to_its_value() {
+        let doc = |k: &str, v: Value| Value::Object(BTreeMap::from([(k.to_string(), v)]));
+        assert!(doc("pct", Value::Float(62.4)).matches_expected(&Value::Float(62.4)));
+        assert!(doc("n", Value::Int(3)).matches_expected(&Value::Float(3.0)));
+        assert!(!doc("n", Value::Int(4)).matches_expected(&Value::Int(3)));
+        // Per element inside a list, in bag mode too.
+        let names = Value::List(vec![doc("a", Value::String("x".into())), doc("b", Value::String("y".into()))]);
+        let expected = Value::List(vec![Value::String("y".into()), Value::String("x".into())]);
+        assert!(names.matches_question(&expected, false));
+        // Only one field unwraps; and an expected object keeps its field names.
+        let two = Value::Object(BTreeMap::from([
+            ("a".to_string(), Value::Int(1)),
+            ("b".to_string(), Value::Int(2)),
+        ]));
+        assert!(!two.matches_expected(&Value::Int(1)));
+        assert!(!doc("wrong", Value::Int(1)).matches_expected(&doc("right", Value::Int(1))));
     }
 
     #[test]

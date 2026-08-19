@@ -84,10 +84,13 @@ derived from `expected`'s type: a scalar gives "Return a single integer/number/
 text value/boolean", a list of scalars "Return a list of … values", and an
 object or list of row objects "Return a single row / one row per result. Name
 the output fields exactly: …" — so `expected` is the single source of truth for
-the shape, and a right answer in the wrong shape is a miss. The Neo4j package
-strips plain property-access prefixes (`c.brand` → `brand`) so unaliased
-Cypher is not penalised for that alone; TypeDB may answer via row variables or
-`fetch` documents.
+the shape, and a right answer in the wrong shape is a miss. Two leniencies
+keep that about shape rather than labelling: the Neo4j package strips plain
+property-access prefixes (`c.brand` → `brand`) so unaliased Cypher is not
+penalised for that alone, and a one-field object (TypeDB `fetch { "count": $n
+}`, a Cypher map) compares as its value wherever a bare value was expected —
+at top level or per list element — since the field name was the model's to
+choose. Objects expected as objects keep their field names.
 
 ## What a run does
 

@@ -108,33 +108,33 @@
       }
     },
     {
-      "question": "The pathway with stable identifier R-HSA-168256 directly contains three pathways. Compare each pair of them by the reaction-like events beneath each, reporting how many events they share and the Jaccard similarity of the two sets, rounded to four decimal places. Use columns pathway_a and pathway_b for the two names, then shared and jaccard, ordered by highest similarity first, then alphabetically by pathway_a, then pathway_b.",
+      "question": "The pathway with stable identifier R-HSA-168256 directly contains three pathways. Compare each pair of them by the reaction-like events beneath each, reporting how many events they share and the Jaccard similarity of the two sets, rounded to four decimal places. Use columns pathway_a and pathway_b for the two names, with pathway_a the alphabetically earlier of the pair, then shared and jaccard, ordered by highest similarity first, then alphabetically by pathway_a, then pathway_b.",
       "difficulty": "expert",
       "ordered": true,
       "expected": [
         {
-          "pathway_a": "Innate Immune System",
-          "pathway_b": "Cytokine Signaling in Immune system",
+          "pathway_a": "Cytokine Signaling in Immune system",
+          "pathway_b": "Innate Immune System",
           "shared": 60,
           "jaccard": 0.0388
         },
         {
-          "pathway_a": "Innate Immune System",
-          "pathway_b": "Adaptive Immune System",
+          "pathway_a": "Adaptive Immune System",
+          "pathway_b": "Innate Immune System",
           "shared": 10,
           "jaccard": 0.0088
         },
         {
-          "pathway_a": "Cytokine Signaling in Immune system",
-          "pathway_b": "Adaptive Immune System",
+          "pathway_a": "Adaptive Immune System",
+          "pathway_b": "Cytokine Signaling in Immune system",
           "shared": 2,
           "jaccard": 0.0017
         }
       ],
       "queries": {
-        "sql": "WITH RECURSIVE roots AS (SELECT he.hasEvent AS root FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256'), tree AS (SELECT root, root AS ev FROM roots UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), rset AS (SELECT DISTINCT t.root, t.ev FROM tree t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev), sizes AS (SELECT root, COUNT(*) AS n FROM rset GROUP BY root), inter AS (SELECT a.root AS ra, b.root AS rb, COUNT(*) AS k FROM rset a JOIN rset b ON b.ev = a.ev AND b.root > a.root GROUP BY a.root, b.root) SELECT da._displayName AS pathway_a, db2._displayName AS pathway_b, i.k AS shared, ROUND(i.k / (sa.n + sb.n - i.k), 4) AS jaccard FROM inter i JOIN sizes sa ON sa.root = i.ra JOIN sizes sb ON sb.root = i.rb JOIN DatabaseObject da ON da.DB_ID = i.ra JOIN DatabaseObject db2 ON db2.DB_ID = i.rb ORDER BY jaccard DESC, pathway_a, pathway_b;",
-        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)\nMATCH (child)-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH child, collect(DISTINCT e) AS es\nWITH collect({c: child, es: es}) AS rows\nUNWIND rows AS a\nUNWIND rows AS b\nWITH a, b WHERE a.c.dbId < b.c.dbId\nWITH a, b, size([x IN a.es WHERE x IN b.es]) AS shared\nRETURN a.c.displayName AS pathway_a, b.c.displayName AS pathway_b, shared,\n       round(1.0 * shared / (size(a.es) + size(b.es) - shared), 4) AS jaccard\nORDER BY jaccard DESC, pathway_a, pathway_b",
-        "typeql": "with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; match $root isa pathway, has st-id \"R-HSA-168256\"; event-containment (containing-pathway: $root, contained-event: $a); event-containment (containing-pathway: $root, contained-event: $b); $a has db-id $ad; $b has db-id $bd; $ad < $bd; let $ea in sub-events($a); let $eb in sub-events($b); $ea isa reaction-like-event; $ea is $eb; select $a, $b, $ea; distinct; reduce $shared = count($ea) groupby $a, $b; match let $ea in sub-events($a); $ea isa reaction-like-event; select $a, $b, $shared, $ea; distinct; reduce $na = count($ea) groupby $a, $b, $shared; match let $eb in sub-events($b); $eb isa reaction-like-event; select $a, $b, $shared, $na, $eb; distinct; reduce $nb = count($eb) groupby $a, $b, $shared, $na; match $a has display-name $pathway_a; $b has display-name $pathway_b; let $jaccard = round(10000.0 * $shared / ($na + $nb - $shared)) / 10000.0; select $pathway_a, $pathway_b, $shared, $jaccard; sort $jaccard desc, $pathway_a asc, $pathway_b asc;"
+        "sql": "WITH RECURSIVE roots AS (SELECT he.hasEvent AS root FROM DatabaseObject o JOIN StableIdentifier s ON s.DB_ID = o.stableIdentifier JOIN Pathway_2_hasEvent he ON he.DB_ID = o.DB_ID WHERE s.identifier = 'R-HSA-168256'), tree AS (SELECT root, root AS ev FROM roots UNION SELECT t.root, he.hasEvent FROM tree t JOIN Pathway_2_hasEvent he ON he.DB_ID = t.ev), rset AS (SELECT DISTINCT t.root, t.ev FROM tree t JOIN ReactionlikeEvent r ON r.DB_ID = t.ev), sizes AS (SELECT root, COUNT(*) AS n FROM rset GROUP BY root), inter AS (SELECT a.root AS ra, b.root AS rb, COUNT(*) AS k FROM rset a JOIN rset b ON b.ev = a.ev AND b.root > a.root GROUP BY a.root, b.root) SELECT LEAST(da._displayName, db2._displayName) AS pathway_a, GREATEST(da._displayName, db2._displayName) AS pathway_b, i.k AS shared, ROUND(i.k / (sa.n + sb.n - i.k), 4) AS jaccard FROM inter i JOIN sizes sa ON sa.root = i.ra JOIN sizes sb ON sb.root = i.rb JOIN DatabaseObject da ON da.DB_ID = i.ra JOIN DatabaseObject db2 ON db2.DB_ID = i.rb ORDER BY jaccard DESC, pathway_a, pathway_b;",
+        "cypher": "MATCH (:Pathway {stId:'R-HSA-168256'})-[:hasEvent]->(child)\nMATCH (child)-[:hasEvent*]->(e:ReactionLikeEvent)\nWITH child, collect(DISTINCT e) AS es\nWITH collect({c: child, es: es}) AS rows\nUNWIND rows AS a\nUNWIND rows AS b\nWITH a, b WHERE a.c.displayName < b.c.displayName\nWITH a, b, size([x IN a.es WHERE x IN b.es]) AS shared\nRETURN a.c.displayName AS pathway_a, b.c.displayName AS pathway_b, shared,\n       round(1.0 * shared / (size(a.es) + size(b.es) - shared), 4) AS jaccard\nORDER BY jaccard DESC, pathway_a, pathway_b",
+        "typeql": "with fun sub-events($p: event) -> { event }: match { event-containment (containing-pathway: $p, contained-event: $e); } or { event-containment (containing-pathway: $p, contained-event: $m); let $e in sub-events($m); }; return { $e }; match $root isa pathway, has st-id \"R-HSA-168256\"; event-containment (containing-pathway: $root, contained-event: $a); event-containment (containing-pathway: $root, contained-event: $b); $a has display-name $pathway_a; $b has display-name $pathway_b; $pathway_a < $pathway_b; let $ea in sub-events($a); let $eb in sub-events($b); $ea isa reaction-like-event; $ea is $eb; select $a, $b, $pathway_a, $pathway_b, $ea; distinct; reduce $shared = count($ea) groupby $a, $b, $pathway_a, $pathway_b; match let $ea in sub-events($a); $ea isa reaction-like-event; select $a, $b, $pathway_a, $pathway_b, $shared, $ea; distinct; reduce $na = count($ea) groupby $a, $b, $pathway_a, $pathway_b, $shared; match let $eb in sub-events($b); $eb isa reaction-like-event; select $a, $b, $pathway_a, $pathway_b, $shared, $na, $eb; distinct; reduce $nb = count($eb) groupby $a, $b, $pathway_a, $pathway_b, $shared, $na; match let $jaccard = round(10000.0 * $shared / ($na + $nb - $shared)) / 10000.0; select $pathway_a, $pathway_b, $shared, $jaccard; sort $jaccard desc, $pathway_a asc, $pathway_b asc;"
       }
     }
   ]

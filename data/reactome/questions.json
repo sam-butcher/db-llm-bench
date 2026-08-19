@@ -123,16 +123,6 @@
       }
     },
     {
-      "question": "Consider reaction-like events assigned to Homo sapiens that have at least 4 distinct input entities. How many unordered pairs of such events have exactly the same set of input entities?",
-      "difficulty": "expert",
-      "expected": 104,
-      "queries": {
-        "sql": "WITH inp AS (SELECT DISTINCT i.DB_ID AS ev, i.input AS ent FROM ReactionlikeEvent_2_input i JOIN Event_2_species es ON es.DB_ID = i.DB_ID JOIN DatabaseObject sp ON sp.DB_ID = es.species AND sp._displayName = 'Homo sapiens'), card AS (SELECT ev, COUNT(*) AS n FROM inp GROUP BY ev HAVING COUNT(*) >= 4) SELECT COUNT(*) FROM card a JOIN card b ON b.n = a.n AND b.ev > a.ev WHERE NOT EXISTS (SELECT 1 FROM inp x WHERE x.ev = a.ev AND NOT EXISTS (SELECT 1 FROM inp y WHERE y.ev = b.ev AND y.ent = x.ent));",
-        "cypher": "MATCH (r:ReactionLikeEvent)-[:species]->(:Species {displayName:'Homo sapiens'})\nMATCH (r)-[:input]->(e)\nWITH DISTINCT r, e\nWITH r, e ORDER BY e.dbId\nWITH r, collect(e.dbId) AS sig\nWHERE size(sig) >= 4\nWITH sig, count(*) AS k\nWHERE k > 1\nRETURN sum(k * (k - 1) / 2)",
-        "typeql": "match $a isa reaction-like-event; species-assignment (classified-thing: $a, species: $sa); $sa has display-name \"Homo sapiens\"; reaction-input (reaction: $a, consumed-entity: $e); select $a, $e; distinct; reduce $n = count($e) groupby $a; match $n >= 4; reaction-input (reaction: $a, consumed-entity: $shared); reaction-input (reaction: $b, consumed-entity: $shared); $b isa reaction-like-event; species-assignment (classified-thing: $b, species: $sb); $sb has display-name \"Homo sapiens\"; $a has db-id $ad; $b has db-id $bd; $ad < $bd; not { reaction-input (reaction: $a, consumed-entity: $x); not { reaction-input (reaction: $b, consumed-entity: $x); }; }; not { reaction-input (reaction: $b, consumed-entity: $y); not { reaction-input (reaction: $a, consumed-entity: $y); }; }; select $a, $b; distinct; reduce $count = count;"
-      }
-    },
-    {
       "question": "Which people are an author of the greatest number of distinct literature references that are summations of Homo sapiens pathways? Give each person as their surname, then a comma and a space, then their first name.",
       "difficulty": "argmax",
       "expected": [

@@ -1,8 +1,8 @@
-Given an input question create a syntactically correct Cypher query (Neo4j) leveraging the provided schema and notes.
+Given an input question create a syntactically correct Cypher 5 query (Neo4j 5.x; the server does not accept a CYPHER 25 preamble) leveraging the provided schema and notes.
 Only query for relevant properties given the question.
 Pay attention to using only the labels and properties that you can see in the schema description.
 Be careful not to query for labels or properties that do not exist.
-Only provide the Cypher query, without any further explanations.
+Only provide the Cypher 5 query, without any further explanations.
 
 {{skills}}
 

@@ -21,3 +21,9 @@ Notes:
 - The Neo4j and TypeQL skills are query-writing-focused. A comparable "write
   correct SELECT queries" skill barely exists for SQL (LLMs already write SQL
   well), so the PostgreSQL skill leans toward schema-design and best-practices.
+- The Neo4j skill targets Cypher 25 (Neo4j 2025.x+) and tells the model to open
+  every query with `CYPHER 25`; the benchmark server is Neo4j 5.26, which
+  rejects that preamble. No comparably sourced, licensed Cypher-5 skill exists
+  (the closest, tomasonjo/blogs `neo4j-cypher-guide`, has no license), so the
+  skill is kept as-is and `data/prompts/neo4j.txt` names the server version
+  instead, as the TypeDB prompt does for TypeQL 3.x.

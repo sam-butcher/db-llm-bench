@@ -1724,7 +1724,7 @@ select $rounded;
 
 ## 30. recursion
 
-Walk down from the pathway with stable identifier R-HSA-168256 into the events it contains, but only continue past a pathway that has a reviewed edit (the reviewed kind of curation act); a pathway without one may still be reached, but nothing below it. How many reaction-like events are reachable that way?
+Walk down from the pathway with stable identifier R-HSA-168256 into the events it contains, but only continue past a pathway that has a reviewed edit; a pathway without one may still be reached, but nothing below it. How many reaction-like events are reachable that way?
 
 **Expected** (int):
 

@@ -23,6 +23,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _common as C
 
 
+
+def first_line(text):
+    """The first line of an error message, plus the next non-blank line when
+    the first is only a bare prefix ("syntax error:") — TypeDB driver errors
+    put a newline straight after the prefix, so splitlines()[0] alone would
+    hide the actual message."""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if not lines:
+        return ""
+    if lines[0].endswith(":") and len(lines) > 1:
+        # TypeQL parse errors carry the useful part ("parsing error: expected
+        # ...", "Near 9:0:") on the lines after the generic TQL03 headline.
+        head = lines[1:4] if "[TQL03]" in lines[1] else lines[1:2]
+        return lines[0] + " " + " | ".join(head)
+    return lines[0]
+
 def parse_filters(args):
     filters = {}
     for a in args:
@@ -97,7 +113,7 @@ def main():
         reps = f"   [{len(recs)} reps]" if len(recs) > 1 else ""
         expected = "UNANSWERABLE (no query expected)" if r["unanswerable"] else fmt_answer(r["expected"])
         if r["actual"] == "error" and r["error"]:
-            actual = "error — " + r["error"].splitlines()[0]
+            actual = "error — " + first_line(r["error"])
         else:
             actual = fmt_answer(r["actual"])
         used = ", ".join(str(u) for u in sorted({rec["retriesUsed"] for rec in recs}))
@@ -126,7 +142,7 @@ def main():
                     print(f"   raw response (no query extracted), {label}:")
                     print(block(a.get("response") or "(not recorded)"))
                 if a["error"]:
-                    print("        error: " + a["error"].splitlines()[0])
+                    print("        error: " + first_line(a["error"]))
     print()
 
 

@@ -11,6 +11,7 @@ and defaults to `results-reactome.json`.
 | `incorrect_queries.py` | Every failing run: the question, its config, the expected and generated queries, and the expected vs actual answer. For debugging *what* the model got wrong. Accepts `key=value` filters (`db=`, `difficulty=`, `model=`, `examples=`, `skills=on\|off`). |
 | `token_usage.py` | Total model tokens used (input/output), broken down by model and DB, plus run and call counts. |
 | `query_time.py` | How long the generated queries took to execute, by model and DB (median/mean/p90/slowest). Accurate runs only — a wrong query's execution time is meaningless — counting the final attempt of each. Pass `baseline=<path>` from `verify --timings` for a `vs ref` ratio column. |
+| `merge_results.py` | Merges two results files into one: questions matched on text, per-DB run lists concatenated, questions present in only one file carried through. Takes base, incoming and output paths. |
 | `format_questions.py` | Renders a *questions* file (not a results file) as Markdown for review, breaking the one-line reference queries across clause boundaries so the joins are actually checkable. Takes the questions path and an output path. |
 
 ```sh
@@ -20,6 +21,7 @@ analysis/incorrect_queries.py results-reactome.json db=sql difficulty=hard
 analysis/token_usage.py results-reactome.json
 analysis/query_time.py results-reactome.json baseline=ref-timings.json
 analysis/format_questions.py data/reactome/questions.json data/reactome/questions-review.md
+analysis/merge_results.py results-old.json results-rerun.json results-merged.json
 ```
 
 Notes (see `_common.py`):

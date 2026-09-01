@@ -13,10 +13,9 @@ generation across SQL, Cypher and TypeQL*
 
 - 42 natural-language questions over [Reactome](https://reactome.org), the biological pathway
   curation database, loaded identically into MySQL, Neo4j (5.26) and TypeDB (3.x). Real,
-  large-schema data (~87k characters of MySQL DDL) with no published query corpus in any of the
-  three languages — chosen specifically so no language gets a training-data head start on the
-  *dataset* (the general SQL > Cypher > TypeQL base rate in training corpora remains, and is
-  itself one of the things measured).
+  large-schema data (~87k characters of MySQL DDL): the MySQL and Neo4j databases are restored
+  from the dumps Reactome publishes with each release; the TypeDB database is our own, built
+  from the Neo4j graph.
 - The model gets the schema and the question, writes one query, the query is executed, and the
   *result* is compared to a known expected answer. Wrong shape counts as wrong — producing the
   asked-for shape is part of using a language.
@@ -122,17 +121,3 @@ contains 'PIK3' although their display name does not?"* (expected: 189)
   (Sonnet) — the same in-context-learnability story as §3, just steeper.
 - **Token cost**: TypeQL runs consumed roughly 2× the output tokens of SQL runs (retry loops
   plus a more verbose skill). Loud failure isn't free.
-
-## 7. Caveats / footnotes
-
-- The Cypher skill is written for Cypher 25 and instructs a `CYPHER 25` preamble that the
-  benchmark's Neo4j 5.26 rejects, which zeroes one Sonnet cell (9%) at 0 retries; with any
-  retry budget the model drops the preamble and the cell recovers to normal. Skill-on Neo4j
-  numbers at 0 retries should be read with that in mind (or that cell excluded).
-- The SQL "skill" is a PostgreSQL best-practices document (no comparable query-writing skill
-  exists for SQL — models already write SQL well, which is itself a data point) running against
-  MySQL.
-- Unanswerable detection is 100% across the board — the tier is saturated and carries no
-  discriminating signal in this run.
-- One results quirk: Sonnet input-token counts in this file are implausibly low (hundreds);
-  treat cross-model token comparisons as DeepSeek-only until that's fixed.

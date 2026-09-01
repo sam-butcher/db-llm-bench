@@ -25,7 +25,7 @@ dbs:
         tls: false
       schema: data/reactome/typedb/schema.tql
       examples: data/reactome/typedb
-#      skills: data/skills/typedb
+      skills: data/skills/typedb
   - neo4j:
       prompts: data/prompts/neo4j.txt
       url: bolt://localhost:7687
@@ -34,7 +34,7 @@ dbs:
         password: password
       schema: data/reactome/neo4j/schema.txt
       examples: data/reactome/neo4j
-#      skills: data/skills/neo4j
+      skills: data/skills/neo4j
   - sql:
       # The shared data/prompts/sql.txt names PostgreSQL; this dataset runs on
       # MySQL, so it uses the MySQL-worded variant of the same template.
@@ -42,7 +42,7 @@ dbs:
       url: mysql://bench_ro:bench_ro@localhost/reactome
       schema: data/reactome/sql/schema.sql
       examples: data/reactome/sql
-#      skills: data/skills/sql
+      skills: data/skills/sql
 
 # Every label carries the serving provider, not just the model name: the same
 # open weights served by two providers can differ in quantization and in the
@@ -53,26 +53,23 @@ dbs:
 # mid-thought and never reach a fenced query, which scores as a capability
 # failure when it is really a configuration one.
 models:
-#  - claude:
-#      model: claude-sonnet-5
-#      max_tokens: 8192
-#  - claude:
-#      model: claude-haiku-4-5-20251001
-#      max_tokens: 8192
-  # Local Ollama needs no key; omit api_key_env entirely. Ollama defaults to a
-  # ~4k context and silently truncates beyond it, and the prompt here is
-  # ~37k, so the server must run with OLLAMA_CONTEXT_LENGTH=65536 — otherwise
-  # a model answers UNANSWERABLE to everything while looking like a capability
-  # result.
+  - claude:
+      model: claude-haiku-4-5-20251001
+      max_tokens: 8192
   - openai-compatible:
-      model: qwen3-coder:30b
-      base_url: http://localhost:11434/v1
-      label: qwen3-coder:30b
+      model: deepseek-v4-pro-0813
+      base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      label: deepseek-v4-pro-0813@dashscope
+      api_key_env: DASHSCOPE_API_KEY
+      max_tokens: 16384
+  - claude:
+      model: claude-sonnet-5
       max_tokens: 8192
 questionsPath: data/reactome/questions.json
-# Each DB ships five example-N.txt files, so any count up to 5 is valid.
 exampleCounts:
   - 0
+  - 5
 maxRetryCounts:
   - 0
+  - 2
   - 4

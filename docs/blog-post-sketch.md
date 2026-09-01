@@ -17,17 +17,14 @@ generation across SQL, Cypher and TypeQL*
   from the dumps Reactome publishes with each release; the TypeDB database is our own, built
   from the Neo4j graph.
 - The model gets the schema and the question, writes one query, the query is executed, and the
-  *result* is compared to a known expected answer. Wrong shape counts as wrong — producing the
-  asked-for shape is part of using a language.
-- Question tiers name the construct they stress, not just difficulty: easy / medium / expert,
-  plus **recursion** (transitive closure over the pathway hierarchy), **reification** (n-ary
-  facts), **argmax** (per-group extremes), **aggregation** (stacked aggregates), **polymorphism**
-  (querying through the class hierarchy), and **unanswerable** (does the model admit it can't).
+  *result* is compared to a known expected answer.
+- The questions range from simple lookups to expert-level queries stressing a variety of
+  constructs — recursion, aggregation, polymorphism, and more.
 - This run's grid: 2 models (Claude Sonnet 5, DeepSeek V4 Pro) × 3 DBs × skills on/off (each
   DB's official/vendored query-writing skill in the prompt) × 0/5 few-shot examples × retry
   budget 0/2/4 × 3 repetitions — 3,024 top-level runs, ~68M tokens. Retries fire only on
-  failures the harness can *see* (syntax error, timeout, wrong result shape); a query that runs
-  and returns a wrong answer is terminal.
+  failures the harness can *see* (e.g. a syntax error); a query that runs and returns a wrong
+  answer is terminal.
 
 ## 2. Headline numbers
 

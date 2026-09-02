@@ -99,6 +99,26 @@ TypeDB the schema is part of the query semantics: a wrong guess about structure 
 doesn't exist, an attribute owned by the wrong type — is a type error at the server, not an
 empty-ish result set.
 
+It would be easy to read that 85% as nothing more than finding 1 wearing a different hat: the
+models don't know TypeQL, so of course their TypeQL doesn't parse. The variation grid says
+otherwise. Here is how TypeQL first attempts break down as the prompt gains resources (models
+pooled, share of all runs):
+
+| TypeQL first attempts | correct | visible error | silently wrong |
+|---|---|---|---|
+| no skill, no examples | 12% | 76% | 12% |
+| skill + examples | 69% | 28% | 3% |
+
+Teaching the model the language cuts the error rate by nearly two-thirds — and the reclaimed
+runs land almost entirely in the *correct* column, with the silently-wrong rate falling from
+12% to 3% alongside. In-context resources don't trade loud failures for quiet ones; they turn
+them into right answers. And in the fully-resourced configuration, where unfamiliarity is no
+longer the explanation, the failures that do remain are still overwhelmingly loud: 28% error
+against 3% silent. Loud failure is a property of the language, not a symptom of the model's
+ignorance. SQL is the mirror image — its error rate also falls with examples (19% to 6%), but
+its silently-wrong rate only drifts from 21% to 14%, because most wrong SQL was never going to
+error in the first place.
+
 The gap persists all the way through the pipeline. At the full retry budget, the share of
 *all* runs ending in a silent wrong answer is 21% for MySQL and Neo4j against 15% for TypeDB —
 and of the failures that remain, TypeDB's are still mostly loud (53% carry an error), while

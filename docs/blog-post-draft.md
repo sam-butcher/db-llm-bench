@@ -197,6 +197,21 @@ above, just steeper.
 between retry loops and a more verbose skill. The retries that buy TypeDB its accuracy show up
 on the token bill.
 
+## A note on the playing field
+
+One thing to keep in mind when reading all of the numbers above: Reactome is a really
+idealized domain. It is a professionally curated scientific database, and every label,
+property and relationship in it carries a clear, descriptive, consistently applied name.
+That is precisely the best case for less structured systems like Neo4j, where the names *are*
+the model's only guide to structure — there is no schema to contradict a plausible-looking
+property, so the model's success rests entirely on the data being named as helpfully as this
+data is. Production databases are rarely so kind: cryptic column names, abbreviations that
+made sense to someone in 2009, conventions that drifted across teams and years. A
+schema-enforced database keeps its guarantees — the query either fits the schema or fails
+loudly — regardless of naming discipline; a schema-light one leans on exactly the discipline
+that messy real-world data lacks. On a less pristine dataset, we'd expect the gaps in
+findings 1 and 2 to widen, not close.
+
 ## Takeaways
 
 Three things we'd want a reader to leave with:

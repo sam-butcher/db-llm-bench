@@ -5,15 +5,16 @@
 Ask an LLM to write SQL and it draws on decades of training data. Ask it to write TypeQL — a
 language whose current version is younger than most models' training cutoffs — and it has
 almost nothing to draw on. That would seem to settle which database to put behind an LLM. We
-built a benchmark to check, and it doesn't: with a modest amount of in-context help, the
-ranking flips. The best-scoring configuration in the entire run grid is a TypeDB one.
+built a benchmark to check whether it does. It doesn't: with a modest amount of in-context
+help, the ranking flips. The best-scoring configuration in the entire run grid is a TypeDB
+one.
 
 ## The benchmark
 
 We ask the same 42 natural-language questions of the [Reactome](https://reactome.org)
 biological pathway curation database, loaded identically into MySQL, Neo4j and TypeDB, and
 score each model's SQL, Cypher and TypeQL against a known answer. Reactome is real,
-large-schema data — the MySQL DDL alone runs to ~87k characters, so working with a schema too
+large-schema data — the MySQL DDL alone runs to ~16k tokens, so working with a schema too
 large to hold in working memory is part of the task. The MySQL and Neo4j databases are
 restored from the dumps Reactome publishes with each release; the TypeDB database is our own,
 built from the Neo4j graph.
@@ -117,7 +118,7 @@ Classifying the errors by their TypeDB error codes shows which kind of loudness 
 remove. Syntax errors — the query doesn't parse — are the not-knowing-TypeQL signal, and the
 skill all but eliminates them: from 33% of all first attempts bare to 2%. Semantic errors — a
 type label that doesn't exist, a variable used out of scope across pipeline stages, a
-recursion the language doesn't permit — hold steady at 6–7% in every configuration. Those
+recursion the language doesn't permit — hold steady at 4–7% in every configuration. Those
 aren't the model failing to write TypeQL; they're ordinary mistakes about a large schema,
 caught by the compiler. The same mistakes in SQL execute without complaint. Loud failure is a
 property of the language, not a symptom of the model's ignorance: the skill fixes the grammar,
@@ -162,7 +163,8 @@ reduce $count = count;
 
 The SQL reference query is a seventeen-branch `UNION ALL` over per-class name tables; the
 Cypher one, a wall of `coalesce` over differently-typed properties. Neither model ever
-produced a correct SQL answer to this question, even fully resourced (0/6); TypeDB scored 4/6.
+produced a correct SQL or Cypher answer to this question, even fully resourced (0/6 for both);
+TypeDB scored 4/6.
 
 The point is not that the LLM is better at one syntax than another. In one language the query
 is derivable from the schema; in the others it requires exhaustively enumerating the schema —

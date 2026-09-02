@@ -11,8 +11,12 @@ from a right one. This script reports that split per DB, twice:
 - at the highest retry level (the final outcome), over ALL runs — correct vs
   errored vs silently wrong after the retry loop has done what it can.
 
+A third table breaks the first attempt down by DB x skills x examples, over all
+runs, to show whether in-context resources reduce the error rate itself (fewer
+invalid queries) or merely shift failures between loud and silent.
+
 Only answerable questions count: an unanswerable question has no wrong-answer
-failure mode. Both tables pool models; pass model=<substring> to filter.
+failure mode. All tables pool models; pass model=<substring> to filter.
 
 Usage: analysis/failure_modes.py [results.json] [model=<substring>]
 """
@@ -71,6 +75,24 @@ def main():
                      pct(silent, len(runs)), pct(errored, fails)])
     print(C.render_table(
         ["DB", "runs", "correct", "error", "silently wrong", "error share of failures"], rows))
+
+    print("\nFirst attempt by variation: all runs")
+    rows = []
+    for db in dbs:
+        for skills in (False, True):
+            for examples in sorted({r["examples"] for r in records}):
+                runs = [r for r in records
+                        if r["db"] == db and r["maxRetries"] == 0
+                        and r["skills"] == skills and r["examples"] == examples]
+                correct = sum(1 for r in runs if r["accurate"])
+                errored = sum(1 for r in runs if not r["accurate"] and r["error"])
+                silent = len(runs) - correct - errored
+                rows.append([db, "on" if skills else "off", examples, len(runs),
+                             pct(correct, len(runs)), pct(errored, len(runs)),
+                             pct(silent, len(runs))])
+    print(C.render_table(
+        ["DB", "skills", "examples", "runs", "correct", "error", "silently wrong"], rows,
+        label_cols=3))
 
 
 if __name__ == "__main__":

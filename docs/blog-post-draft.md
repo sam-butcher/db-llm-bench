@@ -6,16 +6,14 @@ Ask an LLM to write SQL and it draws on decades of training data. Ask it to writ
 language whose current version is younger than most models' training cutoffs — and it has
 almost nothing to draw on. That would seem to settle which database to put behind an LLM. We
 built a benchmark to check whether it does. It doesn't: with a modest amount of in-context
-help, the ranking flips. The best-scoring configuration in the entire run grid is a TypeDB
-one.
+help, LLMs can generate correct TypeQL just as easily as they do SQL - and in some cases even easier.
 
 ## The benchmark
 
 We ask the same 42 natural-language questions of the [Reactome](https://reactome.org)
 biological pathway curation database, loaded identically into MySQL, Neo4j and TypeDB, and
 score each model's SQL, Cypher and TypeQL against a known answer. Reactome is real,
-large-schema data — the MySQL DDL alone runs to ~16k tokens, so working with a schema too
-large to hold in working memory is part of the task. The MySQL and Neo4j databases are
+large-schema data — the MySQL DDL alone runs to ~16k tokens. The MySQL and Neo4j databases are
 restored from the dumps Reactome publishes with each release; the TypeDB database is our own,
 built from the Neo4j graph.
 
@@ -29,20 +27,20 @@ The grid for this run:
 - **Models**: Claude Sonnet 5 and DeepSeek V4 Pro.
 - **Skills on/off**: whether each database's official (or best available vendored)
   query-writing skill — a markdown document teaching the language — is included in the prompt.
-- **Few-shot examples**: 0 or 5 worked question-and-query examples.
+- **Few-shot examples**: 0 or 5 worked question-and-query examples written for the Reactome dataset.
 - **Retry budget**: 0, 2 or 4. A retry fires only on a failure the harness can see, such as a
   syntax error, which is fed back to the model; a query that runs and returns a wrong answer
   is terminal.
-- **3 repetitions** of everything, because models are non-deterministic.
+- **3 repetitions** of everything, to cover non-determinism.
 
 ## The headline numbers
 
 Averaged over all variations at the full retry budget:
 
-| model | MySQL | Neo4j | TypeDB |
-|---|---|---|---|
-| Claude Sonnet 5 | 77% | 75% | 75% |
-| DeepSeek V4 Pro | 83% | 81% | 65% |
+| model           | MySQL | Neo4j | TypeDB |
+|-----------------|-------|-------|--------|
+| Claude Sonnet 5 | 77.0% | 74.8% | 74.6%  |
+| DeepSeek V4 Pro | 82.7% | 80.6% | 64.9%  |
 
 At first glance: SQL wins, TypeQL trails. But the average hides the real story — how
 differently the three languages respond to help.
@@ -52,12 +50,12 @@ differently the three languages respond to help.
 Accuracy pooled over both models at the full retry budget, split by what the prompt contained
 (answerable questions only, here and throughout the findings):
 
-| config | MySQL | Neo4j | TypeDB |
-|---|---|---|---|
-| no skill, no examples | 72% | 65% | **29%** |
-| skill only | 77% | 71% | 70% |
-| examples only | 81% | 83% | 82% |
-| skill + examples | 84% | 86% | **89%** |
+| config                | MySQL | Neo4j | TypeDB    |
+|-----------------------|-------|-------|-----------|
+| no skill, no examples | 71.8% | 64.5% | **29.1%** |
+| skill only            | 76.9% | 71.4% | 69.7%     |
+| examples only         | 80.8% | 82.5% | 82.1%     |
+| skill + examples      | 83.8% | 85.5% | **88.9%** |
 
 Bare, TypeDB is by far the worst of the three — DeepSeek with no skill, no examples and no
 retries gets **every single question wrong** (0/117). No surprise: the models have seen decades of SQL and
@@ -79,10 +77,10 @@ context — and a regular, composable language teaches well.
 When a generated query is wrong, it matters how it is wrong. Of the runs that failed on their
 first attempt (no retries, answerable questions only):
 
-| first-attempt failures | MySQL | Neo4j | TypeDB |
-|---|---|---|---|
-| failed with a visible error | 40% | 62% | **85%** |
-| ran fine, returned the wrong answer | 60% | 38% | 15% |
+| first-attempt failures              | MySQL | Neo4j | TypeDB    |
+|-------------------------------------|-------|-------|-----------|
+| failed with a visible error         | 40.2% | 62.3% | **85.2%** |
+| ran fine, returned the wrong answer | 59.8% | 37.7% | 14.8%     |
 
 A silent wrong answer is the worst outcome an application can get: nothing downstream can tell
 it from a right one. Wrong SQL usually fails this way — it joins the wrong tables or
@@ -95,19 +93,19 @@ Cypher sits in between. In Neo4j, a property the model invents doesn't error —
 nothing — so a wrong structural guess becomes a silently empty or wrong result. What keeps
 Cypher's numbers respectable here is that Reactome is an idealized domain: professionally
 curated, with every label and property clearly and consistently named. Names are all a
-schema-light system gives the model to steer by, and production databases — cryptic columns,
-conventions drifted across teams and years — rarely name things this well. A schema-enforced
+schema-light system gives the model to steer by, and some databases — cryptic columns,
+conventions drifted across teams and years — may not name things this well. A schema-enforced
 database fails loudly regardless of naming discipline; on messier data we'd expect these gaps
 to widen.
 
-Is TypeQL's 85% just finding 1 again — the models don't know the language, so their queries
-don't parse? No. Here is how TypeQL first attempts break down as the prompt gains resources
+TypeQL retains this lead even as increased in-context training improves the models ability to write it.
+Here is how TypeQL first attempts break down as the prompt gains resources
 (models pooled, share of all runs):
 
 | TypeQL first attempts | correct | visible error | silently wrong |
-|---|---|---|---|
-| no skill, no examples | 12% | 76% | 12% |
-| skill + examples | 69% | 28% | 3% |
+|-----------------------|---------|---------------|----------------|
+| no skill, no examples | 12.4%   | 75.6%         | 12.0%          |
+| skill + examples      | 68.8%   | 28.2%         | 3.0%           |
 
 Teaching the model the language cuts the error rate by nearly two-thirds, and the reclaimed
 runs land almost entirely in the correct column — the silently-wrong rate falls too, from 12%
@@ -140,9 +138,9 @@ TypeDB's clearest wins are the polymorphic questions — those that range over R
 class hierarchy through a supertype. In the best-resourced configuration, pooled over both
 models:
 
-| | MySQL | Neo4j | TypeDB |
-|---|---|---|---|
-| polymorphism accuracy | 55% | 65% | **82%** |
+|                       | MySQL | Neo4j | TypeDB    |
+|-----------------------|-------|-------|-----------|
+| polymorphism accuracy | 54.5% | 65.2% | **81.8%** |
 
 One question shows why: *"Ignoring case, how many database objects go by a name of some kind
 that contains 'PIK3' although their display name does not?"*
@@ -180,10 +178,10 @@ configuration against 6/6 for both MySQL and Neo4j. The expected answer is a tie
 people — and a tie-safe per-group extreme currently requires re-deriving the pipeline twice in
 TypeQL (or a user-defined function). Models instead reach for `sort ... limit 1` and return
 one of the two winners. SQL's window functions and Cypher's `collect` make the tie-safe
-version natural. This is a real language gap, not a resourcing gap.
+version natural.
 
 **Recursion needs the resources.** TypeQL expresses transitive closure through recursive
-functions, which are exotic enough that bare models score 0% on the recursion questions. With
+functions, which are unknown enough that bare models score 0% on the recursion questions. With
 skill and examples, Sonnet recovers to 12/12 — the finding 1 story again, just steeper.
 
 **Loud failure isn't free.** TypeQL runs consumed roughly twice the output tokens of SQL runs,
@@ -192,7 +190,7 @@ on the token bill.
 
 ## Takeaways
 
-1. **Pre-training familiarity is not destiny.** The language the model knows worst produced
+1. **Pre-training familiarity is not insurmountable.** The language the model knows worst produced
    the best score in the grid, once ~33KB of documentation and five examples were in the
    prompt. In-context learnability beats corpus volume.
 2. **Failure mode matters as much as accuracy.** A language whose wrong queries fail loudly

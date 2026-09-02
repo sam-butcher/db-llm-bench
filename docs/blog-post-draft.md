@@ -51,7 +51,8 @@ differently the three languages respond to help.
 
 ## Finding 1: in-context resources flip the ranking
 
-Accuracy pooled over both models at the full retry budget, split by what the prompt contained:
+Accuracy pooled over both models at the full retry budget, split by what the prompt contained
+(answerable questions only, here and throughout the findings):
 
 | config | MySQL | Neo4j | TypeDB |
 |---|---|---|---|
@@ -61,12 +62,12 @@ Accuracy pooled over both models at the full retry budget, split by what the pro
 | skill + examples | 84% | 86% | **89%** |
 
 Bare, TypeDB is by far the worst of the three — DeepSeek with no skill, no examples and no
-retries scores just **7%** on TypeQL. No surprise: the models have seen decades of SQL and
+retries gets **every single question wrong** (0/117). No surprise: the models have seen decades of SQL and
 almost no TypeQL 3.x.
 
 But the same help buys very different amounts per language. The TypeQL skill — about 33KB of
 markdown — is worth **+41 points** on its own (29% → 70%); it buys SQL five points and Cypher
-six. With examples added, TypeDB overtakes both. The best cell in the whole 72-row variation
+seven. With examples added, TypeDB overtakes both. The best cell in the whole 72-row variation
 grid is **Sonnet 5 writing TypeQL with skill, examples and retries: 93%**, ahead of the best
 Neo4j cell (90%, DeepSeek) and the best MySQL cell (86%, DeepSeek).
 
@@ -122,9 +123,9 @@ recursion the language doesn't permit — hold steady at 4–7% in every configu
 aren't the model failing to write TypeQL; they're ordinary mistakes about a large schema,
 caught by the compiler. The same mistakes in SQL execute without complaint. Loud failure is a
 property of the language, not a symptom of the model's ignorance: the skill fixes the grammar,
-and the type system keeps catching the rest. SQL's error rate also falls with examples (19% to
-6%), but its silently-wrong rate only drifts from 21% to 14% — most wrong SQL was never going
-to error in the first place.
+and the type system keeps catching the rest. SQL's error rate also falls with skill and
+examples (19% to 6%), but its silently-wrong rate only drifts from 21% to 14% — most wrong SQL
+was never going to error in the first place.
 
 The gap persists through the full pipeline. At the full retry budget, 21% of MySQL and Neo4j
 runs end in a silent wrong answer against 15% for TypeDB — and TypeDB's remaining failures are

@@ -205,7 +205,7 @@ services:
       ADDRESS: https://s2s2np-0.cluster.typedb.dev:80
       DB: reactome
       DB_USER: admin
-      DB_PASS: BGS8pFz1GXIk1h1k
+      DB_PASS: password
       TYPEDB: /usr/local/bin/typedb
       WORK: /reactome/typedb/work
       # Loader checkpoints are written to a temp file and renamed into place.

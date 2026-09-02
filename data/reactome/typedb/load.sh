@@ -41,13 +41,13 @@ if [ ! -d "$WORK" ] || [ -z "$(ls -A "$WORK"/*.csv 2>/dev/null)" ]; then
 fi
 
 common=(--address "$ADDRESS" --username "$DB_USER" --password "$DB_PASS"
-        --tls-disabled true --database "$DB"
+        --database "$DB"
         --header true --batch-rows "$BATCH_ROWS" --parallel-batches "$PARALLEL")
 
 echo "== dropping $DB if present =="
 printf 'database delete %s\n' "$DB" > "$OUT/reset.tqls"
 "$TYPEDB" console --address "$ADDRESS" --username "$DB_USER" --password "$DB_PASS" \
-    --tls-disabled --script="$OUT/reset.tqls" >/dev/null 2>&1 || true
+    --script="$OUT/reset.tqls" >/dev/null 2>&1 || true
 
 first=1
 failed=0

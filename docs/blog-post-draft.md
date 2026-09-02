@@ -112,12 +112,22 @@ pooled, share of all runs):
 Teaching the model the language cuts the error rate by nearly two-thirds — and the reclaimed
 runs land almost entirely in the *correct* column, with the silently-wrong rate falling from
 12% to 3% alongside. In-context resources don't trade loud failures for quiet ones; they turn
-them into right answers. And in the fully-resourced configuration, where unfamiliarity is no
-longer the explanation, the failures that do remain are still overwhelmingly loud: 28% error
-against 3% silent. Loud failure is a property of the language, not a symptom of the model's
-ignorance. SQL is the mirror image — its error rate also falls with examples (19% to 6%), but
-its silently-wrong rate only drifts from 21% to 14%, because most wrong SQL was never going to
-error in the first place.
+them into right answers.
+
+Classifying the errors themselves, by the TypeDB error code they carry, shows exactly which
+kind of loudness the resources remove. Genuine *syntax* errors — the query doesn't parse — are
+the not-knowing-TypeQL signal, and the skill all but eliminates them: they fall from 33% of
+all first attempts bare to 2% with the skill in the prompt. But *semantic* errors — a type
+label that doesn't exist, a variable used out of scope across pipeline stages, a recursion the
+language doesn't permit — hold steady at around 6–7% of first attempts in every configuration,
+resourced or not. Those are not the model failing to write TypeQL; they are the model making
+an ordinary mistake about a large schema, and TypeDB's compiler catching it. The same class of
+mistake in SQL — joining the wrong tables, aggregating over duplicated rows — executes without
+complaint and hands back a plausible number. So loud failure is a property of the language,
+not a symptom of the model's ignorance: the skill fixes the grammar, and the type system keeps
+catching the rest. SQL is the mirror image — its error rate also falls with examples (19% to
+6%), but its silently-wrong rate only drifts from 21% to 14%, because most wrong SQL was never
+going to error in the first place.
 
 The gap persists all the way through the pipeline. At the full retry budget, the share of
 *all* runs ending in a silent wrong answer is 21% for MySQL and Neo4j against 15% for TypeDB —

@@ -74,27 +74,30 @@ context — and a regular, composable language is easy to teach.
 
 ## Finding 2: TypeQL fails loudly, SQL fails silently
 
-When a generated query is wrong, it matters how it is wrong. Of the runs that failed on their
-first attempt (no retries, answerable questions only):
+When a generated query is wrong, it matters how it is wrong. Every percentage in this section
+is a share of all runs, on the same base as the accuracy numbers above. First attempts (no
+retries, answerable questions only):
 
-| first-attempt failures              | MySQL | Neo4j | TypeDB    |
-|-------------------------------------|-------|-------|-----------|
-| failed with a visible error         | 40.2% | 62.3% | **85.2%** |
-| ran fine, returned the wrong answer | 59.8% | 37.7% | 14.8%     |
+| first attempts                      | MySQL     | Neo4j | TypeDB    |
+|-------------------------------------|-----------|-------|-----------|
+| correct                             | 70.5%     | 62.3% | 49.4%     |
+| failed with a visible error         | 11.9%     | 23.5% | **43.2%** |
+| ran fine, returned the wrong answer | **17.6%** | 14.2% | 7.5%      |
 
 A silent wrong answer is the worst outcome an application can get: nothing downstream can tell
-it from a right one. Wrong SQL usually fails this way — it joins the wrong tables or
-aggregates over duplicated rows, executes without complaint, and hands back a plausible
-number. Wrong TypeQL usually fails with an error, because in TypeDB the schema is part of the
-query semantics: a wrong guess about structure — a role that doesn't exist, an attribute owned
-by the wrong type — is a type error at the server rather than an empty result.
+it from a right one. On this measure SQL and TypeQL are near mirror images. When SQL goes
+wrong it usually goes wrong silently — three failed attempts in five join the wrong tables or
+aggregate over duplicated rows, execute without complaint, and hand back a plausible number.
+When TypeQL goes wrong, six failures in seven are visible errors, because in TypeDB the schema
+is part of the query semantics: a wrong guess about structure — a role that doesn't exist, an
+attribute owned by the wrong type — is a type error at the server rather than an empty result.
 
 Cypher sits in between. In Neo4j, a property the model invents doesn't error — it matches
 nothing — so a wrong structural guess becomes a silently empty or wrong result. What keeps
 Cypher's numbers respectable here is that Reactome is an idealized domain: professionally
 curated, with every label and property clearly and consistently named. Names are all a
 schema-light system gives the model to steer by, and many databases — cryptic column names,
-conventions that drifted across teams and years — aren't named nearly as well. A schema-enforced
+conventions that drift across teams and years — aren't named nearly as well. A schema-enforced
 database fails loudly regardless of naming discipline; on messier data we'd expect these gaps
 to widen.
 
@@ -116,15 +119,23 @@ TypeQL, and the skill all but eliminates them: from 33% of all first attempts do
 Semantic errors — a type label that doesn't exist, a variable used out of scope across
 pipeline stages, a recursion the language doesn't permit — hold steady at 4–7% in every
 configuration. Anyone writing queries against a schema this large makes mistakes like these;
-the difference is that TypeDB's compiler catches them. The same mistakes in SQL execute without complaint. Loud failure is a
-property of the language, not a symptom of the model's ignorance: the skill fixes the grammar,
+the difference is that TypeDB's compiler catches them. The same mistakes in SQL execute without complaint. 
+Loud failure is a property of the language, not a symptom of the model's ignorance: the skill fixes the grammar,
 and the type system keeps catching the rest. SQL's error rate also falls with skill and
 examples (19% to 6%), but its silently-wrong rate only drifts from 21% to 14% — most wrong SQL
 was never going to error in the first place.
 
-The gap survives retries, too. At the full retry budget, 21% of MySQL and Neo4j runs still
-end in a silent wrong answer against 15% for TypeDB — and TypeDB's remaining failures are
-still mostly loud (53% carry an error), while MySQL's are almost entirely silent (97%).
+The gap survives retries, too. The same breakdown at the full retry budget:
+
+| after retries                       | MySQL     | Neo4j | TypeDB    |
+|-------------------------------------|-----------|-------|-----------|
+| correct                             | 78.3%     | 76.0% | 67.4%     |
+| failed with a visible error         | 0.6%      | 3.0%  | 17.2%     |
+| ran fine, returned the wrong answer | **21.0%** | 21.0% | **15.4%** |
+
+Retries have burned MySQL's visible errors down to almost nothing, but its silent failures
+are untouched: 21% of runs still end in a wrong answer nothing can detect. TypeDB ends with
+fewer silent failures, and more than half of what it gets wrong is still flagged as an error.
 
 Loud failure is also why retries help TypeDB so much: a retry loop can only act on failures it
 can see. Sonnet writing TypeQL with skill and examples climbs 77% → 89% → 93% as the retry

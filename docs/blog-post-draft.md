@@ -35,8 +35,6 @@ The grid for this run:
   is terminal.
 - **3 repetitions** of everything, because models are non-deterministic.
 
-That's 3,024 top-level runs and roughly 68 million tokens.
-
 ## The headline numbers
 
 Averaged over all variations at the full retry budget:

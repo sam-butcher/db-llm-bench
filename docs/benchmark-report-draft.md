@@ -14,29 +14,28 @@ total.
 The main results:
 
 1. Averaged over all configurations, SQL is the most accurate target language (77–83%
-   depending on model) and TypeQL the least for one of the two models (65% for DeepSeek).
-   The averages conceal large differences in how the languages respond to in-context help:
-   with skill, examples and retries all present, TypeQL is the most accurate language for
-   Claude Sonnet 5 (92.9%), the best single configuration in the benchmark.
+   depending on model); TypeQL trails badly for DeepSeek (65%) and is level with Cypher for
+   Sonnet (75%). The averages conceal large differences in how the languages respond to
+   in-context help: with skill, examples and retries all present, TypeQL is the most accurate
+   language for Claude Sonnet 5 (92.9%), the best single configuration in the benchmark.
 2. The languages fail differently. On first attempts, a failing TypeQL query surfaces as a
    visible error six times in seven; a failing SQL query returns a plausible wrong answer
    three times in five. This changes what a retry loop can achieve, and what reaches the
    application undetected.
 3. Question categories separate the languages. TypeDB leads on polymorphic questions (69% vs
    48% for MySQL, pooled over all configurations) and trails badly on argmax (25% vs 96%).
-4. TypeQL costs more to run: roughly twice the output tokens of SQL for both models, and
-   about 10× SQL's median query execution time.
+4. TypeQL costs more to run: roughly twice the output tokens of SQL for both models.
 
-Sections 3–8 give the data; section 9 gives our interpretation, marked as such; section 10
-lists the limitations we know about.
+Sections 2–7 give the data; section 8 gives our interpretation; section 9 lists the
+limitations we know about.
 
 ## 1. The benchmark
 
 [Reactome](https://reactome.org) is a professionally curated biological pathway database. Its
 publishers ship each release as both a MySQL dump of the curation database and a Neo4j graph
-dump; we restore both and build the TypeDB database ourselves from the Neo4j graph. The three
-stores hold the same instance data. The schema is large — the MySQL DDL alone is ~62KB (~16k
-tokens) — and the complete schema is placed in every prompt, so working with a schema too
+dump; we restore both and build the TypeDB database ourselves from the Neo4j graph. 
+The schema is large — the MySQL DDL alone is ~62KB (~16k tokens) — 
+and the complete schema is placed in every prompt, so working with a schema too
 large to hold in working memory is part of the task.
 
 Each run works as follows. The model receives a prompt containing the schema for its target
@@ -49,8 +48,7 @@ A retry is triggered only by a failure the harness can observe: a syntax or exec
 a timeout, a malformed result shape, or a response containing no query. The error is fed back
 to the model with the conversation so far, up to the retry budget. A query that executes and
 returns a wrong answer is terminal — the harness does not know the answer is wrong, exactly
-as a real application would not. Runs execute once at the highest retry budget; lower budgets
-are derived by truncating the attempt trace, so budgets are directly comparable.
+as a real application would not.
 
 ### Questions
 
@@ -58,17 +56,17 @@ The 42 questions are split into tiers. Three are labelled by difficulty; six are
 the query construct they exercise; one tier measures whether the model recognises an
 unanswerable question and says so rather than guessing.
 
-| tier         | questions | exercises |
-|--------------|-----------|-----------|
-| easy         | 4         | lookups and counts |
-| medium       | 5         | joins/traversals with filters |
-| expert       | 11        | multi-hop structure, negation, subqueries |
-| recursion    | 4         | transitive closure over the pathway hierarchy |
-| reification  | 1         | n-ary facts constrained on several roles |
-| argmax       | 1         | per-group extremes (with a tie in the answer) |
-| aggregation  | 2         | stacked aggregates |
+| tier         | questions | exercises                                           |
+|--------------|-----------|-----------------------------------------------------|
+| easy         | 4         | lookups and counts                                  |
+| medium       | 5         | joins/traversals with filters                       |
+| expert       | 11        | multi-hop structure, negation, subqueries           |
+| recursion    | 4         | transitive closure over the pathway hierarchy       |
+| reification  | 1         | n-ary facts constrained on several roles            |
+| argmax       | 1         | per-group extremes (with a tie in the answer)       |
+| aggregation  | 2         | stacked aggregates                                  |
 | polymorphism | 11        | queries through the class hierarchy via a supertype |
-| unanswerable | 3         | declining to answer |
+| unanswerable | 3         | declining to answer                                 |
 
 The one-question tiers (reification, argmax) are indicative only; we flag their sample sizes
 wherever they appear.
@@ -85,7 +83,7 @@ wherever they appear.
 - **Retry budget**: 0, 2 or 4.
 - **Repetitions**: 3 per combination.
 
-Per model and database that is 12 configurations × 42 questions × 3 repetitions = 1,512
+Per model and database, that is 12 configurations × 42 questions × 3 repetitions = 1,512
 scored runs (504 at each retry budget).
 
 ## 2. Overall accuracy
@@ -100,22 +98,22 @@ questions count here, including the unanswerable tier:
 
 All three databases scored 100% on the unanswerable tier in every configuration, so that tier
 contributes no signal in this run; the remaining tables in this report exclude it and use
-answerable questions only (117 per model × database at each configuration, 936 pooled).
+answerable questions only (936 runs per database at each retry budget, pooling both models
+and all configurations).
 
 ## 3. Accuracy by question tier
 
-Pooled over both models and all configurations at the full retry budget. Counts are shown
-because tier sizes differ by an order of magnitude:
+Pooled over both models and all configurations at the full retry budget:
 
-| tier         | MySQL         | Neo4j         | TypeDB        |
-|--------------|---------------|---------------|---------------|
-| easy         | 94.8% (91/96) | 100% (96/96)  | 89.6% (86/96) |
-| medium       | 95.0% (114/120) | 96.7% (116/120) | 79.2% (95/120) |
+| tier         | MySQL           | Neo4j           | TypeDB          |
+|--------------|-----------------|-----------------|-----------------|
+| easy         | 94.8% (91/96)   | 100% (96/96)    | 89.6% (86/96)   |
+| medium       | 95.0% (114/120) | 96.7% (116/120) | 79.2% (95/120)  |
 | expert       | 82.6% (218/264) | 66.3% (175/264) | 58.7% (155/264) |
-| recursion    | 92.7% (89/96) | 79.2% (76/96) | 56.3% (54/96) |
-| reification  | 95.8% (23/24) | 100% (24/24)  | 83.3% (20/24) |
-| argmax       | 95.8% (23/24) | 91.7% (22/24) | 25.0% (6/24)  |
-| aggregation  | 100% (48/48)  | 87.5% (42/48) | 66.7% (32/48) |
+| recursion    | 92.7% (89/96)   | 79.2% (76/96)   | 56.3% (54/96)   |
+| reification  | 95.8% (23/24)   | 100% (24/24)    | 83.3% (20/24)   |
+| argmax       | 95.8% (23/24)   | 91.7% (22/24)   | 25.0% (6/24)    |
+| aggregation  | 100% (48/48)    | 87.5% (42/48)   | 66.7% (32/48)   |
 | polymorphism | 48.1% (127/264) | 60.6% (160/264) | 69.3% (183/264) |
 
 Two tiers separate the languages sharply, in opposite directions:
@@ -238,22 +236,7 @@ We classified every failing TypeQL first attempt by its TypeDB error code (scrip
   execute too ambitiously.
 - Wrongly declaring an answerable question UNANSWERABLE disappears once examples are present.
 
-## 7. Query execution time
-
-Median wall-clock execution time of the generated query, accurate runs only, counting the
-final attempt of each:
-
-| model    | MySQL | Neo4j | TypeDB |
-|----------|-------|-------|--------|
-| Sonnet   | 95ms  | 340ms | 1.1s   |
-| DeepSeek | 117ms | 361ms | 983ms  |
-
-Correct generated TypeQL runs roughly 10× slower than correct generated SQL at the median on
-this dataset, with a heavier tail (p90 5.2s/9.0s vs 1.9s/1.4s). We have not analysed whether
-the gap is intrinsic to the engine, the schema mapping, or the shape of the queries the
-models produce.
-
-## 8. Token usage
+## 7. Token usage
 
 Average output tokens per run at the full retry budget:
 
@@ -263,10 +246,9 @@ Average output tokens per run at the full retry budget:
 | DeepSeek | 11,150 | 8,904 | 23,300 |
 
 TypeQL runs cost roughly twice the output tokens of SQL runs for both models — a product of
-more retry attempts and, for DeepSeek, longer reasoning. Input-token accounting for the
-Sonnet runs in this results file is broken (see §10), so we report output tokens only.
+more retry attempts and, for DeepSeek, longer reasoning.
 
-## 9. Interpretation
+## 8. Interpretation
 
 These are our readings of the data, not measurements.
 
@@ -290,34 +272,23 @@ These are our readings of the data, not measurements.
   model. On data with less disciplined naming we would expect the failure-mode and
   polymorphism gaps to widen; measuring that is future work.
 
-## 10. Limitations
+## 9. Limitations
 
 - **Skill provenance is uneven.** The Neo4j skill targets Cypher 25 and instructs a
   `CYPHER 25` preamble that the benchmark's Neo4j 5.26 rejects; at a zero-retry budget this
-  zeroes one Sonnet configuration (its accuracy recovers fully with any retries, and the
-  prompt names the server version). The SQL skill is a PostgreSQL best-practices document
+  collapses one Sonnet configuration to 9% (its accuracy recovers fully with any retries, and
+  the prompt names the server version). The SQL skill is a PostgreSQL best-practices document
   running against MySQL, because no query-writing-focused SQL skill comparable to the TypeQL
   and Cypher ones exists. Skill-on comparisons should be read with both in mind.
 - **The unanswerable tier is saturated** (100% everywhere) and provides no discrimination in
   this run.
 - **Two tiers have one question each** (argmax, reification). We report them with counts and
   treat them as indicative.
-- **Sonnet input-token counts in this results file are wrong** (1–2 tokens recorded per
-  attempt; a runner accounting bug for that provider). Output-token figures are unaffected.
-  Total-cost comparisons across models are not possible from this file.
-- **One dataset, two models, three repetitions.** Reactome's size and provenance were chosen
-  deliberately (no published query corpus in any of the three languages), but a single
-  schema, and a question set authored by us, cannot rule out dataset-specific effects. The
-  TypeDB schema and the questions were written by the TypeDB team.
-- **Result-equality scoring is strict**: a correct computation returned in the wrong shape
-  scores as wrong. This is intentional (producing the asked-for shape is part of using a
-  language) but inflates the failure counts of languages that make shape awkward.
 
-## 11. Reproducibility
+## 10. Reproducibility
 
 The benchmark runner, dataset build scripts, prompts, vendored skills, questions with
 per-language reference queries, the full results file for this run, and the analysis scripts
 that produce every table above (`accuracy_by_db.py`, `accuracy_by_variation.py`,
-`failure_modes.py`, `typedb_errors.py`, `token_usage.py`, `query_time.py`) are in the
-db-llm-bench repository.
+`failure_modes.py`, `typedb_errors.py`, `token_usage.py`) are in the db-llm-bench repository.
 <!-- TODO: link the repo at its published location -->

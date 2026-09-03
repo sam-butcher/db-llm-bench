@@ -81,8 +81,8 @@ wrong. That means a language's retry ceiling is set by its failure visibility.
 
 The effect is large. With skill and examples in the prompt, TypeDB climbs from 68.8% to 88.9%
 accuracy as the retry budget grows from 0 to 4; MySQL moves from 79.9% to 83.8% on the same
-budget, because most of its failures never announce themselves. Here is where each database
-ends up after retries have done what they can:
+budget, because most of its failures never announce themselves. Where each database ends up
+once retries have done what they can:
 
 | after retries                       | MySQL     | Neo4j | TypeDB    |
 |-------------------------------------|-----------|-------|-----------|
@@ -104,7 +104,7 @@ to a failure that doesn't present itself.
 
 That reframes the question of which database to put behind an LLM. Raw first-shot accuracy
 favours the language with the most training data. But the number an application actually
-experiences is the silent-failure rate — how often a wrong answer arrives labelled as a right
-one — and on that number, the database that type-checks queries against its schema comes out
-ahead, before counting the accuracy that retries can buy back. A guarantee that wrong queries
-fail visibly, unlike helpful naming, survives messy real-world data.
+experiences is the silent-failure rate — how often a wrong answer arrives looking like a
+right one — and on that number, the database that type-checks queries against its schema
+comes out ahead, before counting the accuracy that retries can buy back. And unlike helpful
+naming, a guarantee that wrong queries fail visibly survives messy real-world data.

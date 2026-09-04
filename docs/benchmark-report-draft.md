@@ -47,8 +47,8 @@ expected answers, were authored by us for this dataset.
 A retry is triggered only by a failure the harness can observe: a syntax or execution error,
 a timeout, a malformed result shape, or a response containing no query. The error is fed back
 to the model with the conversation so far, up to the retry budget. A query that executes and
-returns a wrong answer is terminal — the harness does not know the answer is wrong, exactly
-as a real application would not.
+returns a wrong answer is terminal — the harness does not know the answer is wrong, any more
+than a real application would.
 
 ### Questions
 
@@ -77,8 +77,8 @@ wherever they appear.
 - **Skill on/off**: whether a query-writing skill (a markdown document teaching the language)
   is included in the prompt. We use each database's official or best publicly available
   skill: TypeDB's official TypeQL skill (~33KB), the Neo4j contrib Cypher skill (~21KB), and
-  a PostgreSQL best-practices skill (~11KB) — no comparable query-writing skill exists for
-  SQL, which is itself a data point. Two provenance mismatches are noted in §10.
+  a PostgreSQL best-practices skill (~11KB); no comparable query-writing skill exists for
+  SQL. Two provenance mismatches are noted in §9.
 - **Few-shot examples**: 0 or 5 worked question-and-query examples written for this dataset.
 - **Retry budget**: 0, 2 or 4.
 - **Repetitions**: 3 per combination.
@@ -159,12 +159,13 @@ And per model, bare configuration → fully resourced:
 
 Observations:
 
-- The bare-configuration spread is the training-data spread. DeepSeek with no resources and
+- The bare configuration measures what each model brings from its training data. DeepSeek
+  with no resources and
   no retries answered 0 of 117 answerable questions in TypeQL. Both models have effectively
   no working knowledge of TypeQL 3.x from pre-training.
 - The pooled skill effect is +40.6 points for TypeDB, +5.1 for MySQL and +6.9 for Neo4j. The
   examples effect is +53.0 for TypeDB, +9.0 for MySQL and +18.0 for Neo4j. TypeDB gains
-  several times more from the same interventions than either incumbent.
+  several times more than either of the other languages from the same additions.
 - Fully resourced, the ordering inverts for Sonnet: TypeDB 92.3% on answerable questions
   (92.9% including the unanswerable tier), against 82.9% for MySQL and 82.1% for Neo4j. For
   DeepSeek, TypeDB (85.5%) lands between MySQL (84.6%) and Neo4j (88.9%).
@@ -232,8 +233,8 @@ We classified every failing TypeQL first attempt by its TypeDB error code (scrip
 - **Truncation** ("no query in response") means the model hit its output-token limit before
   emitting a query. 137 of the 155 truncated first attempts are DeepSeek's, whose long
   reasoning precedes its answer; this is a model artifact, not a language one.
-- **Timeouts rise with resources** (1.3% → 7.3%) — more queries parse and execute, and some
-  execute too ambitiously.
+- **Timeouts rise with resources** (1.3% → 7.3%) — more queries parse and run, and some are
+  too expensive to finish in time.
 - Wrongly declaring an answerable question UNANSWERABLE disappears once examples are present.
 
 ## 7. Token usage
@@ -258,7 +259,7 @@ These are our readings of the data, not measurements.
   models and reverse it for one. For a team choosing a database to put behind an LLM, how
   well the language can be taught in context matters more than how much of it the model has
   already seen.
-- **Failure visibility follows from where the schema lives.** In TypeDB the schema
+- **Failure visibility follows from where the schema is enforced.** In TypeDB the schema
   participates in query compilation, so a structurally wrong query is rejected before it
   runs. In SQL and Cypher the schema constrains much less; structurally wrong queries execute
   and produce values. This is why retries — which can only act on observable failures — buy

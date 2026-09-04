@@ -12,8 +12,8 @@ We recently benchmarked LLM query generation across MySQL, Neo4j and TypeDB, ask
 Sonnet 5 and DeepSeek V4 Pro the same 42 natural-language questions against the Reactome
 pathway database in each store, and scoring the generated SQL, Cypher and TypeQL by executing
 it and checking the result. The full methodology and results are in the accompanying report;
-this piece is about one finding. The three languages don't just differ in how often they
-fail — they differ in *how* they fail, and the difference is structural.
+this piece is about one finding: each language has a characteristic way of failing, and it
+comes from the language, not the model.
 <!-- TODO: link the report at its published location -->
 
 ## When it fails, how does it fail?

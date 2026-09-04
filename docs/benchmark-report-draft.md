@@ -239,8 +239,8 @@ Observations:
 - The bare configuration measures what each model brings from its training data. DeepSeek
   with no resources and no retries answered 0 of 117 answerable questions in TypeQL. Both
   models have effectively no working knowledge of TypeQL 3.x from pre-training.
-- The pooled skill effect is +40.6 points for TypeDB, +5.1 for MySQL and +6.9 for Neo4j. The
-  examples effect is +53.0 for TypeDB, +9.0 for MySQL and +18.0 for Neo4j. TypeDB gains
+- The pooled skill effect is +40.6 points for TypeDB, +5.1 for MySQL and +6.8 for Neo4j. The
+  examples effect is +53.0 for TypeDB, +9.0 for MySQL and +17.9 for Neo4j. TypeDB gains
   several times more than either of the other languages from the same additions.
 - Fully resourced, the ordering inverts for Sonnet: TypeDB 92.3% on answerable questions
   (92.9% including the unanswerable tier), against 82.9% for MySQL and 82.1% for Neo4j. For

@@ -28,7 +28,7 @@ The main results:
    2–2.6× those of Cypher.
 
 Section 1 describes the benchmark, section 2 its limitations, and section 3 our
-interpretation; sections 4–9 give the data.
+interpretation; sections 4–10 give the data.
 
 ## 1. The benchmark
 
@@ -121,7 +121,7 @@ scored runs (504 at each retry budget).
 
 ## 3. Interpretation
 
-These are our readings of the data in sections 4–9, not measurements.
+These are our readings of the data in sections 4–10, not measurements.
 
 - **The TypeQL deficit is a training-data deficit, and it can be corrected.** The bare
   numbers measure what the models absorbed from pre-training; SQL's decades of corpus give it
@@ -143,15 +143,19 @@ These are our readings of the data in sections 4–9, not measurements.
   model. On data with less disciplined naming we would expect the failure-mode and
   polymorphism gaps to widen; measuring that is future work.
 
-## 4. Overall accuracy
+## 4. Fully-resourced accuracy
 
-Accuracy averaged over every variation (skill, examples, retry budget and repetitions). All
-42 questions count here, including the unanswerable tier:
+Accuracy with every resource present: skill, 5 examples and the full retry budget, averaged
+over repetitions. All 42 questions count here, including the unanswerable tier:
 
 | model           | MySQL | Neo4j | TypeDB |
 |-----------------|-------|-------|--------|
-| Claude Sonnet 5 | 76.3% | 68.7% | 68.2%  |
-| DeepSeek V4 Pro | 77.9% | 77.8% | 56.0%  |
+| Claude Sonnet 5 | 84.1% | 83.3% | 92.9%  |
+| DeepSeek V4 Pro | 85.7% | 89.7% | 86.5%  |
+
+This is each language at its best in this benchmark: TypeQL is the most accurate for Sonnet
+and second for DeepSeek. Averaged over every variation instead, the ordering reverses; the
+averages are in §10, and §7 breaks down how the languages travel between the two points.
 
 All three databases scored 100% on the unanswerable tier in every configuration, so that tier
 contributes no signal in this run; the remaining tables in this report exclude it and use
@@ -313,7 +317,21 @@ We classified every failing TypeQL first attempt by its TypeDB error code (scrip
   too expensive to finish in time.
 - Wrongly declaring an answerable question UNANSWERABLE disappears once examples are present.
 
-## 10. Reproducibility
+## 10. Average accuracy over all variations
+
+Accuracy averaged over every variation (skill, examples, retry budget and repetitions). As in
+§4, all 42 questions count, including the unanswerable tier:
+
+| model           | MySQL | Neo4j | TypeDB |
+|-----------------|-------|-------|--------|
+| Claude Sonnet 5 | 76.3% | 68.7% | 68.2%  |
+| DeepSeek V4 Pro | 77.9% | 77.8% | 56.0%  |
+
+Averaged this way, SQL leads and TypeQL trails. The average weights the resource-starved
+configurations equally with the resourced ones, and TypeQL loses far more than the other
+languages when resources are absent (§7).
+
+## 11. Reproducibility
 
 The benchmark runner, dataset build scripts, prompts, vendored skills, questions with
 per-language reference queries, the full results file for this run, and the analysis scripts

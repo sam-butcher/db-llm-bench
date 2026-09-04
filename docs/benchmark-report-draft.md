@@ -13,9 +13,9 @@ total.
 
 The main results:
 
-1. Averaged over all configurations, SQL is the most accurate target language (77–83%
-   depending on model); TypeQL trails badly for DeepSeek (65%) and is level with Cypher for
-   Sonnet (75%). The averages conceal large differences in how the languages respond to
+1. Averaged over all configurations, SQL is the most accurate target language (76–78%
+   depending on model); TypeQL trails badly for DeepSeek (56%) and is level with Cypher for
+   Sonnet (68%). The averages conceal large differences in how the languages respond to
    in-context help: with skill, examples and retries all present, TypeQL is the most accurate
    language for Claude Sonnet 5 (92.9%), the best single configuration in the benchmark.
 2. The languages fail differently. On first attempts, a failing TypeQL query surfaces as a
@@ -23,7 +23,7 @@ The main results:
    three times in five. This changes what a retry loop can achieve, and what reaches the
    application undetected.
 3. Question categories separate the languages. TypeDB leads on polymorphic questions (69% vs
-   48% for MySQL, pooled over all configurations) and trails badly on argmax (25% vs 96%).
+   48% for MySQL at the full retry budget) and trails badly on argmax (25% vs 96%).
 4. TypeQL costs more to run: roughly twice the output tokens of SQL for both models.
 
 Sections 2–7 give the data; section 8 gives our interpretation; section 9 lists the
@@ -88,13 +88,13 @@ scored runs (504 at each retry budget).
 
 ## 2. Overall accuracy
 
-Accuracy at the full retry budget, averaged over skill, examples and repetitions. All 42
-questions count here, including the unanswerable tier:
+Accuracy averaged over every variation — skill, examples, retry budget and repetitions. All
+42 questions count here, including the unanswerable tier:
 
 | model           | MySQL | Neo4j | TypeDB |
 |-----------------|-------|-------|--------|
-| Claude Sonnet 5 | 77.0% | 74.8% | 74.6%  |
-| DeepSeek V4 Pro | 82.7% | 80.6% | 64.9%  |
+| Claude Sonnet 5 | 76.3% | 68.7% | 68.2%  |
+| DeepSeek V4 Pro | 77.9% | 77.8% | 56.0%  |
 
 All three databases scored 100% on the unanswerable tier in every configuration, so that tier
 contributes no signal in this run; the remaining tables in this report exclude it and use

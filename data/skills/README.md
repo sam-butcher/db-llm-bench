@@ -10,7 +10,7 @@ vendored copy was taken from.
 
 | DB | Skill | Source | License |
 | --- | --- | --- | --- |
-| `typedb` | TypeQL (TypeDB 3.8+) | [typedb/typedb-skills `typeql.md`](https://github.com/typedb/typedb-skills/blob/fc20bccf7b279600170e33d9de85901b5983ed0b/typeql.md) (official) | first-party (no explicit license file) |
+| `typedb` | TypeQL (TypeDB 3.8+) | [typedb/typedb-skills `typeql.md`](https://github.com/typedb/typedb-skills/blob/ad68f806aa91dfd2ad0c67ffd6101215e6794eb2/typeql.md) (official) | first-party (no explicit license file) |
 | `neo4j` | Cypher 25 | [neo4j-contrib/neo4j-skills `neo4j-cypher-skill/SKILL.md`](https://github.com/neo4j-contrib/neo4j-skills/blob/bdbce1aadd5827d1acf69634f2bdc004b7f3692f/neo4j-cypher-skill/SKILL.md) | MIT |
 | `sql` | SQL queries (multi-dialect) | [anthropics/knowledge-work-plugins `data/skills/sql-queries/SKILL.md`](https://github.com/anthropics/knowledge-work-plugins/blob/2d6f7e22dd25593f0f748010430ef86f19659735/data/skills/sql-queries/SKILL.md) | Apache-2.0 |
 
@@ -19,11 +19,10 @@ Notes:
 - Only the top-level skill `.md` of each upstream is vendored (`load_skills`
   reads a skill folder non-recursively). The Neo4j upstream also ships a
   `references/` directory of deeper material not included here.
-- The vendored TypeQL skill matches the linked upstream commit exactly. The
-  `results-sonnet-deepseek` run used upstream
-  [`ad68f806`](https://github.com/typedb/typedb-skills/blob/ad68f806aa91dfd2ad0c67ffd6101215e6794eb2/typeql.md),
-  a working commit on the pull request later merged as the linked commit; that
-  exact file is in this repository's git history.
+- The vendored TypeQL skill matches the linked upstream commit exactly: a
+  working commit on the pull request later merged to upstream master as
+  `fc20bccf`. It is the exact file used for the `results-sonnet-deepseek` run,
+  and is kept as-is so the results stay reproducible.
 - The SQL skill originally vendored here was wimolivier/postgresql-best-practices;
   it was replaced with Anthropic's query-writing-focused `sql-queries` skill.
   That skill teaches analytical warehouse dialects (PostgreSQL, Snowflake,

@@ -705,7 +705,7 @@ fetch {
 
 ---
 
-## 8. Functions
+## 9. Functions
 
 Define reusable query logic in schema.
 
@@ -833,7 +833,7 @@ fetch {
 
 ---
 
-## 9. IID (Internal Identifier) Operations
+## 10. IID (Internal Identifier) Operations
 
 ```typeql
 # Match by IID (for direct lookups)
@@ -861,12 +861,12 @@ fetch {
 
 ---
 
-## 10. Rules (Inference)
+## 11. Rules (Inference)
 TypeDB 3.0 and on no longer uses rules, and uses only functions instead.
 
 ---
 
-## 11. Common Patterns
+## 12. Common Patterns
 
 Note: clauses like `match`, `insert`, `update`, and `delete` are not themselves terminated with a trailing semicolon — each statement within them already ends in `;`. The `fetch` clause is the exception: the closing `}` of the fetch object **must** be followed by a terminating `;`.
 
@@ -922,7 +922,7 @@ match
 
 ---
 
-## 12. Critical Pitfalls
+## 13. Critical Pitfalls
 
 ### TypeDB 3 relation syntax
 
@@ -1044,7 +1044,7 @@ match {
 
 ---
 
-## 13. CLI Notes
+## 14. CLI Notes
 
 ### Command Execution
 
@@ -1073,7 +1073,7 @@ commit
 
 ---
 
-## 14. Value Types Reference
+## 15. Value Types Reference
 
 | TypeQL Type   | Description            | Example Literal                        |
 | ------------- | ---------------------- | -------------------------------------- |
@@ -1102,7 +1102,7 @@ PT1H30M45S  = 1 hour, 30 minutes, 45 seconds
 
 ---
 
-## 15. Debugging Queries
+## 16. Debugging Queries
 
 ### Test Match Before Write
 
@@ -1184,7 +1184,7 @@ reduce $count = count;
   
 ---
 
-## 16. Complete Operator Reference
+## 17. Complete Operator Reference
 
 ### Comparison Operators
 
@@ -1237,11 +1237,3 @@ reduce $count = count;
 | `not`   | Negation                             |
 | `try`   | Optional pattern                     |
 
-## 17. Upcoming features
-
-The following features are planned for TypeQL, but have not yet been implemented. Attempting to use them will fail.
-
-- Lists (e.g. `[1, 2, 3, 4]`)
-- Structs (structured/composite data types)
-- Type aliases through the `alias` keyword
-- Cascading deletion through the `@cascade` annotation

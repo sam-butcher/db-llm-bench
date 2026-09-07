@@ -5,22 +5,30 @@ files in the folder) into the prompt's `{{skills}}` slot when a DB's config sets
 `skills: data/skills/<db>`, so the benchmark can measure skill-on vs skill-off.
 
 These are third-party skills, downloaded and included under their upstream
-licenses. Retrieved 2026-07 from HEAD of each repo.
+licenses. Each source link below is a permalink to the upstream commit the
+vendored copy was taken from.
 
 | DB | Skill | Source | License |
 | --- | --- | --- | --- |
-| `typedb` | TypeQL (TypeDB 3.8+) | [typedb/typedb-skills](https://github.com/typedb/typedb-skills) `typeql.md` (official) | first-party (no explicit license file) |
-| `neo4j` | Cypher 25 | [neo4j-contrib/neo4j-skills](https://github.com/neo4j-contrib/neo4j-skills) `neo4j-cypher-skill/SKILL.md` | MIT |
-| `sql` | PostgreSQL best practices | [wimolivier/postgresql-best-practices](https://github.com/wimolivier/postgresql-best-practices) `SKILL.md` | MIT |
+| `typedb` | TypeQL (TypeDB 3.8+) | [typedb/typedb-skills `typeql.md`](https://github.com/typedb/typedb-skills/blob/ad9a9c364bcac5293afd2e4e6b41c191be45e9ac/typeql.md) (official) | first-party (no explicit license file) |
+| `neo4j` | Cypher 25 | [neo4j-contrib/neo4j-skills `neo4j-cypher-skill/SKILL.md`](https://github.com/neo4j-contrib/neo4j-skills/blob/bdbce1aadd5827d1acf69634f2bdc004b7f3692f/neo4j-cypher-skill/SKILL.md) | MIT |
+| `sql` | SQL queries (multi-dialect) | [anthropics/knowledge-work-plugins `data/skills/sql-queries/SKILL.md`](https://github.com/anthropics/knowledge-work-plugins/blob/2d6f7e22dd25593f0f748010430ef86f19659735/data/skills/sql-queries/SKILL.md) | Apache-2.0 |
 
 Notes:
 
-- Only the top-level `SKILL.md` of each upstream skill is vendored (`load_skills`
-  reads a skill folder non-recursively). The Neo4j and PostgreSQL upstreams also
-  ship a `references/` directory of deeper material not included here.
-- The Neo4j and TypeQL skills are query-writing-focused. A comparable "write
-  correct SELECT queries" skill barely exists for SQL (LLMs already write SQL
-  well), so the PostgreSQL skill leans toward schema-design and best-practices.
+- Only the top-level skill `.md` of each upstream is vendored (`load_skills`
+  reads a skill folder non-recursively). The Neo4j upstream also ships a
+  `references/` directory of deeper material not included here.
+- The vendored TypeQL skill is lightly adapted from the linked upstream commit:
+  features the current server does not implement are removed, and two worked
+  examples (continuing a pipeline after `reduce`, string concatenation) are
+  added. Upstream has since made similar changes.
+- The SQL skill originally vendored here was wimolivier/postgresql-best-practices;
+  it was replaced with Anthropic's query-writing-focused `sql-queries` skill.
+  That skill teaches analytical warehouse dialects (PostgreSQL, Snowflake,
+  BigQuery, Redshift, Databricks) and does not cover MySQL, the engine this
+  dataset runs on; no database-specific SQL skill comparable to the TypeQL and
+  Cypher ones exists.
 - The Neo4j skill targets Cypher 25 (Neo4j 2025.x+) and tells the model to open
   every query with `CYPHER 25`; the benchmark server is Neo4j 5.26, which
   rejects that preamble. No comparably sourced, licensed Cypher-5 skill exists

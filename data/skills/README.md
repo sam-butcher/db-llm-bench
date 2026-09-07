@@ -20,9 +20,10 @@ Notes:
   reads a skill folder non-recursively). The Neo4j upstream also ships a
   `references/` directory of deeper material not included here.
 - The vendored TypeQL skill matches the linked upstream commit exactly. The
-  `results-sonnet-deepseek` run used an earlier, locally adapted copy (upstream
-  `ad9a9c36` with unimplemented features removed and two worked examples added,
-  changes upstream has since incorporated); that exact file is in git history.
+  `results-sonnet-deepseek` run used upstream
+  [`ad68f806`](https://github.com/typedb/typedb-skills/blob/ad68f806aa91dfd2ad0c67ffd6101215e6794eb2/typeql.md),
+  a working commit on the pull request later merged as the linked commit; that
+  exact file is in this repository's git history.
 - The SQL skill originally vendored here was wimolivier/postgresql-best-practices;
   it was replaced with Anthropic's query-writing-focused `sql-queries` skill.
   That skill teaches analytical warehouse dialects (PostgreSQL, Snowflake,

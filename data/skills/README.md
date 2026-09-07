@@ -19,13 +19,7 @@ Notes:
 - Only the top-level skill `.md` of each upstream is vendored (`load_skills`
   reads a skill folder non-recursively). The Neo4j upstream also ships a
   `references/` directory of deeper material not included here.
-- The vendored TypeQL skill matches the linked upstream commit exactly: a
-  working commit on the pull request later merged to upstream master as
-  `fc20bccf`. It is the exact file used for the `results-sonnet-deepseek` run,
-  and is kept as-is so the results stay reproducible.
-- The SQL skill originally vendored here was wimolivier/postgresql-best-practices;
-  it was replaced with Anthropic's query-writing-focused `sql-queries` skill.
-  That skill teaches analytical warehouse dialects (PostgreSQL, Snowflake,
+- The SQL skill teaches analytical warehouse dialects (PostgreSQL, Snowflake,
   BigQuery, Redshift, Databricks) and does not cover MySQL, the engine this
   dataset runs on; no database-specific SQL skill comparable to the TypeQL and
   Cypher ones exists.

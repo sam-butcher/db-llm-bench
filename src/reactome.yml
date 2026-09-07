@@ -12,8 +12,7 @@
 #
 # The schema slot carries the complete schema of each DB (~15.6k est. tokens
 # of DDL for MySQL, ~23k for Neo4j), so navigating a schema too large to hold
-# comfortably in working memory is part of what this dataset measures. See
-# docs/dataset-selection-large-schema.md.
+# comfortably in working memory is part of what this dataset measures.
 dbs:
   - typedb:
       prompts: data/prompts/typedb.txt

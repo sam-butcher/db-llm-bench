@@ -4,9 +4,8 @@
 # written to balance the language bias of the baseline set — two that lean on
 # window-style aggregation (Cypher's home ground) and ten on the type system,
 # n-ary facts and the attribute hierarchy (TypeQL's). questions.json carries
-# them too; this file exists so they can be run in isolation. See
-# docs/dataset-selection-large-schema.md for the baseline; the DB block below
-# is identical to reactome.yml so the two runs are comparable.
+# them too; this file exists so they can be run in isolation. The DB block
+# below is identical to reactome.yml so the two runs are comparable.
 #
 # Prereqs:
 #   1. Seed the Reactome stack (restores both dumps, then exports into TypeDB):

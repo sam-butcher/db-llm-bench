@@ -11,4 +11,3 @@ Individual sub-component READMEs are available in
 - [databases](databases/README.md) - the `docker compose` stack that loads it
 - [src](src/README.md) - the benchmark runner
 - [analysis](analysis/README.md) - scripts for summarising a results file
-- [docs](docs/) - how the dataset and models were selected

@@ -16,9 +16,10 @@ runs, to show whether in-context resources reduce the error rate itself (fewer
 invalid queries) or merely shift failures between loud and silent.
 
 Only answerable questions count: an unanswerable question has no wrong-answer
-failure mode. All tables pool models; pass model=<substring> to filter.
+failure mode. All tables pool models and variations; pass model=<substring>,
+skills=on|off and/or examples=<n> to narrow them.
 
-Usage: analysis/failure_modes.py [results.json] [model=<substring>]
+Usage: analysis/failure_modes.py [results.json] [model=<substring>] [skills=on|off] [examples=<n>]
 """
 import os
 import sys
@@ -33,25 +34,36 @@ def pct(n, total):
 
 def main():
     args = sys.argv[1:]
-    model_filter = None
+    filters = {}
     paths = []
     for a in args:
-        if a.startswith("model="):
-            model_filter = a.split("=", 1)[1]
+        if "=" in a:
+            k, v = a.split("=", 1)
+            if k not in ("model", "skills", "examples"):
+                sys.exit(f"unknown filter {k!r}; expected model=, skills= or examples=")
+            filters[k] = v
         else:
             paths.append(a)
     path = paths[0] if paths else "results-reactome.json"
 
     records = [r for r in C.load_records(path) if not r["unanswerable"]]
-    if model_filter:
-        records = [r for r in records if model_filter in r["model"]]
+    if "model" in filters:
+        records = [r for r in records if filters["model"] in r["model"]]
+    if "skills" in filters:
+        want = filters["skills"].lower() == "on"
+        records = [r for r in records if bool(r["skills"]) == want]
+    if "examples" in filters:
+        records = [r for r in records if str(r["examples"]) == filters["examples"]]
     if not records:
-        sys.exit(f"no records in {path}")
+        sys.exit(f"no records in {path} match the filters")
     dbs = sorted({r["db"] for r in records})
     max_retry = max(r["maxRetries"] for r in records)
 
-    print(f"{path}  (answerable questions; models pooled"
-          + (f", filtered to *{model_filter}*" if model_filter else "") + ")\n")
+    desc = ["answerable questions"]
+    desc.append(f"model *{filters['model']}*" if "model" in filters else "models pooled")
+    desc.append(f"skills {filters['skills']}" if "skills" in filters else "skills pooled")
+    desc.append(f"{filters['examples']} examples" if "examples" in filters else "example counts pooled")
+    print(f"{path}  ({'; '.join(desc)})\n")
 
     print("First attempt (retry level 0): how the failing runs fail")
     rows = []
@@ -79,7 +91,7 @@ def main():
     print("\nFirst attempt by variation: all runs")
     rows = []
     for db in dbs:
-        for skills in (False, True):
+        for skills in sorted({r["skills"] for r in records}):
             for examples in sorted({r["examples"] for r in records}):
                 runs = [r for r in records
                         if r["db"] == db and r["maxRetries"] == 0
